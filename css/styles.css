@@ -1,0 +1,227 @@
+/* ============ Кузница Тела · токены ============ */
+:root {
+  --ink: #100f0d;          /* тёплый чёрный, фон */
+  --panel: #191713;        /* панели */
+  --panel-2: #201d18;      /* приподнятые панели */
+  --line: rgba(201, 169, 97, 0.20);
+  --line-strong: rgba(201, 169, 97, 0.45);
+  --gold: #c9a961;         /* приглушённое золото */
+  --gold-bright: #e8cd82;
+  --bone: #eae3d1;         /* основной текст */
+  --dim: #8d8677;          /* вторичный текст */
+  --ember: #b4543a;        /* провал / опасность */
+  --moss: #7d9464;         /* лёгкий успех-оттенок */
+  --r: 10px;
+  --font-display: "Cormorant", serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { font-size: 16px; }
+body {
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--font-body);
+  line-height: 1.55;
+  min-height: 100dvh;
+  background-image:
+    radial-gradient(1200px 500px at 50% -10%, rgba(201,169,97,.06), transparent 60%),
+    radial-gradient(800px 400px at 50% 110%, rgba(180,84,58,.04), transparent 60%);
+}
+
+#app { max-width: 520px; margin: 0 auto; padding: 20px 16px calc(88px + env(safe-area-inset-bottom)); }
+
+/* ---------- типографика ---------- */
+.display { font-family: var(--font-display); font-weight: 600; letter-spacing: .06em; }
+h1.display { font-size: 1.9rem; line-height: 1.15; }
+h2.display { font-size: 1.35rem; }
+.eyebrow {
+  font-size: .68rem; letter-spacing: .28em; text-transform: uppercase;
+  color: var(--gold); font-weight: 600;
+}
+.dim { color: var(--dim); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.small { font-size: .8rem; }
+
+/* руна-разделитель */
+.rune-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--gold); opacity: .8; }
+.rune-divider::before, .rune-divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--line-strong)); }
+.rune-divider::after { background: linear-gradient(90deg, var(--line-strong), transparent); }
+.rune-divider svg { width: 14px; height: 14px; fill: currentColor; }
+
+/* ---------- панели ---------- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 16px;
+  position: relative;
+}
+.panel + .panel, .panel + .section, .section + .panel { margin-top: 14px; }
+.panel--ornate { border-color: var(--line-strong); }
+.panel--ornate::before, .panel--ornate::after {
+  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
+  border-color: var(--gold); border-style: solid;
+}
+.panel--ornate::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; border-top-left-radius: var(--r); }
+.panel--ornate::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; border-bottom-right-radius: var(--r); }
+
+/* ---------- герой / профиль ---------- */
+.hero-head { text-align: center; padding: 8px 0 4px; }
+.hero-name { margin-top: 2px; }
+.hero-title { color: var(--gold); font-style: italic; font-family: var(--font-display); font-size: 1.02rem; }
+
+.level-ring { width: 118px; height: 118px; margin: 14px auto 6px; position: relative; }
+.level-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.level-ring .lvl {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+}
+.level-ring .lvl b { font-family: var(--font-display); font-size: 2.1rem; font-weight: 700; color: var(--gold-bright); line-height: 1; }
+.level-ring .lvl span { font-size: .62rem; letter-spacing: .2em; color: var(--dim); text-transform: uppercase; }
+
+.statgrid { display: grid; gap: 10px; margin-top: 8px; }
+.stat { display: grid; grid-template-columns: 92px 1fr 44px; align-items: center; gap: 10px; }
+.stat .label { font-size: .72rem; letter-spacing: .14em; color: var(--dim); text-transform: uppercase; }
+.stat .bar { height: 7px; background: #0c0b09; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+.stat .bar i { display: block; height: 100%; background: linear-gradient(90deg, #8a713e, var(--gold), var(--gold-bright)); border-radius: 99px; transition: width .8s cubic-bezier(.2,.8,.2,1); }
+.stat .val { text-align: right; color: var(--gold); font-weight: 600; }
+
+.kv { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: .9rem; }
+.kv:last-child { border-bottom: 0; }
+
+/* ---------- цикл / недели ---------- */
+.week-block { margin-top: 18px; }
+.week-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--gold);
+}
+.week-tag .dot { width: 5px; height: 5px; transform: rotate(45deg); background: var(--gold); }
+.week-tag.vol { color: var(--moss); }
+.week-tag.vol .dot { background: var(--moss); }
+
+.wcard {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 14px 16px; margin-top: 10px; color: inherit; font: inherit;
+  transition: border-color .2s, transform .15s;
+}
+.wcard:active { transform: scale(.985); }
+.wcard:focus-visible, .tab:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.wcard .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.wcard .boss { font-family: var(--font-display); font-size: 1.12rem; font-weight: 600; letter-spacing: .03em; }
+.wcard .sub { color: var(--dim); font-size: .82rem; margin-top: 2px; }
+.wcard.done { border-color: var(--line-strong); background: linear-gradient(180deg, rgba(201,169,97,.05), transparent); }
+.wcard .verdict-chip { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.verdict-gold { color: var(--gold-bright); }
+.verdict-mid { color: var(--dim); }
+.verdict-fail { color: var(--ember); }
+
+/* ---------- экран тренировки ---------- */
+.topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.back-btn {
+  background: none; border: 1px solid var(--line); color: var(--bone);
+  width: 38px; height: 38px; border-radius: 8px; display: grid; place-content: center; cursor: pointer;
+}
+.back-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+.ex {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  margin-top: 10px; overflow: hidden;
+}
+.ex.main-ex { border-color: var(--line-strong); background: linear-gradient(180deg, rgba(201,169,97,.07), var(--panel) 55%); }
+.ex-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 13px 14px; cursor: pointer; width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: left; }
+.ex-head .name { font-weight: 600; font-size: .95rem; }
+.ex-head .plan { color: var(--dim); font-size: .78rem; margin-top: 2px; }
+.main-badge { font-size: .6rem; letter-spacing: .18em; color: var(--gold-bright); text-transform: uppercase; border: 1px solid var(--line-strong); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+.ex-status { font-size: .78rem; color: var(--dim); white-space: nowrap; }
+.ex-status.ok { color: var(--gold); }
+
+.ex-body { padding: 0 14px 14px; display: none; }
+.ex.open .ex-body { display: block; }
+.set-row { display: grid; grid-template-columns: 30px 1fr 1fr 38px; gap: 8px; align-items: center; margin-top: 8px; }
+.set-row .idx { color: var(--dim); font-size: .78rem; text-align: center; }
+.set-row input {
+  width: 100%; background: #0c0b09; border: 1px solid var(--line); color: var(--bone);
+  border-radius: 8px; padding: 10px 10px; font-family: var(--font-mono); font-size: .95rem; text-align: center;
+}
+.set-row input:focus { border-color: var(--gold); outline: none; }
+.set-row .del { background: none; border: 0; color: var(--dim); font-size: 1.1rem; cursor: pointer; }
+.add-set {
+  margin-top: 10px; width: 100%; background: none; border: 1px dashed var(--line-strong);
+  color: var(--gold); padding: 9px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .85rem;
+}
+.set-labels { display: grid; grid-template-columns: 30px 1fr 1fr 38px; gap: 8px; margin-top: 10px; }
+.set-labels span { font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); text-align: center; }
+
+.finish-btn {
+  margin-top: 18px; width: 100%; padding: 15px;
+  background: linear-gradient(180deg, #b3934f, #8f7439);
+  color: #171307; border: 1px solid var(--gold-bright); border-radius: var(--r);
+  font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: .12em; text-transform: uppercase;
+  cursor: pointer;
+}
+.finish-btn:active { filter: brightness(.92); }
+
+/* ---------- вердикт-оверлей ---------- */
+.overlay {
+  position: fixed; inset: 0; background: rgba(10, 9, 7, .92); backdrop-filter: blur(4px);
+  display: grid; place-content: center; text-align: center; padding: 24px; z-index: 50;
+  animation: fadein .4s ease-out;
+}
+.overlay .v-title {
+  font-family: var(--font-display); font-size: 2rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+  animation: risein .9s cubic-bezier(.2,.8,.2,1);
+}
+.overlay .v-sub { color: var(--dim); margin-top: 10px; max-width: 320px; }
+.overlay .v-xp { margin-top: 18px; color: var(--gold-bright); font-family: var(--font-mono); font-size: 1.05rem; }
+.overlay .v-close {
+  margin-top: 28px; background: none; border: 1px solid var(--line-strong); color: var(--bone);
+  padding: 11px 30px; border-radius: 8px; cursor: pointer; font: inherit; letter-spacing: .1em;
+}
+.overlay .seal { width: 86px; height: 86px; margin: 0 auto 16px; }
+.overlay .seal svg { width: 100%; height: 100%; }
+@keyframes fadein { from { opacity: 0; } }
+@keyframes risein { from { opacity: 0; transform: translateY(18px) scale(.96); } }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- прогресс ---------- */
+.chart-card .head { display: flex; justify-content: space-between; align-items: baseline; }
+.chart-card .delta { font-family: var(--font-mono); font-size: .85rem; }
+.delta.up { color: var(--gold-bright); }
+.delta.flat { color: var(--dim); }
+.sparkline { width: 100%; height: 64px; margin-top: 8px; }
+.sparkline path.line { fill: none; stroke: var(--gold); stroke-width: 2; }
+.sparkline path.area { fill: url(#goldfade); opacity: .5; }
+.sparkline circle { fill: var(--gold-bright); }
+
+.log-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: .85rem; align-items: baseline; }
+.log-row:last-child { border-bottom: 0; }
+
+/* ---------- таббар ---------- */
+.tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+  display: flex; justify-content: center; gap: 4px;
+  background: rgba(16, 15, 13, .88); backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+}
+.tab {
+  flex: 1; max-width: 160px; background: none; border: 0; color: var(--dim);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-family: var(--font-body); font-size: .64rem; letter-spacing: .14em; text-transform: uppercase;
+  padding: 6px 0; cursor: pointer; border-radius: 8px;
+}
+.tab svg { width: 21px; height: 21px; fill: currentColor; }
+.tab.active { color: var(--gold-bright); }
+
+/* ---------- утилиты ---------- */
+.btn-ghost {
+  background: none; border: 1px solid var(--line); color: var(--bone);
+  padding: 10px 14px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .85rem; width: 100%;
+}
+.btn-ghost + .btn-ghost { margin-top: 8px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.empty { text-align: center; color: var(--dim); padding: 26px 10px; font-size: .9rem; }
