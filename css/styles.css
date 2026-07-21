@@ -1,17 +1,25 @@
-/* ============ Кузница Тела · токены ============ */
+/* ============ Кузница Тела · токены (тёмное фэнтези: золото на камне) ============ */
 :root {
-  --ink: #100f0d;          /* тёплый чёрный, фон */
-  --panel: #191713;        /* панели */
-  --panel-2: #201d18;      /* приподнятые панели */
-  --line: rgba(201, 169, 97, 0.20);
-  --line-strong: rgba(201, 169, 97, 0.45);
+  --ink: #0c0b09;          /* глубокий тёплый чёрный, фон */
+  --ink-2: #14110c;
+  --panel: #191510;        /* панели */
+  --panel-2: #221d15;      /* приподнятые панели */
+  --line: rgba(201, 169, 97, 0.22);
+  --line-strong: rgba(201, 169, 97, 0.50);
   --gold: #c9a961;         /* приглушённое золото */
-  --gold-bright: #e8cd82;
-  --bone: #eae3d1;         /* основной текст */
-  --dim: #8d8677;          /* вторичный текст */
+  --gold-bright: #e9d493;
+  --gold-deep: #8a6d38;
+  --bone: #ece4d0;         /* основной текст */
+  --dim: #938b78;          /* вторичный текст */
   --ember: #b4543a;        /* провал / опасность */
-  --moss: #7d9464;         /* лёгкий успех-оттенок */
+  --moss: #8aa06a;         /* лёгкий успех-оттенок */
   --r: 10px;
+  /* металлическое золото для кнопок/акцентов */
+  --metal-gold: linear-gradient(180deg, #f0d79c 0%, #d4b264 34%, #b0894a 62%, #d9bd76 100%);
+  --emboss: 0 1px 0 rgba(0,0,0,.6), 0 -1px 0 rgba(255,235,180,.06);
+  --bevel: inset 0 1px 0 rgba(233,212,147,.14), inset 0 -1px 0 rgba(0,0,0,.5), inset 0 0 0 1px rgba(0,0,0,.25);
+  --tex-leather: url("../assets/textures/leather.svg");
+  --tex-grain: url("../assets/textures/grain.svg");
   --font-display: "Cormorant", serif;
   --font-body: "Manrope", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
@@ -20,65 +28,89 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html { font-size: 16px; }
 body {
-  background: var(--ink);
+  background-color: var(--ink);
   color: var(--bone);
   font-family: var(--font-body);
   line-height: 1.55;
   min-height: 100dvh;
   background-image:
-    radial-gradient(1200px 500px at 50% -10%, rgba(201,169,97,.08), transparent 60%),
-    radial-gradient(800px 400px at 50% 110%, rgba(180,84,58,.05), transparent 60%),
-    repeating-linear-gradient(45deg, rgba(201,169,97,.018) 0 1px, transparent 1px 26px),
-    repeating-linear-gradient(-45deg, rgba(201,169,97,.018) 0 1px, transparent 1px 26px);
+    radial-gradient(1100px 560px at 50% -12%, rgba(201,169,97,.14), transparent 62%),
+    radial-gradient(760px 420px at 50% 116%, rgba(180,84,58,.06), transparent 60%),
+    linear-gradient(180deg, #14110b 0%, #0c0b09 42%, #090806 100%);
 }
-/* зернистая текстура-оверлей поверх фона (пергамент/выделанная кожа) */
+/* фактура выделанной кожи/камня — «материал» под интерфейсом */
 body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  opacity: .05; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background-image: var(--tex-leather); background-size: 520px 520px;
+  opacity: .5; mix-blend-mode: soft-light;
 }
-/* виньетка по краям для «глубины» */
+/* мелкое зерно + виньетка для глубины */
 body::after {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  box-shadow: inset 0 0 180px rgba(0,0,0,.55);
+  background-image: var(--tex-grain); background-size: 200px 200px;
+  opacity: .04; mix-blend-mode: overlay;
+  box-shadow: inset 0 0 200px rgba(0,0,0,.62), inset 0 0 60px rgba(0,0,0,.4);
 }
 
-#app { max-width: 520px; margin: 0 auto; padding: 20px 16px calc(88px + env(safe-area-inset-bottom)); }
+#app { max-width: 520px; margin: 0 auto; padding: 20px 16px calc(90px + env(safe-area-inset-bottom)); position: relative; z-index: 0; }
 
 /* ---------- типографика ---------- */
 .display { font-family: var(--font-display); font-weight: 600; letter-spacing: .06em; }
-h1.display { font-size: 1.9rem; line-height: 1.15; }
-h2.display { font-size: 1.35rem; }
+h1.display, h2.display {
+  background: linear-gradient(180deg, #f3e2b4, #cba85f 55%, #a9834a);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 12px rgba(201,169,97,.12));
+}
+h1.display { font-size: 2rem; line-height: 1.12; }
+h2.display { font-size: 1.4rem; }
 .eyebrow {
-  font-size: .68rem; letter-spacing: .28em; text-transform: uppercase;
-  color: var(--gold); font-weight: 600;
+  font-size: .68rem; letter-spacing: .3em; text-transform: uppercase;
+  color: var(--gold); font-weight: 600; text-shadow: 0 1px 0 rgba(0,0,0,.5);
 }
 .dim { color: var(--dim); }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .small { font-size: .8rem; }
 
-/* руна-разделитель */
-.rune-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--gold); opacity: .8; }
-.rune-divider::before, .rune-divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--line-strong)); }
-.rune-divider::after { background: linear-gradient(90deg, var(--line-strong), transparent); }
-.rune-divider svg { width: 14px; height: 14px; fill: currentColor; }
+/* филигрань-разделитель (золочёный орнамент) */
+:root { --tex-filigree: url("../assets/textures/filigree.svg"); }
+.rune-divider { margin: 22px 0; height: 20px;
+  background: center / auto 20px no-repeat var(--tex-filigree);
+  filter: drop-shadow(0 0 6px rgba(201,169,97,.25)); }
+.rune-divider svg { display: none; }
 
-/* ---------- панели ---------- */
+/* ---------- панели (рельеф + фактура) ---------- */
 .panel {
-  background: var(--panel);
+  background:
+    linear-gradient(180deg, rgba(233,212,147,.05), transparent 40%),
+    var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r);
   padding: 16px;
   position: relative;
+  box-shadow: var(--bevel), 0 6px 18px rgba(0,0,0,.35);
+}
+/* фактура кожи на панелях */
+.panel::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background-image: var(--tex-leather); background-size: 360px 360px;
+  opacity: .06; mix-blend-mode: overlay;
 }
 .panel + .panel, .panel + .section, .section + .panel { margin-top: 14px; }
 .panel--ornate { border-color: var(--line-strong); }
-.panel--ornate::before, .panel--ornate::after {
-  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
-  border-color: var(--gold); border-style: solid;
+/* золочёные уголки-скобки по всем четырём углам */
+.panel--ornate::before {
+  content: ""; position: absolute; inset: 4px; pointer-events: none; z-index: 1; border-radius: 6px;
+  background:
+    linear-gradient(var(--gold), var(--gold)) top left / 13px 1.5px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) top left / 1.5px 13px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) top right / 13px 1.5px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) top right / 1.5px 13px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) bottom left / 13px 1.5px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) bottom left / 1.5px 13px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) bottom right / 13px 1.5px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) bottom right / 1.5px 13px no-repeat;
+  filter: drop-shadow(0 0 3px rgba(201,169,97,.5));
 }
-.panel--ornate::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; border-top-left-radius: var(--r); }
-.panel--ornate::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; border-bottom-right-radius: var(--r); }
 
 /* ---------- герой / профиль ---------- */
 .hero-head { text-align: center; padding: 8px 0 4px; }
@@ -119,13 +151,14 @@ h2.display { font-size: 1.35rem; }
 
 /* медальон с иконкой тренировки */
 .medallion {
-  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%;
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%;
   display: grid; place-content: center; color: var(--gold-bright);
-  background: radial-gradient(circle at 50% 35%, rgba(201,169,97,.22), rgba(12,11,9,.6));
+  background: radial-gradient(circle at 50% 30%, rgba(233,212,147,.32), rgba(20,16,10,.85) 78%);
   border: 1px solid var(--line-strong);
-  box-shadow: inset 0 1px 0 rgba(232,205,130,.25), 0 2px 8px rgba(0,0,0,.35);
+  box-shadow: inset 0 1px 1px rgba(255,240,200,.35), inset 0 -3px 6px rgba(0,0,0,.5),
+    inset 0 0 0 1px rgba(201,169,97,.15), 0 3px 10px rgba(0,0,0,.4);
 }
-.medallion .ico { width: 23px; height: 23px; }
+.medallion .ico { width: 24px; height: 24px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
 .medallion--lg { width: 52px; height: 52px; }
 .medallion--lg .ico { width: 29px; height: 29px; }
 
@@ -188,12 +221,14 @@ h2.display { font-size: 1.35rem; }
 
 .finish-btn {
   margin-top: 18px; width: 100%; padding: 15px;
-  background: linear-gradient(180deg, #b3934f, #8f7439);
-  color: #171307; border: 1px solid var(--gold-bright); border-radius: var(--r);
-  font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: .12em; text-transform: uppercase;
+  background: var(--metal-gold);
+  color: #241a08; border: 1px solid #f0d79c; border-radius: var(--r);
+  font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: .14em; text-transform: uppercase;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,246,220,.7), inset 0 -2px 4px rgba(120,80,20,.45), 0 4px 14px rgba(0,0,0,.4);
+  text-shadow: 0 1px 0 rgba(255,246,220,.4);
 }
-.finish-btn:active { filter: brightness(.92); }
+.finish-btn:active { filter: brightness(.94); transform: translateY(1px); }
 
 /* ---------- вердикт-оверлей ---------- */
 .overlay {
@@ -232,22 +267,39 @@ h2.display { font-size: 1.35rem; }
 .log-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: .85rem; align-items: baseline; }
 .log-row:last-child { border-bottom: 0; }
 
-/* ---------- таббар ---------- */
+/* ---------- таббар (гравированная золочёная панель) ---------- */
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-  display: flex; justify-content: center; gap: 4px;
-  background: rgba(16, 15, 13, .88); backdrop-filter: blur(10px);
-  border-top: 1px solid var(--line);
+  display: flex; justify-content: center; gap: 2px;
+  background:
+    linear-gradient(180deg, rgba(233,212,147,.06), transparent 30%),
+    linear-gradient(180deg, #171310, #0d0b08);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line-strong);
+  box-shadow: 0 -1px 0 rgba(0,0,0,.6), 0 -10px 26px rgba(0,0,0,.45);
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
 }
 .tab {
+  position: relative;
   flex: 1; max-width: 160px; background: none; border: 0; color: var(--dim);
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  font-family: var(--font-body); font-size: .64rem; letter-spacing: .14em; text-transform: uppercase;
-  padding: 6px 0; cursor: pointer; border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-family: var(--font-body); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  padding: 7px 0 5px; cursor: pointer; border-radius: 8px;
 }
-.tab svg { width: 21px; height: 21px; fill: currentColor; }
-.tab.active { color: var(--gold-bright); }
+.tab .tab-ico { display: grid; place-content: center; }
+.tab .tab-ico .ico, .tab svg { width: 24px; height: 24px; fill: currentColor;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+.tab.active {
+  color: var(--gold-bright);
+  background: radial-gradient(60% 80% at 50% 30%, rgba(201,169,97,.14), transparent 70%);
+}
+.tab.active .tab-ico .ico { filter: drop-shadow(0 0 8px rgba(233,212,147,.6)) drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+/* золотая метка над активной вкладкой */
+.tab.active::before {
+  content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 26px; height: 2px; border-radius: 2px;
+  background: var(--metal-gold); box-shadow: 0 0 8px rgba(233,212,147,.7);
+}
 
 /* ---------- баффы ---------- */
 .buff-reminder {
@@ -267,9 +319,10 @@ h2.display { font-size: 1.35rem; }
 .buff-reminder.due .br-ico { color: var(--ember); animation: pulse 2s ease-in-out infinite; }
 .buff-reminder.due .br-body b { color: var(--gold-bright); }
 .buff-reminder .br-ok {
-  flex: 0 0 auto; background: linear-gradient(180deg, #b3934f, #8f7439); color: #171307;
-  border: 1px solid var(--gold-bright); border-radius: 8px; padding: 9px 14px;
-  font: inherit; font-weight: 600; font-size: .82rem; cursor: pointer;
+  flex: 0 0 auto; background: var(--metal-gold); color: #241a08;
+  border: 1px solid #f0d79c; border-radius: 8px; padding: 9px 14px;
+  font: inherit; font-weight: 700; font-size: .82rem; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,246,220,.6), inset 0 -1px 3px rgba(120,80,20,.4);
 }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 
