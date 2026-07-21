@@ -488,7 +488,7 @@ function renderWorkout(wid) {
 
   document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; render(); });
 
-  const anSeries = buildLiftSeries(); // история завершённых квестов для целей потолка/пола
+  const movSeries = buildMovementSeries(); // история по каждому движению для целей потолка/пола
   const list = document.getElementById("ex-list");
   w.exercises.forEach((ex, i) => {
     const el = document.createElement("div");
@@ -499,7 +499,7 @@ function renderWorkout(wid) {
         <span>
           <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}
           <div class="plan">План: ${ex.scheme} · ${ex.wNote || `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`}</div>
-          ${ex.lift ? exTargetHTML(ex, analyzeLift(anSeries[ex.lift])) : ""}
+          ${(ex.main || ex.lift) ? exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)])) : ""}
         </span>
         <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length ? saved.length + " подх." : "0 / " + ex.sets}</span>
       </button>
@@ -1144,6 +1144,29 @@ function buildLiftSeries() {
       const ceil = Math.max(...work.map((x) => e1rmAvg(x.w, x.r)));
       const floor = Math.min(...work.map((x) => e1rmAvg(x.w, x.r)));
       series[lift] && series[lift].push({ date: s.date, ceil, floor });
+    }
+  }
+  return series;
+}
+// Ключ движения: базовый лифт (bench/squat/deadlift/ohp) либо id упражнения.
+// Так история потолка/пола копится по ОДНОМУ движению между разными квестами.
+const movementKey = (ex) => ex.lift || ex.id;
+function buildMovementSeries() {
+  const series = {};
+  const sorted = [...S.sessions].sort((a, b) => a.date.localeCompare(b.date));
+  for (const s of sorted) {
+    const w = WORKOUTS[s.workoutId]; if (!w) continue;
+    const perKey = {};
+    w.exercises.forEach((ex) => {
+      const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
+      if (sets.length) (perKey[movementKey(ex)] ||= []).push(...sets);
+    });
+    for (const [key, sets] of Object.entries(perKey)) {
+      const topW = Math.max(...sets.map((x) => x.w));
+      const work = sets.filter((x) => x.w >= topW * AN.WORKSET);
+      const ceil = Math.max(...work.map((x) => e1rmAvg(x.w, x.r)));
+      const floor = Math.min(...work.map((x) => e1rmAvg(x.w, x.r)));
+      (series[key] ||= []).push({ date: s.date, ceil, floor });
     }
   }
   return series;
