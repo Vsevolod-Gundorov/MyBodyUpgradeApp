@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#100f0d" />
-  <title>Body Upgrade — Кузница Тела</title>
+  <meta name="theme-color" content="#06090b" />
+  <title>Solo Win — прокачай героя</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -14,11 +14,11 @@
   <div id="app" aria-live="polite"></div>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab" data-view="profile" data-icon="helm" aria-label="Профиль">
-      <span class="tab-ico"></span><span>Герой</span>
+    <button class="tab" data-view="profile" data-icon="helm" aria-label="Персонаж">
+      <span class="tab-ico"></span><span>Персонаж</span>
     </button>
-    <button class="tab" data-view="cycle" data-icon="anvil" aria-label="Цикл">
-      <span class="tab-ico"></span><span>Кузница</span>
+    <button class="tab" data-view="cycle" data-icon="sword" aria-label="Квесты">
+      <span class="tab-ico"></span><span>Квесты</span>
     </button>
     <button class="tab" data-view="buffs" data-icon="flask" aria-label="Баффы">
       <span class="tab-badge" id="buffs-badge" hidden></span>
@@ -27,10 +27,22 @@
     <button class="tab" data-view="resources" data-icon="meat" aria-label="Ресурсы">
       <span class="tab-ico"></span><span>Ресурсы</span>
     </button>
-    <button class="tab" data-view="progress" data-icon="scroll" aria-label="Прогресс">
+    <button class="tab" data-view="progress" data-icon="scroll" aria-label="Хроники">
       <span class="tab-ico"></span><span>Хроники</span>
     </button>
   </nav>
+
+  <!-- анимированный лоадер между экранами -->
+  <div id="loader" class="loader" hidden aria-hidden="true">
+    <div class="loader-sigil">
+      <svg viewBox="0 0 120 120">
+        <circle class="ls-track" cx="60" cy="60" r="46"/>
+        <circle class="ls-arc" cx="60" cy="60" r="46"/>
+        <path class="ls-star" d="M60 24l7.5 21.5L90 46l-18 13 7 22.5L60 68l-19 13.5 7-22.5-18-13 22.5-.5z"/>
+      </svg>
+    </div>
+    <div class="loader-word" id="loader-word"></div>
+  </div>
 
   <div id="overlay-root"></div>
   <script type="module" src="js/app.js"></script>

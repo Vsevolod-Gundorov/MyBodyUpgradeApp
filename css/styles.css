@@ -1,25 +1,28 @@
-/* ============ Кузница Тела · токены (тёмное фэнтези: золото на камне) ============ */
+/* ============ Solo Win · токены (Elden Ring: золото · тёмно-сине-зелёный · чёрный) ============ */
 :root {
-  --ink: #0c0b09;          /* глубокий тёплый чёрный, фон */
-  --ink-2: #14110c;
-  --panel: #191510;        /* панели */
-  --panel-2: #221d15;      /* приподнятые панели */
-  --line: rgba(201, 169, 97, 0.22);
-  --line-strong: rgba(201, 169, 97, 0.50);
-  --gold: #c9a961;         /* приглушённое золото */
-  --gold-bright: #e9d493;
-  --gold-deep: #8a6d38;
-  --bone: #ece4d0;         /* основной текст */
-  --dim: #938b78;          /* вторичный текст */
-  --ember: #b4543a;        /* провал / опасность */
-  --moss: #8aa06a;         /* лёгкий успех-оттенок */
+  --ink: #06090b;          /* холодный чёрный, фон */
+  --ink-2: #0a1215;
+  --panel: #0e181b;        /* панели с сине-зелёным подтоном */
+  --panel-2: #142226;      /* приподнятые панели */
+  --line: rgba(216, 184, 104, 0.26);
+  --line-strong: rgba(224, 192, 110, 0.55);
+  --gold: #e0bd66;         /* яркое золото */
+  --gold-bright: #f7dd94;
+  --gold-deep: #9a7c3c;
+  --teal: #4f9aa8;         /* дарк-фэнтези сине-зелёный */
+  --teal-dim: #2c565d;
+  --bone: #e9e6da;         /* основной текст */
+  --dim: #8a9598;          /* вторичный текст (холодный) */
+  --ember: #c65b3c;        /* провал / опасность */
+  --moss: #8fae6f;         /* успех-оттенок */
   --r: 10px;
   /* металлическое золото для кнопок/акцентов */
-  --metal-gold: linear-gradient(180deg, #f0d79c 0%, #d4b264 34%, #b0894a 62%, #d9bd76 100%);
+  --metal-gold: linear-gradient(180deg, #f6e0a2 0%, #e0bd66 34%, #b8934c 62%, #e6cd82 100%);
   --emboss: 0 1px 0 rgba(0,0,0,.6), 0 -1px 0 rgba(255,235,180,.06);
-  --bevel: inset 0 1px 0 rgba(233,212,147,.14), inset 0 -1px 0 rgba(0,0,0,.5), inset 0 0 0 1px rgba(0,0,0,.25);
+  --bevel: inset 0 1px 0 rgba(247,221,148,.14), inset 0 -1px 0 rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.3);
   --tex-leather: url("../assets/textures/leather.svg");
   --tex-grain: url("../assets/textures/grain.svg");
+  --tex-frame: url("../assets/textures/frame.svg");
   --font-display: "Cormorant", serif;
   --font-body: "Manrope", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
@@ -34,22 +37,23 @@ body {
   line-height: 1.55;
   min-height: 100dvh;
   background-image:
-    radial-gradient(1100px 560px at 50% -12%, rgba(201,169,97,.14), transparent 62%),
-    radial-gradient(760px 420px at 50% 116%, rgba(180,84,58,.06), transparent 60%),
-    linear-gradient(180deg, #14110b 0%, #0c0b09 42%, #090806 100%);
+    radial-gradient(900px 480px at 50% 4%, rgba(244,205,120,.20), transparent 52%),   /* золотое сияние (кольцо) */
+    radial-gradient(1200px 820px at 50% 26%, rgba(60,128,140,.20), transparent 62%),   /* сине-зелёный туман */
+    radial-gradient(700px 500px at 50% 120%, rgba(30,70,80,.16), transparent 60%),
+    linear-gradient(180deg, #0a1417 0%, #071012 46%, #04080a 100%);
 }
-/* фактура выделанной кожи/камня — «материал» под интерфейсом */
+/* фактура камня/тумана — «материал» под интерфейсом */
 body::before {
   content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
-  background-image: var(--tex-leather); background-size: 520px 520px;
-  opacity: .5; mix-blend-mode: soft-light;
+  background-image: var(--tex-leather); background-size: 540px 540px;
+  opacity: .35; mix-blend-mode: soft-light;
 }
 /* мелкое зерно + виньетка для глубины */
 body::after {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background-image: var(--tex-grain); background-size: 200px 200px;
-  opacity: .04; mix-blend-mode: overlay;
-  box-shadow: inset 0 0 200px rgba(0,0,0,.62), inset 0 0 60px rgba(0,0,0,.4);
+  opacity: .05; mix-blend-mode: overlay;
+  box-shadow: inset 0 0 220px rgba(0,0,0,.7), inset 0 0 70px rgba(0,0,0,.45);
 }
 
 #app { max-width: 520px; margin: 0 auto; padding: 20px 16px calc(90px + env(safe-area-inset-bottom)); position: relative; z-index: 0; }
@@ -57,9 +61,9 @@ body::after {
 /* ---------- типографика ---------- */
 .display { font-family: var(--font-display); font-weight: 600; letter-spacing: .06em; }
 h1.display, h2.display {
-  background: linear-gradient(180deg, #f3e2b4, #cba85f 55%, #a9834a);
+  background: linear-gradient(180deg, #fce9bd, #e6c46a 52%, #c39a4e);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 12px rgba(201,169,97,.12));
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.6)) drop-shadow(0 0 14px rgba(224,189,102,.18));
 }
 h1.display { font-size: 2rem; line-height: 1.12; }
 h2.display { font-size: 1.4rem; }
@@ -113,9 +117,23 @@ h2.display { font-size: 1.4rem; }
 }
 
 /* ---------- герой / профиль ---------- */
-.hero-head { text-align: center; padding: 8px 0 4px; }
+.hero-head { text-align: center; padding: 20px 16px 16px; margin-bottom: 4px; }
 .hero-name { margin-top: 2px; }
-.hero-title { color: var(--gold); font-style: italic; font-family: var(--font-display); font-size: 1.02rem; }
+.hero-title { color: var(--gold); font-style: italic; font-family: var(--font-display); font-size: 1.05rem; }
+
+/* класс и подкласс */
+.class-panel { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.class-medallion { flex: 0 0 auto; }
+.class-body { min-width: 0; }
+.class-name { font-size: 1.5rem; line-height: 1.1; margin: 1px 0; }
+.class-sub { font-size: .92rem; color: var(--bone); }
+.class-sub b { color: var(--gold-bright); font-family: var(--font-display); font-size: 1.05rem; letter-spacing: .02em; }
+.class-gov { margin-top: 3px; letter-spacing: .04em; }
+
+/* знаки отличия (статусы) */
+.status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; }
+.status-badge { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
+.status-badge .sb-name { font-size: .64rem; letter-spacing: .02em; color: var(--dim); line-height: 1.15; }
 
 .level-ring { width: 118px; height: 118px; margin: 14px auto 6px; position: relative; }
 .level-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
@@ -232,7 +250,11 @@ h2.display { font-size: 1.4rem; }
 
 /* ---------- вердикт-оверлей ---------- */
 .overlay {
-  position: fixed; inset: 0; background: rgba(10, 9, 7, .92); backdrop-filter: blur(4px);
+  position: fixed; inset: 0; backdrop-filter: blur(5px);
+  background:
+    radial-gradient(600px 460px at 50% 40%, rgba(244,205,120,.12), transparent 62%),
+    radial-gradient(700px 560px at 50% 46%, rgba(50,110,120,.14), transparent 66%),
+    rgba(4, 8, 10, .94);
   display: grid; place-content: center; text-align: center; padding: 24px; z-index: 50;
   animation: fadein .4s ease-out;
 }
@@ -242,6 +264,12 @@ h2.display { font-size: 1.4rem; }
 }
 .overlay .v-sub { color: var(--dim); margin-top: 10px; max-width: 320px; }
 .overlay .v-xp { margin-top: 18px; color: var(--gold-bright); font-family: var(--font-mono); font-size: 1.05rem; }
+.overlay .v-statuses { margin-top: 20px; max-width: 340px; text-align: left;
+  border-top: 1px solid var(--line); padding-top: 16px; animation: risein 1.1s cubic-bezier(.2,.8,.2,1); }
+.overlay .v-status { display: flex; align-items: center; gap: 11px; margin-top: 9px; }
+.overlay .v-status .medallion { width: 40px; height: 40px; }
+.overlay .v-status .medallion .ico { width: 22px; height: 22px; }
+.overlay .v-status b { font-family: var(--font-display); font-size: 1.1rem; color: var(--gold-bright); }
 .overlay .v-close {
   margin-top: 28px; background: none; border: 1px solid var(--line-strong); color: var(--bone);
   padding: 11px 30px; border-radius: 8px; cursor: pointer; font: inherit; letter-spacing: .1em;
@@ -518,3 +546,49 @@ h2.display { font-size: 1.4rem; }
 .btn-ghost + .btn-ghost { margin-top: 8px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .empty { text-align: center; color: var(--dim); padding: 26px 10px; font-size: .9rem; }
+
+/* ---------- орнаментная рамка (9-slice border-image) ---------- */
+.gilded { position: relative; }
+.gilded::after {
+  content: ""; position: absolute; inset: -6px; pointer-events: none; z-index: 2;
+  border: 17px solid transparent;
+  border-image: var(--tex-frame) 22 stretch;
+  filter: drop-shadow(0 0 5px rgba(224,189,102,.28));
+}
+
+/* ---------- анимированный лоадер между экранами ---------- */
+.loader {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-content: center; justify-items: center; gap: 18px;
+  background:
+    radial-gradient(520px 420px at 50% 42%, rgba(244,205,120,.16), transparent 60%),
+    radial-gradient(700px 600px at 50% 45%, rgba(50,110,120,.18), transparent 65%),
+    rgba(4,8,10,.94);
+  backdrop-filter: blur(6px);
+  animation: loader-in .18s ease-out;
+}
+.loader.out { animation: loader-out .32s ease-in forwards; }
+@keyframes loader-in { from { opacity: 0; } }
+@keyframes loader-out { to { opacity: 0; } }
+.loader-sigil { width: 116px; height: 116px; filter: drop-shadow(0 0 14px rgba(244,205,120,.5)); }
+.loader-sigil svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.loader-sigil .ls-track { fill: none; stroke: rgba(224,189,102,.16); stroke-width: 2; }
+.loader-sigil .ls-arc {
+  fill: none; stroke: var(--gold-bright); stroke-width: 2.4; stroke-linecap: round;
+  stroke-dasharray: 289; stroke-dashoffset: 216; transform-origin: 60px 60px;
+  animation: sigil-spin 1s linear infinite;
+}
+.loader-sigil .ls-star {
+  fill: var(--gold-bright); transform-origin: 60px 60px;
+  animation: sigil-pulse 1.1s ease-in-out infinite;
+}
+@keyframes sigil-spin { to { transform: rotate(360deg); } }
+@keyframes sigil-pulse { 0%,100% { opacity: .5; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.06); } }
+.loader-word {
+  font-family: var(--font-display); font-size: 1.25rem; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--gold-bright); text-shadow: 0 0 12px rgba(224,189,102,.4);
+  animation: word-fade 1.2s ease-in-out infinite;
+}
+@keyframes word-fade { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .loader { display: none !important; }
+}

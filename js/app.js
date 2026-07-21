@@ -66,6 +66,7 @@ const defaultState = () => ({
     log: {},     // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
     recent: [],  // недавно использованные продукты (макс. 12)
   },
+  statuses: [],  // заработанные ситуационные статусы [{id,name,desc,icon,date}]
 });
 
 let S = load();
@@ -84,6 +85,7 @@ function load() {
       S2.nutrition = Object.assign({}, base.nutrition, parsed.nutrition);
       S2.nutrition.log = (parsed.nutrition && parsed.nutrition.log) || {};
       S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
+      S2.statuses = Array.isArray(parsed.statuses) ? parsed.statuses : [];
       return S2;
     }
   } catch (e) { /* повреждённые данные — начинаем заново */ }
@@ -124,9 +126,9 @@ function scoreSession(workout, entries) {
   const intensity = weightMax ? weightPts / weightMax : 1;
   const score = Math.round(100 * (0.65 * coverage + 0.35 * intensity));
   let verdict, cls, flavor;
-  if (score >= 85) { verdict = "Испытание пройдено"; cls = "verdict-gold"; flavor = "Кузница приняла твою работу. Сталь стала крепче."; }
-  else if (score >= 60) { verdict = "Достойно, но не всё"; cls = "verdict-mid"; flavor = "Огонь горел, но не все угли прогорели. В следующий раз — до конца."; }
-  else { verdict = "Схалтурил, странник"; cls = "verdict-fail"; flavor = "Молот едва коснулся наковальни. Кузница помнит всё."; }
+  if (score >= 85) { verdict = "Квест покорён"; cls = "verdict-gold"; flavor = "Руны силы легли в твою пользу. Герой стал крепче."; }
+  else if (score >= 60) { verdict = "Достойно, но не всё"; cls = "verdict-mid"; flavor = "Враг отступил, но ушёл живым. В следующий раз — до конца."; }
+  else { verdict = "Слабый натиск"; cls = "verdict-fail"; flavor = "Клинок едва задел цель. Хроники помнят всё."; }
   const xp = Math.round(score * 1.2 + doneSets * 2);
   return { score, verdict, cls, flavor, xp, doneSets, plannedSets };
 }
@@ -184,7 +186,21 @@ function heroStats() {
   const avgScore = S.sessions.length ? S.sessions.reduce((a, s) => a + s.score, 0) / S.sessions.length : 0;
   const grit = Math.round(avgScore * 0.99);
 
-  return { level, lvlProgress, lifts, stats: { СИЛА: str, МОЩЬ: pow, ВЫНОСЛ: endr, ОБЪЁМ: vol, ДИСЦИПЛ: disc, СТОЙКОСТЬ: grit } };
+  const stats = { СИЛА: str, МОЩЬ: pow, ВЫНОСЛ: endr, ОБЪЁМ: vol, ДИСЦИПЛ: disc, СТОЙКОСТЬ: grit };
+  return { level, lvlProgress, lifts, stats, cls: classInfo(stats, S.sessions.length) };
+}
+
+/* ================= классы и подклассы (из роста характеристик) ================= */
+const CLASS_NOUN = { СИЛА: "Титан", МОЩЬ: "Громовержец", ВЫНОСЛ: "Марафонец", ОБЪЁМ: "Колосс", ДИСЦИПЛ: "Паладин", СТОЙКОСТЬ: "Несгибаемый" };
+const CLASS_EPITHET = { СИЛА: "Могучий", МОЩЬ: "Яростный", ВЫНОСЛ: "Неутомимый", ОБЪЁМ: "Исполинский", ДИСЦИПЛ: "Праведный", СТОЙКОСТЬ: "Стойкий" };
+const CLASS_ICON = { СИЛА: "muscle", МОЩЬ: "lightning", ВЫНОСЛ: "flame", ОБЪЁМ: "weight", ДИСЦИПЛ: "shield", СТОЙКОСТЬ: "gem" };
+function classInfo(stats, sessionsCount) {
+  const e = Object.entries(stats).sort((a, b) => b[1] - a[1]);
+  const [p1, v1] = e[0], [p2] = e[1];
+  if (sessionsCount < 1 || v1 < 58) {
+    return { name: "Странник", sub: "Новобранец", primary: p1, secondary: p2, icon: "helm", novice: true };
+  }
+  return { name: CLASS_NOUN[p1], sub: CLASS_EPITHET[p2], primary: p1, secondary: p2, icon: CLASS_ICON[p1], novice: false };
 }
 
 function nextWorkoutId() {
@@ -206,8 +222,27 @@ let view = VIEWS.includes((location.hash || "").slice(1)) ? location.hash.slice(
 document.querySelectorAll(".tab").forEach((t) => {
   const holder = t.querySelector(".tab-ico");
   if (holder && t.dataset.icon) holder.innerHTML = icon(t.dataset.icon);
-  t.addEventListener("click", () => { view = t.dataset.view; render(); });
+  t.addEventListener("click", () => {
+    if (t.dataset.view === view) return;
+    withLoader(() => { view = t.dataset.view; render(); });
+  });
 });
+
+/* ---- анимированный лоадер между экранами ---- */
+const loaderEl = document.getElementById("loader");
+const LOADER_WORDS = ["Пробуждение", "Сбор рун", "Врата открываются", "Судьба зовёт", "Кровь и сталь", "Восхождение"];
+const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function withLoader(action) {
+  if (reduceMotion || !loaderEl) { action(); return; }
+  const word = document.getElementById("loader-word");
+  if (word) word.textContent = LOADER_WORDS[Math.floor(Math.random() * LOADER_WORDS.length)];
+  loaderEl.hidden = false; loaderEl.classList.remove("out");
+  setTimeout(() => {
+    action();
+    loaderEl.classList.add("out");
+    setTimeout(() => { loaderEl.hidden = true; loaderEl.classList.remove("out"); }, 320);
+  }, 460);
+}
 
 function render() {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
@@ -243,23 +278,33 @@ function renderProfile() {
   const ring = 2 * Math.PI * 52;
   const bw = S.hero.bodyweight;
 
+  const c = h.cls;
+  const statuses = S.statuses || [];
   app.innerHTML = `
-    <div class="hero-head">
-      <div class="eyebrow">Кузница Тела · ${PROGRAM.cycleName}</div>
+    <div class="hero-head gilded">
+      <div class="eyebrow">SOLO WIN · путь героя</div>
       <h1 class="display hero-name">${S.hero.name}</h1>
-      <div class="hero-title">«${S.hero.title}»</div>
+      <div class="hero-title">${c.novice ? "«путь только начинается»" : `«${S.hero.title}»`}</div>
       <div class="level-ring">
         <svg viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(201,169,97,.15)" stroke-width="5"/>
-          <circle cx="60" cy="60" r="52" fill="none" stroke="#c9a961" stroke-width="5"
+          <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(224,189,102,.16)" stroke-width="5"/>
+          <circle cx="60" cy="60" r="52" fill="none" stroke="var(--gold-bright)" stroke-width="5"
             stroke-linecap="round" stroke-dasharray="${ring}" stroke-dashoffset="${ring * (1 - h.lvlProgress)}"/>
         </svg>
         <div class="lvl"><b>${h.level}</b><span>уровень</span></div>
       </div>
-      <div class="dim small mono">${S.xp} XP · походов в кузницу: ${S.sessions.length}</div>
+      <div class="dim small mono">${S.xp} XP · квестов пройдено: ${S.sessions.length}</div>
     </div>
 
-    <div class="rune-divider">${runeSVG}</div>
+    <div class="panel panel--ornate class-panel">
+      <span class="class-medallion medallion medallion--lg">${icon(c.icon)}</span>
+      <div class="class-body">
+        <div class="eyebrow">Класс</div>
+        <div class="class-name display">${c.name}</div>
+        <div class="class-sub">Подкласс: <b>${c.sub}</b></div>
+        <div class="class-gov dim small mono">${c.novice ? "куй характеристики — и откроется класс" : `по росту: ${c.primary} · ${c.secondary}`}</div>
+      </div>
+    </div>
 
     <div class="panel panel--ornate">
       <div class="eyebrow" style="margin-bottom:12px">Характеристики</div>
@@ -275,7 +320,18 @@ function renderProfile() {
     </div>
 
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:8px">Оружие героя · расчётный 1ПМ</div>
+      <div class="eyebrow" style="margin-bottom:10px">Знаки отличия${statuses.length ? ` · ${statuses.length}` : ""}</div>
+      ${statuses.length
+        ? `<div class="status-grid">${statuses.slice(0, 24).map((st) => `
+            <div class="status-badge" title="${st.name}: ${st.desc}">
+              <span class="medallion">${icon(st.icon || "gem")}</span>
+              <span class="sb-name">${st.name}</span>
+            </div>`).join("")}</div>`
+        : `<div class="empty">Пока пусто. Бей рекорды, закрывай нормативы и перевыполняй квесты — статусы придут сами.</div>`}
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow" style="margin-bottom:8px">Арсенал героя · расчётный 1ПМ</div>
       ${Object.entries(h.lifts).map(([k, v]) => {
         const d = v.cur - v.base;
         return `<div class="kv"><span>${LIFT_NAMES[k]}</span>
@@ -314,13 +370,13 @@ function renderProfile() {
   };
 }
 
-/* ================= КУЗНИЦА (цикл) ================= */
+/* ================= КВЕСТЫ (цикл) ================= */
 function renderCycle() {
   const nextId = nextWorkoutId();
   app.innerHTML = `
-    <div class="eyebrow">Кузница · план-факт</div>
-    <h1 class="display">Путь цикла</h1>
-    <p class="dim small" style="margin-top:4px">3 похода в неделю. Порядок 1→12 не ломать — чередование верх/низ хранит само себя.</p>
+    <div class="eyebrow">Квесты · журнал героя</div>
+    <h1 class="display">Журнал квестов</h1>
+    <p class="dim small" style="margin-top:4px">3 квеста в неделю. Держи порядок 1→12 — чередование верх/низ бережёт героя от выгорания.</p>
     ${PROGRAM.weeks.map((wk) => `
       <div class="week-block">
         <div class="week-tag ${wk.type === "объёмная" ? "vol" : ""}">
@@ -345,7 +401,7 @@ function renderCycle() {
         }).join("")}
       </div>`).join("")}`;
 
-  app.querySelectorAll(".wcard").forEach((c) => c.addEventListener("click", () => renderWorkout(c.dataset.w)));
+  app.querySelectorAll(".wcard").forEach((c) => c.addEventListener("click", () => withLoader(() => renderWorkout(c.dataset.w))));
 }
 
 /* ================= ЭКРАН ТРЕНИРОВКИ ================= */
@@ -366,9 +422,9 @@ function renderWorkout(wid) {
       </div>
     </div>
     <div id="ex-list"></div>
-    <button class="finish-btn" id="finish">Завершить испытание</button>`;
+    <button class="finish-btn" id="finish">Завершить квест</button>`;
 
-  document.getElementById("back").onclick = () => { view = "cycle"; render(); };
+  document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; render(); });
 
   const list = document.getElementById("ex-list");
   w.exercises.forEach((ex, i) => {
@@ -445,33 +501,75 @@ function renderWorkout(wid) {
   document.getElementById("finish").onclick = () => {
     const e = S.drafts[wid] || {};
     const anySets = Object.values(e).some((arr) => arr.some((s) => s.w && s.r));
-    if (!anySets) { alert("Кузница пуста: запиши хотя бы один подход."); return; }
+    if (!anySets) { alert("Квест пуст: запиши хотя бы один подход."); return; }
     const res = scoreSession(w, e);
+    // рекорды: лучший расчётный 1ПМ по движениям квеста ДО этой сессии
+    const prBefore = {};
+    w.exercises.forEach((ex) => { if (ex.lift) prBefore[ex.lift] = Math.max(prBefore[ex.lift] || 0, bestE1RM(ex.lift)); });
+    const firstClear = S.sessions.filter((s) => s.workoutId === wid).length === 0;
+    let tonn = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => (tonn += (wt || 0) * (r || 0))));
     S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, entries: e });
     S.xp += res.xp;
     delete S.drafts[wid];
+    const cut = Date.now() - 7 * 864e5;
+    const recentCount = S.sessions.filter((s) => new Date(s.date).getTime() >= cut).length;
+    const prAfter = {}; Object.keys(prBefore).forEach((l) => (prAfter[l] = bestE1RM(l)));
+    const awarded = awardStatuses({ res, prBefore, prAfter, tonn, firstClear, recentCount });
     save();
-    showVerdict(res);
+    showVerdict(res, awarded);
   };
 }
 
-function showVerdict(res) {
+/* ================= ситуационные статусы ================= */
+const LUCKY_STATUSES = [
+  { id: "grace", name: "Благодать Древа", desc: "Золотая благодать снизошла на героя", icon: "sun" },
+  { id: "emberlord", name: "Искра Предвестника", desc: "В крови вспыхнул древний огонь", icon: "flame" },
+  { id: "runegift", name: "Дар Рун", desc: "Руны сложились в счастливый узор", icon: "gem" },
+  { id: "moonblessed", name: "Лунное Благословение", desc: "Тёмная луна одарила силой", icon: "moon" },
+  { id: "tealtide", name: "Прилив Тумана", desc: "Сине-зелёная дымка укрыла усталость", icon: "droplet" },
+];
+function awardStatuses({ res, prBefore, prAfter, tonn, firstClear, recentCount }) {
+  const out = [];
+  const add = (id, name, desc, ic) => out.push({ id, name, desc, icon: ic, date: today() });
+  const prLifts = Object.keys(prAfter).filter((l) => prAfter[l] > (prBefore[l] || 0) + 0.4);
+  if (prLifts.length) add("pr", "Новый Предел", `Личный рекорд: ${prLifts.map((l) => LIFT_NAMES[l]).join(", ")}`, "gem");
+  if (res.score >= 90) add("flawless", "Безупречный Квест", "Квест пройден на 90%+", "shield");
+  if (res.doneSets >= res.plannedSets && res.score >= 80) add("overkill", "Сверх Нормы", "Все подходы закрыты в полную силу", "muscle");
+  if (tonn >= 8000) add("ironmountain", "Гора Железа", `${(tonn / 1000).toFixed(1)} т поднято за квест`, "weight");
+  if (firstClear) add("firstblood", "Первопроходец", "Первое прохождение квеста", "sword");
+  if (recentCount >= 3) add("relentless", "Несокрушимая Воля", "3 квеста за 7 дней", "flame");
+  // случайная удача — редкий статус за интересное испытание
+  if (Math.random() < 0.2) { const l = LUCKY_STATUSES[Math.floor(Math.random() * LUCKY_STATUSES.length)]; add(l.id, l.name, l.desc, l.icon); }
+  if (out.length) { S.statuses = [...out, ...(S.statuses || [])].slice(0, 60); }
+  return out;
+}
+
+function showVerdict(res, awarded) {
   const o = document.createElement("div");
   o.className = "overlay";
+  const gold = res.cls === "verdict-fail" ? "#c65b3c" : "#e0bd66";
+  const bright = res.cls === "verdict-fail" ? "#e0805a" : "#f7dd94";
+  const badges = (awarded && awarded.length)
+    ? `<div class="v-statuses">
+         <div class="eyebrow" style="margin-bottom:8px">Получен статус${awarded.length > 1 ? "ы" : ""}</div>
+         ${awarded.map((st) => `<div class="v-status"><span class="medallion">${icon(st.icon || "gem")}</span><span><b>${st.name}</b><span class="dim small"> — ${st.desc}</span></span></div>`).join("")}
+       </div>`
+    : "";
   o.innerHTML = `
     <div>
       <div class="seal"><svg viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="44" fill="none" stroke="${res.cls === "verdict-fail" ? "#b4543a" : "#c9a961"}" stroke-width="1.5"/>
+        <circle cx="50" cy="50" r="44" fill="none" stroke="${gold}" stroke-width="1.5"/>
         <path d="M50 14l9 18 20 3-14.5 14 3.5 20-18-9.5L32 69l3.5-20L21 35l20-3z"
-          fill="none" stroke="${res.cls === "verdict-fail" ? "#b4543a" : "#e8cd82"}" stroke-width="1.5"/>
+          fill="none" stroke="${bright}" stroke-width="1.5"/>
       </svg></div>
       <div class="v-title ${res.cls}">${res.verdict}</div>
       <div class="v-sub">${res.flavor}</div>
       <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP</div>
-      <button class="v-close">Вернуться на путь</button>
+      ${badges}
+      <button class="v-close">Вернуться к квестам</button>
     </div>`;
   overlayRoot.appendChild(o);
-  o.querySelector(".v-close").onclick = () => { o.remove(); view = "cycle"; render(); };
+  o.querySelector(".v-close").onclick = () => { o.remove(); withLoader(() => { view = "cycle"; render(); }); };
 }
 
 /* ================= БАФФЫ (арсенал добавок) ================= */
