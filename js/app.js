@@ -1,5 +1,5 @@
 import { PROGRAM, BASELINES, LIFT_NAMES } from "../data/program.js";
-import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch } from "../data/nutrition.js";
+import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 
 /* ================= иконки (внутренняя SVG-разметка, fill = currentColor) ================= */
 const ICONS = {
@@ -582,15 +582,16 @@ function renderBuffs() {
 }
 
 /* ================= РЕСУРСЫ (снабжение / питание) ================= */
-const NUT_ICON = { kcal: "flame", protein: "drumstick", carbs: "wheat", fat: "avocado" };
+const NUT_ICON = { kcal: "flame", protein: "drumstick", carbs: "wheat", fat: "avocado", fiber: "leaf" };
 // у каждой шкалы — свой цвет заливки и акцент иконки
 const NUT_GRAD = {
-  kcal: "linear-gradient(90deg,#b5732f,#e0a24a,#f3c66e)",   // янтарь
+  kcal: "linear-gradient(90deg,#b5732f,#e0a24a,#f3c66e)",    // янтарь
   protein: "linear-gradient(90deg,#8f3030,#cf5a4a,#ec8a72)", // багрянец
   carbs: "linear-gradient(90deg,#9a7a24,#d8b43f,#f2dd78)",   // золото
   fat: "linear-gradient(90deg,#5c7d3f,#8fb15e,#c0dd92)",     // зелень
+  fiber: "linear-gradient(90deg,#5f7d2f,#9bb84a,#cbe07a)",   // лайм
 };
-const NUT_ACCENT = { kcal: "#e0a24a", protein: "#e07a5f", carbs: "#e6c24a", fat: "#9fc46e" };
+const NUT_ACCENT = { kcal: "#e0a24a", protein: "#e07a5f", carbs: "#e6c24a", fat: "#9fc46e", fiber: "#bcd35f" };
 
 let resDate = null;               // выбранный день (по умолчанию сегодня)
 const curResDate = () => resDate || today();
@@ -656,13 +657,15 @@ function renderResources() {
   const T = NUTRITION.dayTypes[day.dayType];
   const tot = nutTotals(day);
 
-  const macros = [
+  const fiberTgt = NUTRITION.constants.fiber[0];
+  // готовность пайка считаем по 4 основным нутриентам; клетчатка — отдельная шкала
+  const core = [
     { key: "kcal", name: "Калории", unit: "ккал", cur: tot.k, tgt: T.kcal },
-    { key: "protein", name: "Белок", unit: "г", cur: tot.p, tgt: T.protein },
+    { key: "protein", name: "Белок", unit: "г", cur: tot.p, tgt: T.protein, floor: true },
     { key: "carbs", name: "Углеводы", unit: "г", cur: tot.cb, tgt: T.carbs },
     { key: "fat", name: "Жиры", unit: "г", cur: tot.f, tgt: T.fat },
   ];
-  const readiness = Math.round(100 * macros.reduce((a, m) => a + Math.min(1, m.cur / m.tgt), 0) / macros.length);
+  const readiness = Math.round(100 * core.reduce((a, m) => a + Math.min(1, m.cur / m.tgt), 0) / core.length);
   const proteinOk = tot.p >= T.protein * 0.95;
   const kcalPct = tot.k / T.kcal;
   const kcalOk = kcalPct >= 0.9 && kcalPct <= 1.1;
@@ -671,17 +674,18 @@ function renderResources() {
   else if (readiness >= 55) { vCls = "verdict-mid"; vTxt = "Припасы копятся"; }
   else { vCls = "verdict-fail"; vTxt = "Кладовая пуста"; }
 
+  const gaugeList = [...core, { key: "fiber", name: "Клетчатка", unit: "г", cur: tot.fb, tgt: fiberTgt, floor: true }];
   const ring = 2 * Math.PI * 52;
-  const gaugeHTML = macros.map((m) => {
+  const gaugeHTML = gaugeList.map((m) => {
     const pct = m.tgt ? m.cur / m.tgt : 0;
-    const st = gaugeState(pct, m.key === "protein" ? "protein" : m.key);
+    const st = gaugeState(pct, m.floor ? "protein" : m.key);
     const left = Math.round(m.tgt - m.cur);
     const sub = st === "ok" ? "в цель ✓" : (left > 0 ? `осталось ${left} ${m.unit}` : `перебор ${Math.abs(left)} ${m.unit}`);
     return `
       <div class="gauge ${st}">
         <div class="g-top">
           <span class="g-name" style="color:${NUT_ACCENT[m.key]}">${icon(NUT_ICON[m.key])}<b>${m.name}</b></span>
-          <span class="g-val mono">${Math.round(m.cur)} / ${m.tgt} ${m.unit}</span>
+          <span class="g-val mono">${Math.round(m.cur)}<span class="g-tgt"> / ${m.tgt} ${m.unit}</span></span>
         </div>
         <div class="g-bar"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%;background:${NUT_GRAD[m.key]}"></i></div>
         <div class="g-sub mono">${sub}</div>
@@ -693,14 +697,18 @@ function renderResources() {
   const totalWater = day.water + drinkWater;
   const waterCups = Math.round(day.water / 250);
   const waterPct = Math.min(100, (totalWater / WATER_TARGET_ML) * 100);
-  const fiberTgt = NUTRITION.constants.fiber[0];
 
   const itemsHTML = day.items.length
     ? day.items.map((it, i) => {
         const wml = Math.round(itemWaterMl(it));
+        const amt = it.amt != null ? it.amt : it.g;
+        const unit = it.unit || "г";
         return `
         <div class="meal-row">
-          <span class="meal-name">${it.n}<span class="dim small"> · ${it.g} г</span>${wml ? `<span class="water-badge mono">${icon("droplet")}${wml} мл</span>` : ""}</span>
+          <button class="meal-main" data-i="${i}" aria-label="Изменить порцию">
+            <span class="meal-name">${it.n}</span>
+            <span class="meal-portion mono">${fmt(amt)} ${unit}${wml ? `<span class="water-badge">${icon("droplet")}${wml} мл</span>` : ""} <span class="meal-pen">✎</span></span>
+          </button>
           <span class="meal-kcal mono">${Math.round(it.k * it.g / 100)} ккал</span>
           <button class="meal-del" data-i="${i}" aria-label="Убрать">✕</button>
         </div>`;
@@ -759,15 +767,14 @@ function renderResources() {
     <div class="panel water-panel">
       <div class="g-top">
         <span class="g-name" style="color:#7fc7d6">${icon("droplet")}<b>Вода</b></span>
-        <span class="g-val mono">${(totalWater / 1000).toFixed(2)} / ${(WATER_TARGET_ML / 1000).toFixed(1)} л</span>
+        <span class="g-val mono">${(totalWater / 1000).toFixed(2)}<span class="g-tgt"> / ${(WATER_TARGET_ML / 1000).toFixed(1)} л</span></span>
       </div>
       <div class="g-bar"><i class="water" style="width:${waterPct.toFixed(0)}%"></i></div>
+      <div class="water-breakdown mono dim small">${waterCups} стак. × 250 мл${drinkWater ? ` <span class="wb-drink">+ ${drinkWater} мл из напитков</span>` : ""}</div>
       <div class="water-ctl">
-        <button class="wbtn" id="water-minus" aria-label="Убрать стакан">−</button>
-        <span class="mono dim small">${waterCups} × 250 мл${drinkWater ? ` + ${drinkWater} мл из напитков` : ""}</span>
-        <button class="wbtn" id="water-plus" aria-label="Добавить стакан">+ стакан</button>
+        <button class="wbtn" id="water-minus" aria-label="Убрать стакан">− стакан</button>
+        <button class="wbtn wbtn-add" id="water-plus" aria-label="Добавить стакан">+ стакан</button>
       </div>
-      <div class="g-sub mono">≈ клетчатка ${Math.round(tot.fb)} / ${fiberTgt} г</div>
     </div>
 
     ${tip}
@@ -797,6 +804,11 @@ function renderResources() {
   document.getElementById("water-plus").onclick = () => { nutDay(date).water += 250; save(); render(); };
   document.getElementById("water-minus").onclick = () => { const d = nutDay(date); d.water = Math.max(0, d.water - 250); save(); render(); };
   app.querySelectorAll(".meal-del").forEach((b) => b.onclick = () => { nutDay(date).items.splice(+b.dataset.i, 1); save(); render(); });
+  // клик по приёму — изменить порцию
+  app.querySelectorAll(".meal-main").forEach((b) => b.onclick = () => {
+    const i = +b.dataset.i;
+    openPortion(nutRead(date).items[i], date, i);
+  });
 
   wireFoodSearch(date);
 }
@@ -865,45 +877,89 @@ function wireFoodSearch(date) {
   };
 }
 
-function openPortion(food, date) {
+function openPortion(food, date, editIndex) {
   if (!food) return;
+  const editing = editIndex != null;
+  const drink = !!food.drink;
+  const per = { k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0 };
+  const waterFrac = Math.max(0, Math.min(1, 1 - ((per.p + per.f + per.cb) / 100)));
+  const hy = food.hy || (drink ? 0.9 : 0);
+  let unit = food.unit || (drink ? "мл" : "г");
+  const startAmt = food.amt != null ? food.amt : (editing && food.g != null ? food.g : 100);
+
+  const step = () => (unit === "мл" ? 25 : 10);
+  const chipsFor = () => (unit === "мл" ? [200, 250, 330, 500] : [50, 100, 150, 200, 250]);
+
   const o = document.createElement("div");
   o.className = "overlay portion-overlay";
-  const calc = (g) => Math.round(food.k * g / 100);
   o.innerHTML = `
     <div class="portion-card">
-      <div class="eyebrow">Порция</div>
+      <div class="eyebrow">${editing ? "Изменить порцию" : "Порция"}</div>
       <div class="portion-name display">${food.n}</div>
-      <div class="dim small mono" style="margin-bottom:14px">${food.k} ккал · Б ${fmt(food.p)} · Ж ${fmt(food.f)} · У ${fmt(food.cb)} на 100 г</div>
-      <div class="portion-chips">
-        ${[50, 100, 150, 200, 250].map((g) => `<button class="pchip" data-g="${g}">${g} г</button>`).join("")}
+      <div class="dim small mono portion-per100">${per.k} ккал · Б ${fmt(per.p)} · Ж ${fmt(per.f)} · У ${fmt(per.cb)}${per.fb ? ` · клет ${fmt(per.fb)}` : ""} на 100 г</div>
+
+      <div class="unit-toggle" role="group" aria-label="Единица измерения">
+        <button class="ut" data-u="г">Граммы</button>
+        <button class="ut" data-u="мл">Миллилитры</button>
       </div>
-      <div class="portion-input">
-        <input id="portion-g" inputmode="numeric" value="100" aria-label="граммы" /> <span class="dim">г</span>
-        <span class="portion-kcal mono" id="portion-kcal">${calc(100)} ккал</span>
+
+      <div class="stepper">
+        <button class="stp" id="p-minus" aria-label="Меньше">−</button>
+        <div class="stp-mid"><input id="portion-g" inputmode="decimal" value="${startAmt}" aria-label="количество" /><span class="stp-unit" id="p-unit">${unit}</span></div>
+        <button class="stp" id="p-plus" aria-label="Больше">+</button>
       </div>
+
+      <div class="portion-chips" id="p-chips"></div>
+      <div class="portion-preview" id="p-preview"></div>
+
       <div class="portion-actions">
         <button class="btn-ghost" id="portion-cancel">Отмена</button>
-        <button class="finish-btn" id="portion-add" style="margin-top:0">Добавить</button>
+        <button class="finish-btn" id="portion-add" style="margin-top:0">${editing ? "Сохранить" : "Добавить"}</button>
       </div>
     </div>`;
   overlayRoot.appendChild(o);
 
   const gInput = o.querySelector("#portion-g");
-  const kEl = o.querySelector("#portion-kcal");
-  const upd = () => { kEl.textContent = calc(parseFloat(gInput.value.replace(",", ".")) || 0) + " ккал"; };
+  const chipsBox = o.querySelector("#p-chips");
+  const preview = o.querySelector("#p-preview");
+  const unitEl = o.querySelector("#p-unit");
+  const getAmt = () => Math.max(0, parseFloat(("" + gInput.value).replace(",", ".")) || 0);
+
+  function drawChips() {
+    chipsBox.innerHTML = chipsFor().map((v) => `<button class="pchip" data-g="${v}">${v} ${unit}</button>`).join("");
+    chipsBox.querySelectorAll(".pchip").forEach((c) => c.onclick = () => { gInput.value = c.dataset.g; upd(); });
+  }
+  function upd() {
+    const a = getAmt(), m = a / 100;
+    const wml = drink ? Math.round(a * waterFrac * hy) : 0;
+    o.querySelectorAll(".ut").forEach((b) => b.classList.toggle("on", b.dataset.u === unit));
+    unitEl.textContent = unit;
+    preview.innerHTML = `
+      <div class="pv"><span class="pv-v mono" style="color:${NUT_ACCENT.kcal}">${Math.round(per.k * m)}</span><span class="pv-l">ккал</span></div>
+      <div class="pv"><span class="pv-v mono" style="color:${NUT_ACCENT.protein}">${fmt(per.p * m)}</span><span class="pv-l">белок</span></div>
+      <div class="pv"><span class="pv-v mono" style="color:${NUT_ACCENT.carbs}">${fmt(per.cb * m)}</span><span class="pv-l">углев</span></div>
+      <div class="pv"><span class="pv-v mono" style="color:${NUT_ACCENT.fat}">${fmt(per.f * m)}</span><span class="pv-l">жиры</span></div>
+      <div class="pv"><span class="pv-v mono" style="color:${NUT_ACCENT.fiber}">${fmt(per.fb * m)}</span><span class="pv-l">клетч</span></div>
+      ${wml ? `<div class="pv"><span class="pv-v mono" style="color:#7fc7d6">${wml}</span><span class="pv-l">вода, мл</span></div>` : ""}`;
+  }
+  o.querySelectorAll(".ut").forEach((b) => b.onclick = () => { unit = b.dataset.u; drawChips(); upd(); gInput.focus(); });
+  o.querySelector("#p-minus").onclick = () => { gInput.value = Math.max(0, Math.round((getAmt() - step()) * 10) / 10); upd(); };
+  o.querySelector("#p-plus").onclick = () => { gInput.value = Math.round((getAmt() + step()) * 10) / 10; upd(); };
   gInput.oninput = upd;
-  o.querySelectorAll(".pchip").forEach((c) => c.onclick = () => { gInput.value = c.dataset.g; upd(); gInput.focus(); });
   o.querySelector("#portion-cancel").onclick = () => o.remove();
   o.querySelector("#portion-add").onclick = () => {
-    const g = parseFloat(gInput.value.replace(",", ".")) || 0;
-    if (g <= 0) { gInput.focus(); return; }
-    nutDay(date).items.push({ n: food.n, g, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0, src: food.src, drink: food.drink, hy: food.hy });
-    pushRecent({ id: food.id, src: food.src, n: food.n, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0, drink: food.drink, hy: food.hy });
-    save();
-    o.remove();
-    render();
+    const a = getAmt();
+    if (a <= 0) { gInput.focus(); return; }
+    const rec = { n: food.n, g: a, amt: a, unit, k: per.k, p: per.p, f: per.f, cb: per.cb, fb: per.fb, src: food.src, drink: food.drink, hy: food.hy };
+    const d = nutDay(date);
+    if (editing) d.items[editIndex] = rec;
+    else {
+      d.items.push(rec);
+      pushRecent({ id: food.id || ("man" + food.n), src: food.src, n: food.n, k: per.k, p: per.p, f: per.f, cb: per.cb, fb: per.fb, drink: food.drink, hy: food.hy });
+    }
+    save(); o.remove(); render();
   };
+  drawChips(); upd();
   setTimeout(() => gInput.select(), 50);
 }
 

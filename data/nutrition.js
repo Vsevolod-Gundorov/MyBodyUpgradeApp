@@ -123,6 +123,24 @@ export const FOODS = [
   { n: "Протеиновый коктейль (на воде)", c: "Напитки", k: 120, p: 24, f: 2, cb: 3, fb: 0, drink: true, hy: 0.9 },
 ].map((x, i) => ({ id: "loc" + i, src: "loc", ...x }));
 
+// Оценка клетчатки на 100 г, когда её нет в данных продукта.
+// Клетчатка — часть углеводов; доля зависит от типа продукта (по названию/категориям).
+// Принцип тот же, что с водой: если точных данных нет — прикидываем по формуле.
+export function estimateFiber(name, categories, carbs) {
+  if (!carbs || carbs <= 0) return 0;
+  const s = ((name || "") + " " + (categories || []).join(" ")).toLowerCase();
+  let frac;
+  if (/мяс|meat|рыб|fish|птиц|курин|говяд|свин|сыр|cheese|яйц|egg|молок|milk|йогурт|yogurt|творог|масло|oil|butter|сахар|sugar|мёд|honey/.test(s)) frac = 0;
+  else if (/овощ|vegetable|брокколи|капуст|шпинат|салат|морков|огур|помидор|перец|кабач|гриб/.test(s)) frac = 0.35;
+  else if (/бобов|legume|фасол|чечевиц|нут|горох|bean|lentil|chickpea|pea/.test(s)) frac = 0.30;
+  else if (/орех|nut|миндал|семеч|семена|seed|almond|chia|чиа|отруб|bran/.test(s)) frac = 0.20;
+  else if (/цельнозерн|whole.?grain|овс|oat|гречк|buckwheat|булгур|киноа|quinoa/.test(s)) frac = 0.14;
+  else if (/фрукт|fruit|ягод|berry|яблок|груш|банан|апельсин|манго|слив|чернослив/.test(s)) frac = 0.18;
+  else if (/хлеб|bread|макарон|pasta|рис|rice|крупа|каша|злак|cereal|мука|flour/.test(s)) frac = 0.07;
+  else frac = 0.05; // прочее — небольшой запас
+  return Math.round(carbs * frac * 10) / 10;
+}
+
 // Поиск в Open Food Facts (открытый API, без ключа, база на GitHub).
 // Возвращает продукты в том же формате, что и локальные (на 100 г).
 export async function offSearch(query, signal) {
@@ -144,13 +162,18 @@ export async function offSearch(query, signal) {
     const drink = tags.some((t) => /beverage|drink|water|soda|juice|tea|coffee|smoothie/.test(t)) ||
       /напит|вода|чай|кофе|кол[аы]|сок|энерг|energ|cola|coffee|tea|juice|water|soda|drink/i.test(name);
     const hy = drink ? (/кофе|чай|coffee|tea/i.test(name) ? 0.95 : /вода|water/i.test(name) ? 1 : 0.9) : undefined;
+    const carbs = +nu.carbohydrates_100g || 0;
+    // клетчатка: берём из данных, иначе оцениваем по типу продукта
+    let fb = +nu.fiber_100g || 0;
+    let fbEst = false;
+    if (!fb && carbs > 0) { fb = estimateFiber(name, tags, carbs); fbEst = fb > 0; }
     return {
       id: "off" + pr.code, src: "off", n: name,
       k: Math.round(+kcal),
       p: +nu.proteins_100g || 0,
       f: +nu.fat_100g || 0,
-      cb: +nu.carbohydrates_100g || 0,
-      fb: +nu.fiber_100g || 0,
+      cb: carbs,
+      fb, fbEst,
       drink, hy,
     };
   }).filter(Boolean);
