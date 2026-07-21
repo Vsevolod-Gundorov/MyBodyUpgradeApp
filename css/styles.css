@@ -249,6 +249,61 @@ h2.display { font-size: 1.35rem; }
 .tab svg { width: 21px; height: 21px; fill: currentColor; }
 .tab.active { color: var(--gold-bright); }
 
+/* ---------- баффы ---------- */
+.buff-reminder {
+  display: flex; align-items: center; gap: 12px; margin-top: 14px;
+  border: 1px solid var(--line); border-radius: var(--r); padding: 13px 14px;
+  background: var(--panel);
+}
+.buff-reminder .br-ico { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-content: center; color: var(--gold); }
+.buff-reminder .br-ico .ico { width: 22px; height: 22px; }
+.buff-reminder .br-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.buff-reminder .br-body b { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: .04em; }
+.buff-reminder.due {
+  border-color: var(--line-strong);
+  background: linear-gradient(180deg, rgba(180,84,58,.12), var(--panel));
+  box-shadow: 0 0 22px rgba(180,84,58,.14);
+}
+.buff-reminder.due .br-ico { color: var(--ember); animation: pulse 2s ease-in-out infinite; }
+.buff-reminder.due .br-body b { color: var(--gold-bright); }
+.buff-reminder .br-ok {
+  flex: 0 0 auto; background: linear-gradient(180deg, #b3934f, #8f7439); color: #171307;
+  border: 1px solid var(--gold-bright); border-radius: 8px; padding: 9px 14px;
+  font: inherit; font-weight: 600; font-size: .82rem; cursor: pointer;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+
+.buff {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 11px 13px; margin-top: 9px;
+}
+.buff .buff-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.buff .buff-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.buff .buff-name { font-family: var(--font-display); font-size: 1.06rem; font-weight: 600; letter-spacing: .03em; }
+.buff .buff-dose { font-size: .8rem; color: var(--gold-bright); white-space: nowrap; }
+.buff .buff-real { display: block; }
+.buff.active { border-color: var(--line-strong); background: linear-gradient(180deg, rgba(201,169,97,.08), var(--panel)); }
+.buff.active .medallion { box-shadow: inset 0 1px 0 rgba(232,205,130,.3), 0 0 14px rgba(201,169,97,.35); }
+.buff.arsenal { cursor: default; opacity: .96; }
+.buff.arsenal:not(.on) .medallion { color: var(--dim); filter: saturate(.5); }
+.buff-toggle {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: rgba(201,169,97,.06);
+  font-size: 1.1rem; line-height: 1; display: grid; place-content: center;
+}
+.buff-toggle.add { color: var(--gold); }
+.buff-toggle.off { color: var(--gold-bright); background: rgba(201,169,97,.16); }
+.buff-toggle:active { transform: scale(.9); }
+
+/* бейдж-напоминание на вкладке */
+.tab { position: relative; }
+.tab-badge {
+  position: absolute; top: 2px; right: 22%; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ember); box-shadow: 0 0 8px rgba(180,84,58,.8);
+  animation: pulse 2s ease-in-out infinite;
+}
+
 /* ---------- иконки ---------- */
 .ico { display: block; width: 20px; height: 20px; fill: currentColor; }
 

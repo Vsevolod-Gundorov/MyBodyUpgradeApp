@@ -21,10 +21,40 @@ const ICONS = {
   layers: `<path d="M12 2.2l9.2 4.1-9.2 4.1-9.2-4.1L12 2.2z"/><path d="M2.8 11l9.2 4.1 9.2-4.1 1 1.7-10.2 4.5L1.8 12.7l1-1.7z"/><path d="M2.8 15.4l9.2 4.1 9.2-4.1 1 1.7-10.2 4.5-10.2-4.5 1-1.7z"/>`,
   shield: `<path d="M12 2l8 3v6c0 5-3.5 8.6-8 11-4.5-2.4-8-6-8-11V5l8-3z"/>`,
   gem: `<path d="M12 2l6 6-6 14L6 8l6-6z"/>`,
+  // баффы / добавки
+  flask: `<path d="M9 2h6v2h-1v4.3l4.7 8.6A2 2 0 0 1 16.9 20H7.1a2 2 0 0 1-1.8-3.1L10 8.3V4H9V2zm1 7.6L8 13h8l-2-3.4V4h-4v5.6z"/>`,
+  droplet: `<path d="M12 2.5c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z"/>`,
+  moon: `<path d="M14.5 3A9 9 0 1 0 21 16.6 7 7 0 0 1 14.5 3z"/>`,
+  leaf: `<path d="M20 4C10 4 4 11 4 20c9 0 16-6 16-16z"/><path d="M7.5 17.2l7-7 1.3 1.3-7 7z"/>`,
+  heart: `<path d="M12 21C5 15 3 11 3 8a4.6 4.6 0 0 1 9-1 4.6 4.6 0 0 1 9 1c0 3-2 7-9 13z"/>`,
+  capsule: `<path d="M4 12.5l8.5-8.5a4.6 4.6 0 0 1 6.5 6.5L10.5 19a4.6 4.6 0 0 1-6.5-6.5zm5 5l5-5-6-6-5 5 6 6z"/>`,
+  potion: `<path d="M10 2h4v3.2l3 2.3A6 6 0 1 1 7 7.5l3-2.3V2zm-1 8.5A4 4 0 1 0 15 10l-1-.8H10l-1 .8z"/>`,
 };
 const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
 // какая иконка у какой характеристики
 const STAT_ICONS = { СИЛА: "hammer", МОЩЬ: "bolt", ВЫНОСЛ: "flame", ОБЪЁМ: "layers", ДИСЦИПЛ: "shield", СТОЙКОСТЬ: "gem" };
+
+/* ================= баффы: арсенал натурального атлета ================= */
+// Только легальные, натуральные добавки. dose — доза по умолчанию при активации.
+const BUFF_CATS = ["Сила и мощь", "Пампинг и выносливость", "Белок и рост", "Восстановление и здоровье"];
+const BUFFS = [
+  { id: "creatine",  name: "Эликсир Силы",       real: "Креатин моногидрат",   icon: "flask",   dose: "5 г",       effect: "АТФ, сила, объём мышц", cat: "Сила и мощь" },
+  { id: "betaala",   name: "Ярость Карнозина",   real: "Бета-аланин",          icon: "flame",   dose: "4 г",       effect: "буфер кислоты, многоповтор", cat: "Сила и мощь" },
+  { id: "caffeine",  name: "Искра Ярости",       real: "Кофеин",               icon: "bolt",    dose: "150 мг",    effect: "фокус, сила, бодрость (до трен.)", cat: "Сила и мощь" },
+  { id: "arginine",  name: "Дыхание Пампа",      real: "L-Аргинин",            icon: "droplet", dose: "7 г",       effect: "оксид азота, пампинг", cat: "Пампинг и выносливость" },
+  { id: "citrulline",name: "Кровь Титана",       real: "Цитруллин малат",      icon: "heart",   dose: "6 г",       effect: "кровоток, выносливость, пампинг", cat: "Пампинг и выносливость" },
+  { id: "electro",   name: "Соли Странника",     real: "Электролиты (Na/K)",   icon: "potion",  dose: "по нужде",  effect: "гидратация, судороги", cat: "Пампинг и выносливость" },
+  { id: "whey",      name: "Нектар Роста",       real: "Сывороточный протеин", icon: "flask",   dose: "30 г",      effect: "белок, синтез мышц", cat: "Белок и рост" },
+  { id: "omega3",    name: "Масло Левиафана",    real: "Омега-3 (рыбий жир)",  icon: "droplet", dose: "2 г EPA/DHA", effect: "суставы, сердце, восстановление", cat: "Восстановление и здоровье" },
+  { id: "vitd",      name: "Свет Солнца",        real: "Витамин D3",           icon: "sun",     dose: "3000 МЕ",   effect: "гормоны, кости, иммунитет", cat: "Восстановление и здоровье" },
+  { id: "mag",       name: "Камень Покоя",       real: "Магний (глицинат)",    icon: "moon",    dose: "350 мг",    effect: "сон, мышцы, нервы", cat: "Восстановление и здоровье" },
+  { id: "zinc",      name: "Печать Тестостерона",real: "Цинк",                 icon: "gem",     dose: "25 мг",     effect: "гормоны, иммунитет", cat: "Восстановление и здоровье" },
+  { id: "vitc",      name: "Щит Аскорбия",       real: "Витамин C",            icon: "shield",  dose: "1000 мг",   effect: "антиоксидант, иммунитет", cat: "Восстановление и здоровье" },
+  { id: "multi",     name: "Венец Изобилия",     real: "Мультивитамины",       icon: "capsule", dose: "1 порция",  effect: "база микронутриентов", cat: "Восстановление и здоровье" },
+  { id: "ashwa",     name: "Корень Спокойствия", real: "Ашваганда",            icon: "leaf",    dose: "500 мг",    effect: "кортизол, стресс, сон", cat: "Восстановление и здоровье" },
+];
+const BUFF_BY_ID = Object.fromEntries(BUFFS.map((b) => [b.id, b]));
+const BUFF_CHECK_DAYS = 30; // раз в месяц — напоминание «Проверить баффы!»
 
 /* ================= состояние (БД = localStorage + экспорт в JSON-файл) ================= */
 const DB_KEY = "bodyupgrade.v1";
@@ -34,6 +64,10 @@ const defaultState = () => ({
   xp: 0,
   sessions: [], // { id, workoutId, date, verdict, score, xp, entries: { exId: [{w, r}] } }
   drafts: {},   // workoutId -> entries (незавершённые)
+  buffs: {
+    active: { creatine: "10 г", arginine: "7 г" }, // id -> доза
+    checkedAt: null,                                // ISO даты последней проверки арсенала
+  },
 });
 
 let S = load();
@@ -155,7 +189,8 @@ function nextWorkoutId() {
 /* ================= роутинг ================= */
 const app = document.getElementById("app");
 const overlayRoot = document.getElementById("overlay-root");
-let view = "profile";
+const VIEWS = ["profile", "cycle", "buffs", "progress"];
+let view = VIEWS.includes((location.hash || "").slice(1)) ? location.hash.slice(1) : "profile";
 
 document.querySelectorAll(".tab").forEach((t) =>
   t.addEventListener("click", () => { view = t.dataset.view; render(); })
@@ -163,10 +198,27 @@ document.querySelectorAll(".tab").forEach((t) =>
 
 function render() {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+  updateBuffBadge();
   window.scrollTo(0, 0);
   if (view === "profile") renderProfile();
   else if (view === "cycle") renderCycle();
+  else if (view === "buffs") renderBuffs();
   else if (view === "progress") renderProgress();
+}
+
+/* дней с последней проверки арсенала; null == не проверяли ни разу */
+function buffsDaysSince() {
+  const at = S.buffs?.checkedAt;
+  if (!at) return null;
+  return Math.floor((Date.now() - new Date(at).getTime()) / 864e5);
+}
+function buffsDue() {
+  const d = buffsDaysSince();
+  return d === null || d >= BUFF_CHECK_DAYS;
+}
+function updateBuffBadge() {
+  const badge = document.getElementById("buffs-badge");
+  if (badge) badge.hidden = !buffsDue();
 }
 
 const runeSVG = `<svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/></svg>`;
@@ -406,6 +458,94 @@ function showVerdict(res) {
     </div>`;
   overlayRoot.appendChild(o);
   o.querySelector(".v-close").onclick = () => { o.remove(); view = "cycle"; render(); };
+}
+
+/* ================= БАФФЫ (арсенал добавок) ================= */
+function renderBuffs() {
+  const active = S.buffs?.active || {};
+  const activeIds = BUFFS.filter((b) => active[b.id]).map((b) => b.id);
+  const days = buffsDaysSince();
+  const due = buffsDue();
+
+  const reminder = due
+    ? `<div class="buff-reminder due">
+         <div class="br-ico">${icon("hourglass")}</div>
+         <div class="br-body">
+           <b>Проверить баффы!</b>
+           <span class="dim small">${days === null ? "Арсенал ещё не сверялся." : `Прошло ${days} дн. с последней сверки.`} Что заканчивается, что обновить, что добавить?</span>
+         </div>
+         <button class="br-ok" id="buff-check">Сверено</button>
+       </div>`
+    : `<div class="buff-reminder ok">
+         <div class="br-ico">${icon("shield")}</div>
+         <div class="br-body">
+           <b>Арсенал сверен</b>
+           <span class="dim small">Следующая проверка через ${BUFF_CHECK_DAYS - days} дн.</span>
+         </div>
+       </div>`;
+
+  const activeCards = activeIds.length
+    ? activeIds.map((id) => {
+        const b = BUFF_BY_ID[id];
+        return `<div class="buff active" data-id="${id}">
+          <span class="medallion">${icon(b.icon)}</span>
+          <span class="buff-body">
+            <span class="buff-top"><b class="buff-name">${b.name}</b><span class="buff-dose mono">${active[id]}</span></span>
+            <span class="buff-real dim small">${b.real} · ${b.effect}</span>
+          </span>
+          <button class="buff-toggle off" title="Снять бафф" aria-label="Снять бафф">✕</button>
+        </div>`;
+      }).join("")
+    : `<div class="empty">Ни одного активного баффа. Загляни в Арсенал ниже.</div>`;
+
+  const arsenal = BUFF_CATS.map((cat) => {
+    const items = BUFFS.filter((b) => b.cat === cat);
+    return `<div class="buff-cat">
+      <div class="week-tag" style="margin:14px 0 4px"><span class="dot"></span> ${cat}</div>
+      ${items.map((b) => {
+        const on = !!active[b.id];
+        return `<div class="buff arsenal ${on ? "on" : ""}" data-id="${b.id}">
+          <span class="medallion">${icon(b.icon)}</span>
+          <span class="buff-body">
+            <span class="buff-top"><b class="buff-name">${b.name}</b><span class="buff-dose mono dim">${b.dose}</span></span>
+            <span class="buff-real dim small">${b.real} · ${b.effect}</span>
+          </span>
+          <button class="buff-toggle ${on ? "off" : "add"}" aria-label="${on ? "Снять" : "Активировать"}">${on ? "✓" : "+"}</button>
+        </div>`;
+      }).join("")}
+    </div>`;
+  }).join("");
+
+  app.innerHTML = `
+    <div class="eyebrow">Баффы · арсенал натурального атлета</div>
+    <h1 class="display">Зелья и печати</h1>
+    <p class="dim small" style="margin-top:4px">Только натуральное и легальное. Раз в месяц — сверка арсенала.</p>
+
+    ${reminder}
+
+    <div class="rune-divider">${runeSVG}</div>
+    <div class="eyebrow" style="margin-bottom:6px">Активные баффы · ${activeIds.length}</div>
+    <div id="active-buffs">${activeCards}</div>
+
+    <div class="rune-divider">${runeSVG}</div>
+    <div class="eyebrow" style="margin-bottom:2px">Арсенал</div>
+    <p class="dim small" style="margin-bottom:2px">Нажми, чтобы активировать или снять бафф.</p>
+    ${arsenal}`;
+
+  const check = document.getElementById("buff-check");
+  if (check) check.onclick = () => { if (!S.buffs) S.buffs = { active: {}, checkedAt: null }; S.buffs.checkedAt = today(); save(); render(); };
+
+  app.querySelectorAll(".buff[data-id]").forEach((el) => {
+    const id = el.dataset.id;
+    const toggle = el.querySelector(".buff-toggle");
+    if (toggle) toggle.onclick = (e) => {
+      e.stopPropagation();
+      if (!S.buffs) S.buffs = { active: {}, checkedAt: null };
+      if (S.buffs.active[id]) delete S.buffs.active[id];
+      else S.buffs.active[id] = BUFF_BY_ID[id].dose;
+      save(); render();
+    };
+  });
 }
 
 /* ================= ХРОНИКИ (прогресс) ================= */
