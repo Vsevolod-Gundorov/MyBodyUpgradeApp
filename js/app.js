@@ -488,6 +488,7 @@ function renderWorkout(wid) {
 
   document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; render(); });
 
+  const anSeries = buildLiftSeries(); // история завершённых квестов для целей потолка/пола
   const list = document.getElementById("ex-list");
   w.exercises.forEach((ex, i) => {
     const el = document.createElement("div");
@@ -498,6 +499,7 @@ function renderWorkout(wid) {
         <span>
           <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}
           <div class="plan">План: ${ex.scheme} · ${ex.wNote || `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`}</div>
+          ${ex.lift ? exTargetHTML(ex, analyzeLift(anSeries[ex.lift])) : ""}
         </span>
         <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length ? saved.length + " подх." : "0 / " + ex.sets}</span>
       </button>
@@ -1183,6 +1185,18 @@ function analyzeLift(pts) {
     tCeil, tFloor, sinceCeil, sinceFloor, heavyCount: heavy.length, sessions: pts.length,
     targetCeil: bestCeil * (1 + AN.GROW), targetFloor: bestFloor * (1 + AN.GROW), status, cls,
   };
+}
+// Целевой блок пределов силы для упражнения квеста (считается из завершённых квестов).
+function exTargetHTML(ex, a) {
+  const loReps = (ex.reps && ex.reps[0]) || 5;
+  if (!a) return `<div class="ex-target neu">◎ Пределы силы: первый замер — задаём точку отсчёта</div>`;
+  // вес топ-сета, который на loReps повторов даёт целевой потолок (обратная формула Эпли)
+  const topSet = Math.round((a.targetCeil / (1 + loReps / 30)) / 2.5) * 2.5;
+  return `<div class="ex-target">
+    <span class="et-row"><span class="et-k">потолок</span><b class="mono">${fmt(a.bestCeil)}</b><span class="et-goal mono">цель ≥ ${fmt(a.targetCeil)}</span></span>
+    <span class="et-row"><span class="et-k">пол</span><b class="mono">${fmt(a.bestFloor)}</b><span class="et-goal mono">цель ≥ ${fmt(a.targetFloor)}</span></span>
+    <span class="et-hint">🎯 топ-сет ≈ <b>${fmt(topSet)} кг × ${loReps}</b>, чтобы двигать потолок</span>
+  </div>`;
 }
 
 function renderProgress() {

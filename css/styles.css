@@ -566,6 +566,21 @@ h2.display { font-size: 1.4rem; }
 .tg.on { background: rgba(224,189,102,.2); border-color: var(--gold); }
 .tg.on i { transform: translateX(20px); background: var(--metal-gold); box-shadow: 0 0 8px rgba(224,189,102,.6); }
 
+/* ---------- целевые пределы в квесте ---------- */
+.ex-target {
+  margin-top: 7px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(224,189,102,.06); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.ex-target.neu { color: var(--dim); font-size: .74rem; }
+.ex-target .et-row { display: flex; align-items: baseline; gap: 8px; font-size: .78rem; }
+.ex-target .et-k { min-width: 54px; font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.ex-target .et-row b { color: var(--gold-bright); font-size: .95rem; }
+.ex-target .et-goal { color: var(--moss); margin-left: auto; }
+.ex-target .et-hint { font-size: .72rem; color: var(--dim); margin-top: 2px; }
+.ex-target .et-hint b { color: var(--bone); }
+.main-ex .ex-target { background: rgba(224,189,102,.1); border-color: var(--line-strong); }
+
 /* ---------- анализ пределов силы ---------- */
 .limits { display: grid; gap: 12px; }
 .limit-card { background: #0b1417; border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; }
