@@ -535,6 +535,30 @@ h2.display { font-size: 1.4rem; }
 .portion-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; align-items: center; }
 .portion-actions .btn-ghost { width: 100%; }
 
+/* ---------- выбор стартового квеста ---------- */
+.cycle-start { margin-top: 12px; }
+.cs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
+.cs-row > span:first-child { display: flex; flex-direction: column; gap: 2px; }
+.cs-row select {
+  flex: 0 1 auto; max-width: 52%; background: #0a1215; color: var(--bone);
+  border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px 10px; font: inherit; font-size: .85rem; cursor: pointer;
+}
+.cs-row select:focus { outline: none; border-color: var(--gold); }
+
+/* ---------- переключатели настроек ---------- */
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  background: none; border: 0; color: var(--bone); font: inherit; font-size: .92rem;
+  padding: 10px 2px; cursor: pointer; border-bottom: 1px dashed var(--line);
+}
+.toggle-row:last-child { border-bottom: 0; }
+.tg { width: 44px; height: 24px; border-radius: 99px; background: #0a1215; border: 1px solid var(--line-strong);
+  position: relative; transition: background .2s; flex: 0 0 auto; }
+.tg i { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--dim); transition: transform .2s, background .2s; }
+.tg.on { background: rgba(224,189,102,.2); border-color: var(--gold); }
+.tg.on i { transform: translateX(20px); background: var(--metal-gold); box-shadow: 0 0 8px rgba(224,189,102,.6); }
+
 /* ---------- иконки ---------- */
 .ico { display: block; width: 20px; height: 20px; fill: currentColor; }
 
