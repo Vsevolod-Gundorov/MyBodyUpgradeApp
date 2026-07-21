@@ -424,17 +424,9 @@ function renderProfile() {
 /* ================= КВЕСТЫ (цикл) ================= */
 function renderCycle() {
   const nextId = nextWorkoutId();
+  const startId = ORDER[(((S.cycleStart || 0) % ORDER.length) + ORDER.length) % ORDER.length];
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">Гринд характеристик: 3 квеста в неделю, порядок 1→12. Каждый закрытый квест — вклад в прокачку персонажа.</p>
-    <div class="panel cycle-start">
-      <label class="cs-row">
-        <span><span class="eyebrow">Старт цикла</span><span class="dim small">скачал не с начала? выбери текущий квест</span></span>
-        <select id="cycle-start">${ORDER.map((id, i) => `<option value="${i}" ${i === (S.cycleStart || 0) ? "selected" : ""}>${i + 1}. ${WORKOUTS[id].boss}</option>`).join("")}</select>
-      </label>
-    </div>`;
-  app.innerHTML += `<div id="quest-weeks"></div>`;
-  const weeksWrap = app.querySelector("#quest-weeks");
-  weeksWrap.innerHTML = `
+    <p class="dim small" style="margin-top:2px">Гринд характеристик: 3 квеста в неделю, порядок 1→12. Отметь ⚑, если начинаешь цикл не с первого квеста.</p>
     ${PROGRAM.weeks.map((wk) => `
       <div class="week-block">
         <div class="week-tag ${wk.type === "объёмная" ? "vol" : ""}">
@@ -442,26 +434,36 @@ function renderCycle() {
         </div>
         ${wk.saga ? `<div class="saga display">${wk.saga}</div>` : ""}
         ${wk.workouts.map((w) => {
+          const idx = ORDER.indexOf(w.id);
           const done = S.sessions.filter((s) => s.workoutId === w.id);
           const last = done[done.length - 1];
           const isNext = w.id === nextId;
+          const isStart = w.id === startId;
           return `
-          <button class="wcard ${last ? "done" : ""} ${isNext ? "next" : ""}" data-w="${w.id}">
-            <span class="medallion">${icon(w.icon || "anvil")}</span>
-            <span class="wcard-body">
-              <span class="row1">
-                <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
-                ${last ? `<span class="verdict-chip ${last.cls}">${last.score}%</span>` : `<span class="dim small">—</span>`}
+          <div class="wcard-wrap">
+            <button class="wcard ${last ? "done" : ""} ${isNext ? "next" : ""}" data-w="${w.id}">
+              <span class="medallion">${icon(w.icon || "anvil")}</span>
+              <span class="wcard-body">
+                <span class="row1">
+                  <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
+                  ${last ? `<span class="verdict-chip ${last.cls}">${last.score}%</span>` : `<span class="dim small">—</span>`}
+                </span>
+                <span class="sub">${w.title} · ${w.exercises.length} упр.${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
               </span>
-              <span class="sub">${w.title} · ${w.exercises.length} упражнений${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
-            </span>
-          </button>`;
+            </button>
+            <button class="wflag ${isStart ? "on" : ""}" data-i="${idx}" aria-label="Отметить стартом цикла"
+              title="${isStart ? "Старт цикла" : "Сделать стартом цикла"}">⚑</button>
+          </div>`;
         }).join("")}
       </div>`).join("")}`;
 
   app.querySelectorAll(".wcard").forEach((c) => c.addEventListener("click", () => withLoader(() => renderWorkout(c.dataset.w))));
-  const csSel = document.getElementById("cycle-start");
-  if (csSel) csSel.onchange = () => { S.cycleStart = +csSel.value; fxTap(); save(); render(); };
+  app.querySelectorAll(".wflag").forEach((f) => f.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const i = +f.dataset.i;
+    S.cycleStart = (S.cycleStart === i) ? 0 : i; // повторное нажатие — сбросить на первый
+    fxTap(); save(); render();
+  }));
 }
 
 /* ================= ЭКРАН ТРЕНИРОВКИ ================= */
@@ -1110,6 +1112,79 @@ function openPortion(food, date, editIndex) {
 }
 
 /* ================= ХРОНИКИ (прогресс) ================= */
+/* ================= анализ пределов силы (потолки/полы, тренды) ================= */
+// Методика из лучших практик: 1ПМ = среднее формул Эпли и Бжицки (кап 10 повторов).
+// Потолок сессии = лучший рабочий 1ПМ. Пол = худший из «рабочих» подходов (≥80% топ-веса
+// сессии — отсекаем разминку и нижние ступени лесенки). В тренд идут только «тяжёлые»
+// выходы (потолок ≥90% исторического максимума), чтобы лёгкие/вспомогательные дни не мешали.
+const AN = { REP_CAP: 10, WORKSET: 0.8, PLATEAU: 6, HEAVY: 0.9, GROW: 0.01 };
+function e1rmAvg(w, r) {
+  const reps = Math.min(r, AN.REP_CAP);
+  if (!w || !reps) return 0;
+  const epley = w * (1 + reps / 30);
+  const brzycki = (w * 36) / (37 - reps);
+  return (epley + brzycki) / 2;
+}
+function buildLiftSeries() {
+  const series = { bench: [], squat: [], deadlift: [], ohp: [] };
+  const sorted = [...S.sessions].sort((a, b) => a.date.localeCompare(b.date));
+  for (const s of sorted) {
+    const w = WORKOUTS[s.workoutId]; if (!w) continue;
+    const perLift = {};
+    w.exercises.forEach((ex) => {
+      if (!ex.lift) return;
+      const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
+      if (sets.length) (perLift[ex.lift] ||= []).push(...sets);
+    });
+    for (const [lift, sets] of Object.entries(perLift)) {
+      const topW = Math.max(...sets.map((x) => x.w));
+      const work = sets.filter((x) => x.w >= topW * AN.WORKSET);
+      const ceil = Math.max(...work.map((x) => e1rmAvg(x.w, x.r)));
+      const floor = Math.min(...work.map((x) => e1rmAvg(x.w, x.r)));
+      series[lift] && series[lift].push({ date: s.date, ceil, floor });
+    }
+  }
+  return series;
+}
+function trendPctPerMonth(points, key) {
+  if (points.length < 3) return null;
+  const t0 = new Date(points[0].date + "T00:00:00Z").getTime();
+  const xs = points.map((p) => (new Date(p.date + "T00:00:00Z").getTime() - t0) / 864e5);
+  const ys = points.map((p) => p[key]);
+  const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); den += (xs[i] - mx) ** 2; }
+  if (!den || !my) return null;
+  return ((num / den) * 30 / my) * 100;
+}
+function analyzeLift(pts) {
+  if (!pts || pts.length < 2) return null;
+  let running = 0; const heavy = [];
+  for (const p of pts) { running = Math.max(running, p.ceil); if (p.ceil >= running * AN.HEAVY) heavy.push(p); }
+  const src = heavy.length >= 2 ? heavy : pts;
+  const last = src[src.length - 1];
+  const bestCeil = Math.max(...src.map((p) => p.ceil));
+  const bestFloor = Math.max(...src.map((p) => p.floor));
+  let sinceCeil = 0, runCeil = 0, sinceFloor = 0, runFloor = 0;
+  for (const p of src) {
+    if (p.ceil >= runCeil) { runCeil = p.ceil; sinceCeil = 0; } else sinceCeil++;
+    if (p.floor >= runFloor) { runFloor = p.floor; sinceFloor = 0; } else sinceFloor++;
+  }
+  const tCeil = trendPctPerMonth(src, "ceil");
+  const tFloor = trendPctPerMonth(src, "floor");
+  let status, cls;
+  if (sinceCeil >= AN.PLATEAU && sinceFloor >= AN.PLATEAU) { status = "Плато — пора делоад и смена стимула"; cls = "verdict-fail"; }
+  else if (tFloor != null && tFloor > 0.3 && (tCeil == null || tCeil >= 0)) { status = "Рост — база крепнет, пол ползёт вверх"; cls = "verdict-gold"; }
+  else if (tCeil != null && tCeil > 0.3 && tFloor != null && tFloor <= 0) { status = "Потолок без базы — добавь объём в рабочей зоне"; cls = "verdict-mid"; }
+  else if (tCeil != null && tCeil < -0.5) { status = "Откат — проверь сон/питание/делоад"; cls = "verdict-fail"; }
+  else { status = "Стабильно — в пределах шума, наблюдаем"; cls = "verdict-mid"; }
+  return {
+    bestCeil, bestFloor, lastCeil: last.ceil, lastFloor: last.floor,
+    tCeil, tFloor, sinceCeil, sinceFloor, heavyCount: heavy.length, sessions: pts.length,
+    targetCeil: bestCeil * (1 + AN.GROW), targetFloor: bestFloor * (1 + AN.GROW), status, cls,
+  };
+}
+
 function renderProgress() {
   const liftSeries = {};
   Object.keys(BASELINES).forEach((k) => (liftSeries[k] = []));
@@ -1123,15 +1198,65 @@ function renderProgress() {
     });
   });
 
+  // анализ пределов силы (потолки/полы)
+  const anSeries = buildLiftSeries();
+  const anCards = Object.keys(anSeries).map((k) => {
+    const a = analyzeLift(anSeries[k]);
+    if (!a) return `
+      <div class="limit-card">
+        <div class="lc-head"><b>${LIFT_NAMES[k]}</b><span class="dim small">мало данных</span></div>
+        <div class="dim small">Нужно ≥2 квеста с этим движением, чтобы считать потолок и пол.</div>
+      </div>`;
+    const arrow = (t) => t == null ? "—" : (t > 0.3 ? `▲ +${fmt(t)}%/мес` : (t < -0.3 ? `▼ ${fmt(t)}%/мес` : `≈ ${fmt(t)}%/мес`));
+    const tcls = (t) => t == null ? "flat" : (t > 0.3 ? "up" : (t < -0.3 ? "down" : "flat"));
+    return `
+      <div class="limit-card">
+        <div class="lc-head"><b>${LIFT_NAMES[k]}</b><span class="lc-status ${a.cls}">${a.status}</span></div>
+        <div class="lc-grid">
+          <div class="lc-cell">
+            <span class="lc-l">Потолок</span>
+            <span class="lc-v mono">${fmt(a.bestCeil)} <i>кг</i></span>
+            <span class="lc-t ${tcls(a.tCeil)} mono">${arrow(a.tCeil)}</span>
+          </div>
+          <div class="lc-cell">
+            <span class="lc-l">Пол <b class="dim">(главное)</b></span>
+            <span class="lc-v mono">${fmt(a.bestFloor)} <i>кг</i></span>
+            <span class="lc-t ${tcls(a.tFloor)} mono">${arrow(a.tFloor)}</span>
+          </div>
+        </div>
+        <div class="lc-target mono dim small">Цель месяца: потолок ≥ ${fmt(a.targetCeil)} · пол ≥ ${fmt(a.targetFloor)} кг</div>
+        <div class="lc-meta dim small">Рекорд потолка: ${a.sinceCeil === 0 ? "в последнем квесте" : a.sinceCeil + " квестов назад"} · пола: ${a.sinceFloor === 0 ? "в последнем квесте" : a.sinceFloor + " квестов назад"}</div>
+      </div>`;
+  }).join("");
+
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">Хроники прокачки: как растут силовые от квеста к квесту.</p>
+    <p class="dim small" style="margin-top:2px">Хроники прокачки: потолки и полы, которые должны расти от квеста к квесту.</p>
     <svg width="0" height="0"><defs><linearGradient id="goldfade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#c9a961" stop-opacity=".35"/><stop offset="1" stop-color="#c9a961" stop-opacity="0"/>
     </linearGradient></defs></svg>
+
+    <div class="panel">
+      <div class="eyebrow" style="margin-bottom:10px">Пределы силы</div>
+      <div class="limits">${anCards}</div>
+      <details class="method">
+        <summary>Как это считается</summary>
+        <div class="method-body dim small">
+          <p><b>1ПМ</b> каждого подхода — среднее формул <b>Эпли</b> и <b>Бжицки</b>, повторы капаются на 10 (выше формулы врут).</p>
+          <p><b>Потолок</b> квеста — лучший рабочий 1ПМ. Это «удачный день».</p>
+          <p><b>Пол</b> — худший из <b>рабочих</b> подходов (≥80% топ-веса квеста; разминка и низ лесенки отсекаются). Это твоя <b>базовая сила</b> — она важнее потолка: растёт пол → крепнет фундамент.</p>
+          <p>В тренд идут только <b>тяжёлые</b> квесты (потолок ≥90% исторического максимума) — лёгкие и вспомогательные дни не смазывают картину. Тренд — наклон линейной регрессии в <b>%/месяц</b>.</p>
+          <p><b>Плато</b> — если ${AN.PLATEAU}+ квестов подряд нет нового потолка и пола: пора делоад и смена стимула. Целевой рост продвинутого атлета — <b>≥1%/мес</b>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="rune-divider">${runeSVG}</div>
+    <div class="eyebrow" style="margin:2px 0 8px">Кривые роста</div>
     <div id="charts"></div>
+
     <div class="rune-divider">${runeSVG}</div>
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:8px">Последние походы</div>
+      <div class="eyebrow" style="margin-bottom:8px">Последние квесты</div>
       <div id="log"></div>
     </div>`;
 
@@ -1148,7 +1273,7 @@ function renderProgress() {
         <b>${LIFT_NAMES[k]}</b>
         <span class="delta ${d > 0.5 ? "up" : "flat"} mono">${fmt(last)} кг ${d > 0.5 ? "▲ +" + fmt(d) : ""}</span>
       </div>
-      ${arr.length ? sparkline(pts.map((p) => p.v)) : `<div class="empty">Пока пусто. Первый поход в кузницу впишет сюда строку.</div>`}`;
+      ${arr.length ? sparkline(pts.map((p) => p.v)) : `<div class="empty">Пока пусто. Первый квест впишет сюда строку.</div>`}`;
     charts.appendChild(card);
   });
 

@@ -82,14 +82,14 @@ h2.display { font-size: 1.4rem; }
   filter: drop-shadow(0 0 6px rgba(201,169,97,.25)); }
 .rune-divider svg { display: none; }
 
-/* ---------- панели (рельеф + фактура) ---------- */
+/* ---------- панели (рельеф + фактура + орнаментная рамка как у карточки уровня) ---------- */
 .panel {
   background:
     linear-gradient(180deg, rgba(233,212,147,.05), transparent 40%),
     var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r);
-  padding: 16px;
+  padding: 18px 17px;
   position: relative;
   box-shadow: var(--bevel), 0 6px 18px rgba(0,0,0,.35);
 }
@@ -99,25 +99,26 @@ h2.display { font-size: 1.4rem; }
   background-image: var(--tex-leather); background-size: 360px 360px;
   opacity: .06; mix-blend-mode: overlay;
 }
-.panel + .panel, .panel + .section, .section + .panel { margin-top: 14px; }
-.panel--ornate { border-color: var(--line-strong); }
-/* золочёные уголки-скобки по всем четырём углам */
-.panel--ornate::before {
-  content: ""; position: absolute; inset: 4px; pointer-events: none; z-index: 1; border-radius: 6px;
-  background:
-    linear-gradient(var(--gold), var(--gold)) top left / 13px 1.5px no-repeat,
-    linear-gradient(var(--gold), var(--gold)) top left / 1.5px 13px no-repeat,
-    linear-gradient(var(--gold), var(--gold)) top right / 13px 1.5px no-repeat,
-    linear-gradient(var(--gold), var(--gold)) top right / 1.5px 13px no-repeat,
-    linear-gradient(var(--gold), var(--gold)) bottom left / 13px 1.5px no-repeat,
-    linear-gradient(var(--gold), var(--gold)) bottom left / 1.5px 13px no-repeat,
-    linear-gradient(var(--gold), var(--gold)) bottom right / 13px 1.5px no-repeat,
-    linear-gradient(var(--gold), var(--gold)) bottom right / 1.5px 13px no-repeat;
-  filter: drop-shadow(0 0 3px rgba(201,169,97,.5));
+/* золочёная орнаментная рамка — единый стиль со всеми рамками приложения */
+.panel::before {
+  content: ""; position: absolute; inset: -6px; pointer-events: none; z-index: 3;
+  border: 17px solid transparent;
+  border-image: var(--tex-frame) 22 stretch;
+  filter: drop-shadow(0 0 4px rgba(224,189,102,.26));
 }
+.panel + .panel, .panel + .section, .section + .panel { margin-top: 20px; }
+.panel--ornate { border-color: var(--line-strong); }
 
 /* ---------- герой / профиль ---------- */
-.hero-head { text-align: center; padding: 20px 16px 16px; margin-bottom: 4px; }
+.hero-head { text-align: center; padding: 20px 16px 16px; margin-bottom: 4px; position: relative; }
+/* лого-эмблема (крылатый сигил) вписана в фон под кольцом уровня */
+.hero-head::before {
+  content: ""; position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%);
+  width: 92%; max-width: 380px; aspect-ratio: 2 / 1; z-index: 0; pointer-events: none;
+  background: center / contain no-repeat url("../assets/logo.svg");
+  opacity: .12; filter: drop-shadow(0 0 10px rgba(224,189,102,.3));
+}
+.hero-head > * { position: relative; z-index: 1; }
 .hero-name { margin-top: 2px; }
 .hero-title { color: var(--gold); font-style: italic; font-family: var(--font-display); font-size: 1.05rem; }
 
@@ -535,15 +536,21 @@ h2.display { font-size: 1.4rem; }
 .portion-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; align-items: center; }
 .portion-actions .btn-ghost { width: 100%; }
 
-/* ---------- выбор стартового квеста ---------- */
-.cycle-start { margin-top: 12px; }
-.cs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
-.cs-row > span:first-child { display: flex; flex-direction: column; gap: 2px; }
-.cs-row select {
-  flex: 0 1 auto; max-width: 52%; background: #0a1215; color: var(--bone);
-  border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px 10px; font: inherit; font-size: .85rem; cursor: pointer;
+/* ---------- флаг «старт цикла» на карточке квеста ---------- */
+.wcard-wrap { position: relative; }
+.wcard-wrap .wcard { padding-right: 48px; }
+.wflag {
+  position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+  width: 30px; height: 30px; border-radius: 8px; z-index: 2; cursor: pointer;
+  display: grid; place-content: center; line-height: 1; font-size: .95rem;
+  background: rgba(10,18,21,.65); border: 1px solid var(--line); color: var(--dim);
+  transition: transform .12s;
 }
-.cs-row select:focus { outline: none; border-color: var(--gold); }
+.wflag.on {
+  color: #241a08; background: var(--metal-gold); border-color: #f0d79c;
+  box-shadow: 0 0 10px rgba(224,189,102,.55);
+}
+.wflag:active { transform: translateY(-50%) scale(.88); }
 
 /* ---------- переключатели настроек ---------- */
 .toggle-row {
@@ -558,6 +565,32 @@ h2.display { font-size: 1.4rem; }
   background: var(--dim); transition: transform .2s, background .2s; }
 .tg.on { background: rgba(224,189,102,.2); border-color: var(--gold); }
 .tg.on i { transform: translateX(20px); background: var(--metal-gold); box-shadow: 0 0 8px rgba(224,189,102,.6); }
+
+/* ---------- анализ пределов силы ---------- */
+.limits { display: grid; gap: 12px; }
+.limit-card { background: #0b1417; border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; }
+.lc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.lc-head b { font-family: var(--font-display); font-size: 1.12rem; }
+.lc-status { font-size: .72rem; text-align: right; max-width: 62%; }
+.lc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lc-cell { background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+.lc-l { display: block; font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.lc-l b { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.lc-v { display: block; font-size: 1.35rem; font-weight: 600; color: var(--gold-bright); margin: 2px 0; }
+.lc-v i { font-size: .8rem; font-style: normal; color: var(--dim); }
+.lc-t { font-size: .76rem; }
+.lc-t.up { color: var(--moss); }
+.lc-t.down { color: var(--ember); }
+.lc-t.flat { color: var(--dim); }
+.lc-target { margin-top: 9px; }
+.lc-meta { margin-top: 3px; }
+.method { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.method summary { cursor: pointer; color: var(--gold); font-size: .82rem; letter-spacing: .06em; list-style: none; }
+.method summary::-webkit-details-marker { display: none; }
+.method summary::before { content: "▸ "; }
+.method[open] summary::before { content: "▾ "; }
+.method-body { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; line-height: 1.5; }
+.method-body b { color: var(--bone); }
 
 /* ---------- иконки ---------- */
 .ico { display: block; width: 20px; height: 20px; fill: currentColor; }
