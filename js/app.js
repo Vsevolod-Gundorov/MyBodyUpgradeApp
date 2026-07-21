@@ -1,4 +1,5 @@
 import { PROGRAM, BASELINES, LIFT_NAMES } from "../data/program.js";
+import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch } from "../data/nutrition.js";
 
 /* ================= иконки (внутренняя SVG-разметка, fill = currentColor) ================= */
 const ICONS = {
@@ -29,6 +30,11 @@ const ICONS = {
   heart: `<path d="M12 21C5 15 3 11 3 8a4.6 4.6 0 0 1 9-1 4.6 4.6 0 0 1 9 1c0 3-2 7-9 13z"/>`,
   capsule: `<path d="M4 12.5l8.5-8.5a4.6 4.6 0 0 1 6.5 6.5L10.5 19a4.6 4.6 0 0 1-6.5-6.5zm5 5l5-5-6-6-5 5 6 6z"/>`,
   potion: `<path d="M10 2h4v3.2l3 2.3A6 6 0 1 1 7 7.5l3-2.3V2zm-1 8.5A4 4 0 1 0 15 10l-1-.8H10l-1 .8z"/>`,
+  // ресурсы / питание
+  apple: `<path d="M12 7.2c-1.4-1.9-3.8-2.3-5.4-1C4.7 7.7 4.6 11 6 14.4 7 16.7 8.5 19 10.4 19c.6 0 1-.2 1.6-.2s1 .2 1.6.2c1.9 0 3.4-2.3 4.4-4.6 1.4-3.4 1.3-6.7-.6-8.2-1.6-1.3-4-.9-5.4 1z"/><path d="M12.2 6.4c0-1.6 1.2-2.9 3-3.1-.1 1.7-1.3 3-3 3.1z"/>`,
+  drumstick: `<path d="M13.8 3.4a5.4 5.4 0 0 0-4 9l-3.1 3.1a2.6 2.6 0 1 0 1.7 1.7l3.1-3.1a5.4 5.4 0 1 0 2.3-10.7zM6 16.4l-1.5 1.5a1.5 1.5 0 1 0 2.1 2.1L8.1 18.5z"/>`,
+  wheat: `<rect x="11.4" y="4" width="1.2" height="17" rx=".6"/><path d="M11.4 5.6c-2.2-.5-3.8.6-3.8 2.8 2.2.5 3.8-.6 3.8-2.8zM12.6 5.6c2.2-.5 3.8.6 3.8 2.8-2.2.5-3.8-.6-3.8-2.8zM11.4 9.8c-2.2-.5-3.8.6-3.8 2.8 2.2.5 3.8-.6 3.8-2.8zM12.6 9.8c2.2-.5 3.8.6 3.8 2.8-2.2.5-3.8-.6-3.8-2.8zM11.4 14c-2.2-.5-3.8.6-3.8 2.8 2.2.5 3.8-.6 3.8-2.8zM12.6 14c2.2-.5 3.8.6 3.8 2.8-2.2.5-3.8-.6-3.8-2.8z"/>`,
+  avocado: `<path d="M12 2.6c3 0 5.2 3.2 5.2 8.2S15 21.4 12 21.4 6.8 15.8 6.8 10.8 9 2.6 12 2.6z"/><circle cx="12" cy="15" r="2.7" fill="#171307"/>`,
 };
 const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
 // какая иконка у какой характеристики
@@ -67,6 +73,10 @@ const defaultState = () => ({
   buffs: {
     active: { creatine: "10 г", arginine: "7 г" }, // id -> доза
     checkedAt: null,                                // ISO даты последней проверки арсенала
+  },
+  nutrition: {
+    log: {},     // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
+    recent: [],  // недавно использованные продукты (макс. 12)
   },
 });
 
@@ -189,7 +199,7 @@ function nextWorkoutId() {
 /* ================= роутинг ================= */
 const app = document.getElementById("app");
 const overlayRoot = document.getElementById("overlay-root");
-const VIEWS = ["profile", "cycle", "buffs", "progress"];
+const VIEWS = ["profile", "cycle", "buffs", "resources", "progress"];
 let view = VIEWS.includes((location.hash || "").slice(1)) ? location.hash.slice(1) : "profile";
 
 document.querySelectorAll(".tab").forEach((t) =>
@@ -203,6 +213,7 @@ function render() {
   if (view === "profile") renderProfile();
   else if (view === "cycle") renderCycle();
   else if (view === "buffs") renderBuffs();
+  else if (view === "resources") renderResources();
   else if (view === "progress") renderProgress();
 }
 
@@ -546,6 +557,265 @@ function renderBuffs() {
       save(); render();
     };
   });
+}
+
+/* ================= РЕСУРСЫ (снабжение / питание) ================= */
+const NUT_ICON = { kcal: "flame", protein: "drumstick", carbs: "wheat", fat: "avocado" };
+
+function nutDay(date) {
+  if (!S.nutrition) S.nutrition = { log: {}, recent: [] };
+  if (!S.nutrition.log[date]) {
+    const trainedToday = S.sessions.some((s) => s.date === date);
+    S.nutrition.log[date] = { dayType: trainedToday ? "training" : "rest", items: [], water: 0 };
+  }
+  return S.nutrition.log[date];
+}
+function nutTotals(day) {
+  const t = { k: 0, p: 0, f: 0, cb: 0, fb: 0 };
+  day.items.forEach((it) => {
+    const m = it.g / 100;
+    t.k += it.k * m; t.p += it.p * m; t.f += it.f * m; t.cb += it.cb * m; t.fb += (it.fb || 0) * m;
+  });
+  return t;
+}
+function pushRecent(food) {
+  if (!S.nutrition.recent) S.nutrition.recent = [];
+  S.nutrition.recent = [food, ...S.nutrition.recent.filter((r) => r.id !== food.id)].slice(0, 12);
+}
+
+// класс шкалы: недобор / в цель / перебор (для белка перебор — не беда)
+function gaugeState(pct, kind) {
+  if (pct < 0.9) return "lo";
+  if (pct <= 1.1) return "ok";
+  return kind === "protein" ? "ok" : "hi";
+}
+
+function renderResources() {
+  const date = today();
+  const day = nutDay(date);
+  const T = NUTRITION.dayTypes[day.dayType];
+  const tot = nutTotals(day);
+
+  const macros = [
+    { key: "kcal", name: "Калории", unit: "ккал", cur: tot.k, tgt: T.kcal },
+    { key: "protein", name: "Белок", unit: "г", cur: tot.p, tgt: T.protein },
+    { key: "carbs", name: "Углеводы", unit: "г", cur: tot.cb, tgt: T.carbs },
+    { key: "fat", name: "Жиры", unit: "г", cur: tot.f, tgt: T.fat },
+  ];
+  // готовность пайка: среднее заполнение 4 шкал (перебор капается на 100%)
+  const readiness = Math.round(100 * macros.reduce((a, m) => a + Math.min(1, m.cur / m.tgt), 0) / macros.length);
+  const proteinOk = tot.p >= T.protein * 0.95;
+  const kcalPct = tot.k / T.kcal;
+  const kcalOk = kcalPct >= 0.9 && kcalPct <= 1.1;
+  let vCls, vTxt;
+  if (readiness >= 90 && proteinOk && kcalOk) { vCls = "verdict-gold"; vTxt = "Паёк собран"; }
+  else if (readiness >= 55) { vCls = "verdict-mid"; vTxt = "Припасы копятся"; }
+  else { vCls = "verdict-fail"; vTxt = "Кладовая пуста"; }
+
+  const ring = 2 * Math.PI * 52;
+  const gaugeHTML = macros.map((m) => {
+    const pct = m.tgt ? m.cur / m.tgt : 0;
+    const st = gaugeState(pct, m.key === "protein" ? "protein" : m.key);
+    const left = Math.round(m.tgt - m.cur);
+    return `
+      <div class="gauge ${st}">
+        <div class="g-top">
+          <span class="g-name">${icon(NUT_ICON[m.key])}<b>${m.name}</b></span>
+          <span class="g-val mono">${Math.round(m.cur)} / ${m.tgt} ${m.unit}</span>
+        </div>
+        <div class="g-bar"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%"></i></div>
+        <div class="g-sub mono">${left > 0 ? `осталось ${left} ${m.unit}` : `перебор ${Math.abs(left)} ${m.unit}`}</div>
+      </div>`;
+  }).join("");
+
+  const waterCups = Math.round(day.water / 250);
+  const waterPct = Math.min(100, (day.water / WATER_TARGET_ML) * 100);
+  const fiberTgt = NUTRITION.constants.fiber[0];
+
+  const itemsHTML = day.items.length
+    ? day.items.map((it, i) => `
+        <div class="meal-row">
+          <span class="meal-name">${it.n}<span class="dim small"> · ${it.g} г</span></span>
+          <span class="meal-kcal mono">${Math.round(it.k * it.g / 100)} ккал</span>
+          <button class="meal-del" data-i="${i}" aria-label="Убрать">✕</button>
+        </div>`).join("")
+    : `<div class="empty">Провизии пока нет. Найди продукт и добавь порцию.</div>`;
+
+  const tip = day.dayType === "training"
+    ? `<div class="nut-tip"><span class="dim small">⚔ Тренировочный день · за 2 ч до похода: ${NUTRITION.timing.pre.carbs.join("–")} г углеводов + ${NUTRITION.timing.pre.protein.join("–")} г белка · после: ${NUTRITION.timing.post.carbs.join("–")} г углеводов + ${NUTRITION.timing.post.protein.join("–")} г белка.</span></div>`
+    : `<div class="nut-tip"><span class="dim small">☾ День отдыха · углеводы ровнее по приёмам, ужин легче. Белок держим ${T.protein} г.</span></div>`;
+
+  app.innerHTML = `
+    <div class="eyebrow">Ресурсы · снабжение героя</div>
+    <h1 class="display">Провизия дня</h1>
+
+    <div class="daytype-toggle">
+      <button class="dt ${day.dayType === "training" ? "on" : ""}" data-dt="training">${icon("hammer")} Тренировочный</button>
+      <button class="dt ${day.dayType === "rest" ? "on" : ""}" data-dt="rest">${icon("moon")} Отдых</button>
+    </div>
+
+    <div class="panel panel--ornate fuel-panel">
+      <div class="level-ring fuel-ring">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(201,169,97,.15)" stroke-width="5"/>
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#c9a961" stroke-width="5"
+            stroke-linecap="round" stroke-dasharray="${ring}" stroke-dashoffset="${ring * (1 - readiness / 100)}"/>
+        </svg>
+        <div class="lvl"><b>${readiness}%</b><span>паёк</span></div>
+      </div>
+      <div class="fuel-verdict ${vCls}">${vTxt}</div>
+      <div class="dim small mono">${T.label} · цель ${T.kcal} ккал · Б ${T.protein} · Ж ${T.fat} · У ${T.carbs}</div>
+    </div>
+
+    <div class="gauges">${gaugeHTML}</div>
+
+    <div class="panel water-panel">
+      <div class="g-top">
+        <span class="g-name">${icon("droplet")}<b>Вода</b></span>
+        <span class="g-val mono">${(day.water / 1000).toFixed(2)} / ${(WATER_TARGET_ML / 1000).toFixed(1)} л</span>
+      </div>
+      <div class="g-bar"><i class="water" style="width:${waterPct.toFixed(0)}%"></i></div>
+      <div class="water-ctl">
+        <button class="wbtn" id="water-minus" aria-label="Убрать стакан">−</button>
+        <span class="mono dim small">${waterCups} × 250 мл</span>
+        <button class="wbtn" id="water-plus" aria-label="Добавить стакан">+ стакан</button>
+      </div>
+      <div class="g-sub mono">≈ клетчатка ${Math.round(tot.fb)} / ${fiberTgt} г</div>
+    </div>
+
+    ${tip}
+
+    <div class="rune-divider">${runeSVG}</div>
+
+    <div class="eyebrow" style="margin-bottom:6px">Добавить провизию</div>
+    <div class="food-search">
+      <input id="food-q" type="search" inputmode="search" placeholder="Найди продукт — курица, рис, банан…" autocomplete="off" />
+    </div>
+    <div id="food-results"></div>
+
+    <div class="rune-divider">${runeSVG}</div>
+    <div class="eyebrow" style="margin-bottom:6px">Съедено сегодня · ${day.items.length}</div>
+    <div id="meal-log">${itemsHTML}</div>`;
+
+  // тип дня
+  app.querySelectorAll(".dt").forEach((b) => b.onclick = () => {
+    day.dayType = b.dataset.dt; save(); render();
+  });
+  // вода
+  document.getElementById("water-plus").onclick = () => { day.water += 250; save(); render(); };
+  document.getElementById("water-minus").onclick = () => { day.water = Math.max(0, day.water - 250); save(); render(); };
+  // удаление приёма
+  app.querySelectorAll(".meal-del").forEach((b) => b.onclick = () => {
+    day.items.splice(+b.dataset.i, 1); save(); render();
+  });
+
+  wireFoodSearch(day);
+}
+
+/* ---------- поиск продуктов: локальный справочник + Open Food Facts ---------- */
+let foodSearchTimer = null;
+let foodSearchCtl = null;
+
+function wireFoodSearch(day) {
+  const input = document.getElementById("food-q");
+  const box = document.getElementById("food-results");
+  if (!input || !box) return;
+
+  const renderList = (foods, note) => {
+    box.innerHTML =
+      (note ? `<div class="dim small" style="padding:4px 2px">${note}</div>` : "") +
+      (foods.length ? foods.map((f) => `
+        <div class="food-item" data-id="${f.id}">
+          <span class="food-body">
+            <span class="food-name">${f.n}</span>
+            <span class="food-macros dim small mono">${f.k} ккал · Б ${fmt(f.p)} · Ж ${fmt(f.f)} · У ${fmt(f.cb)} <span class="per100">/ 100 г</span></span>
+          </span>
+          <button class="food-add" aria-label="Добавить">+</button>
+        </div>`).join("") : `<div class="empty">Ничего не найдено. Попробуй другое слово.</div>`);
+    // кэш найденных, чтобы открыть порцию
+    box._foods = {};
+    foods.forEach((f) => (box._foods[f.id] = f));
+    box.querySelectorAll(".food-item").forEach((el) => {
+      el.querySelector(".food-add").onclick = () => openPortion(box._foods[el.dataset.id], day);
+    });
+  };
+
+  const showDefault = () => {
+    const recent = (S.nutrition.recent || []);
+    renderList(recent.length ? recent : FOODS.slice(0, 8), recent.length ? "Недавнее" : "Популярное");
+  };
+  showDefault();
+
+  input.oninput = () => {
+    const q = input.value.trim().toLowerCase();
+    clearTimeout(foodSearchTimer);
+    if (foodSearchCtl) { foodSearchCtl.abort(); foodSearchCtl = null; }
+    if (!q) { showDefault(); return; }
+
+    // мгновенно — локальные совпадения
+    const local = FOODS.filter((f) => f.n.toLowerCase().includes(q)).slice(0, 10);
+    renderList(local, "Из справочника · ищу в базе Open Food Facts…");
+
+    // затем — Open Food Facts (с debounce)
+    foodSearchTimer = setTimeout(async () => {
+      foodSearchCtl = new AbortController();
+      const killer = setTimeout(() => foodSearchCtl && foodSearchCtl.abort(), 8000); // не ждём вечно
+      try {
+        const remote = await offSearch(q, foodSearchCtl.signal);
+        clearTimeout(killer);
+        if (input.value.trim().toLowerCase() !== q) return; // запрос устарел
+        const seen = new Set(local.map((f) => f.n.toLowerCase()));
+        const merged = [...local, ...remote.filter((r) => !seen.has(r.n.toLowerCase()))].slice(0, 30);
+        renderList(merged, merged.length > local.length ? "Справочник + Open Food Facts" : "Из справочника");
+      } catch (e) {
+        clearTimeout(killer);
+        if (e.name === "AbortError") return;
+        renderList(local, "Open Food Facts недоступен — показываю справочник.");
+      }
+    }, 350);
+  };
+}
+
+function openPortion(food, day) {
+  if (!food) return;
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  const calc = (g) => Math.round(food.k * g / 100);
+  o.innerHTML = `
+    <div class="portion-card">
+      <div class="eyebrow">Порция</div>
+      <div class="portion-name display">${food.n}</div>
+      <div class="dim small mono" style="margin-bottom:14px">${food.k} ккал · Б ${fmt(food.p)} · Ж ${fmt(food.f)} · У ${fmt(food.cb)} на 100 г</div>
+      <div class="portion-chips">
+        ${[50, 100, 150, 200, 250].map((g) => `<button class="pchip" data-g="${g}">${g} г</button>`).join("")}
+      </div>
+      <div class="portion-input">
+        <input id="portion-g" inputmode="numeric" value="100" aria-label="граммы" /> <span class="dim">г</span>
+        <span class="portion-kcal mono" id="portion-kcal">${calc(100)} ккал</span>
+      </div>
+      <div class="portion-actions">
+        <button class="btn-ghost" id="portion-cancel">Отмена</button>
+        <button class="finish-btn" id="portion-add" style="margin-top:0">Добавить</button>
+      </div>
+    </div>`;
+  overlayRoot.appendChild(o);
+
+  const gInput = o.querySelector("#portion-g");
+  const kEl = o.querySelector("#portion-kcal");
+  const upd = () => { kEl.textContent = calc(parseFloat(gInput.value.replace(",", ".")) || 0) + " ккал"; };
+  gInput.oninput = upd;
+  o.querySelectorAll(".pchip").forEach((c) => c.onclick = () => { gInput.value = c.dataset.g; upd(); gInput.focus(); });
+  o.querySelector("#portion-cancel").onclick = () => o.remove();
+  o.querySelector("#portion-add").onclick = () => {
+    const g = parseFloat(gInput.value.replace(",", ".")) || 0;
+    if (g <= 0) { gInput.focus(); return; }
+    day.items.push({ n: food.n, g, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0, src: food.src });
+    pushRecent({ id: food.id, src: food.src, n: food.n, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0 });
+    save();
+    o.remove();
+    render();
+  };
+  setTimeout(() => gInput.select(), 50);
 }
 
 /* ================= ХРОНИКИ (прогресс) ================= */
