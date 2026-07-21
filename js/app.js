@@ -230,18 +230,26 @@ document.querySelectorAll(".tab").forEach((t) => {
 
 /* ---- анимированный лоадер между экранами ---- */
 const loaderEl = document.getElementById("loader");
+const loaderEmblem = document.getElementById("loader-emblem");
+if (loaderEmblem) loaderEmblem.innerHTML = icon("sigil");
 const LOADER_WORDS = ["Пробуждение", "Сбор рун", "Врата открываются", "Судьба зовёт", "Кровь и сталь", "Восхождение"];
 const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let loaderHideTimer = null;
 function withLoader(action) {
   if (reduceMotion || !loaderEl) { action(); return; }
   const word = document.getElementById("loader-word");
   if (word) word.textContent = LOADER_WORDS[Math.floor(Math.random() * LOADER_WORDS.length)];
-  loaderEl.hidden = false; loaderEl.classList.remove("out");
+  clearTimeout(loaderHideTimer);
+  loaderEl.classList.remove("out");
+  loaderEl.classList.add("show");
   setTimeout(() => {
-    action();
-    loaderEl.classList.add("out");
-    setTimeout(() => { loaderEl.hidden = true; loaderEl.classList.remove("out"); }, 320);
-  }, 460);
+    try { action(); }
+    finally {
+      // всегда прячем лоадер, даже если рендер бросил ошибку
+      loaderEl.classList.add("out");
+      loaderHideTimer = setTimeout(() => { loaderEl.classList.remove("show", "out"); }, 320);
+    }
+  }, 440);
 }
 
 function render() {

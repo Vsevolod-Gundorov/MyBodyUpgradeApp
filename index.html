@@ -33,13 +33,14 @@
   </nav>
 
   <!-- анимированный лоадер между экранами -->
-  <div id="loader" class="loader" hidden aria-hidden="true">
+  <div id="loader" class="loader" aria-hidden="true">
     <div class="loader-sigil">
-      <svg viewBox="0 0 120 120">
-        <circle class="ls-track" cx="60" cy="60" r="46"/>
-        <circle class="ls-arc" cx="60" cy="60" r="46"/>
-        <path class="ls-star" d="M60 24l7.5 21.5L90 46l-18 13 7 22.5L60 68l-19 13.5 7-22.5-18-13 22.5-.5z"/>
+      <svg class="loader-ring" viewBox="0 0 120 120">
+        <circle class="ls-track" cx="60" cy="60" r="52"/>
+        <circle class="ls-arc" cx="60" cy="60" r="52"/>
+        <circle class="ls-arc ls-arc2" cx="60" cy="60" r="44"/>
       </svg>
+      <span class="loader-emblem" id="loader-emblem"></span>
     </div>
     <div class="loader-word" id="loader-word"></div>
   </div>

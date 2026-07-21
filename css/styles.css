@@ -558,35 +558,39 @@ h2.display { font-size: 1.4rem; }
 
 /* ---------- анимированный лоадер между экранами ---------- */
 .loader {
-  position: fixed; inset: 0; z-index: 90; display: grid; place-content: center; justify-items: center; gap: 18px;
+  position: fixed; inset: 0; z-index: 90; display: none; place-content: center; justify-items: center; gap: 20px;
   background:
     radial-gradient(520px 420px at 50% 42%, rgba(244,205,120,.16), transparent 60%),
     radial-gradient(700px 600px at 50% 45%, rgba(50,110,120,.18), transparent 65%),
-    rgba(4,8,10,.94);
+    rgba(4,8,10,.95);
   backdrop-filter: blur(6px);
-  animation: loader-in .18s ease-out;
 }
-.loader.out { animation: loader-out .32s ease-in forwards; }
+.loader.show { display: grid; animation: loader-in .18s ease-out; }
+.loader.out { animation: loader-out .3s ease-in forwards; }
 @keyframes loader-in { from { opacity: 0; } }
 @keyframes loader-out { to { opacity: 0; } }
-.loader-sigil { width: 116px; height: 116px; filter: drop-shadow(0 0 14px rgba(244,205,120,.5)); }
-.loader-sigil svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.loader-sigil .ls-track { fill: none; stroke: rgba(224,189,102,.16); stroke-width: 2; }
-.loader-sigil .ls-arc {
+
+.loader-sigil { position: relative; width: 128px; height: 128px; }
+.loader-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.loader-ring .ls-track { fill: none; stroke: rgba(224,189,102,.14); stroke-width: 1.5; }
+.loader-ring .ls-arc {
   fill: none; stroke: var(--gold-bright); stroke-width: 2.4; stroke-linecap: round;
-  stroke-dasharray: 289; stroke-dashoffset: 216; transform-origin: 60px 60px;
-  animation: sigil-spin 1s linear infinite;
+  stroke-dasharray: 327 327; stroke-dashoffset: 250; transform-origin: 60px 60px;
+  filter: drop-shadow(0 0 5px rgba(244,205,120,.6));
+  animation: ring-spin 1.15s linear infinite;
 }
-.loader-sigil .ls-star {
-  fill: var(--gold-bright); transform-origin: 60px 60px;
-  animation: sigil-pulse 1.1s ease-in-out infinite;
-}
-@keyframes sigil-spin { to { transform: rotate(360deg); } }
-@keyframes sigil-pulse { 0%,100% { opacity: .5; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.06); } }
+.loader-ring .ls-arc2 { stroke-width: 1.6; stroke-dasharray: 276 276; stroke-dashoffset: 190; opacity: .6;
+  animation: ring-spin 1.7s linear infinite reverse; }
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+/* сияющий сигил в центре (game-icons.net) */
+.loader-emblem { position: absolute; inset: 0; display: grid; place-content: center; color: var(--gold-bright);
+  filter: drop-shadow(0 0 12px rgba(244,205,120,.65)); animation: emblem-pulse 1.5s ease-in-out infinite; }
+.loader-emblem .ico { width: 58px; height: 58px; }
+@keyframes emblem-pulse { 0%,100% { opacity: .78; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.05); } }
 .loader-word {
-  font-family: var(--font-display); font-size: 1.25rem; letter-spacing: .18em; text-transform: uppercase;
-  color: var(--gold-bright); text-shadow: 0 0 12px rgba(224,189,102,.4);
-  animation: word-fade 1.2s ease-in-out infinite;
+  font-family: var(--font-display); font-size: 1.3rem; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--gold-bright); text-shadow: 0 0 12px rgba(224,189,102,.45);
+  animation: word-fade 1.3s ease-in-out infinite;
 }
 @keyframes word-fade { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {

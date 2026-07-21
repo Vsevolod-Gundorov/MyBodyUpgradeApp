@@ -42,6 +42,7 @@
 | capsule | lorc/pill |
 | potion | lorc/potion-ball |
 | book | lorc/book-cover |
+| sigil (лоадер) | lorc/sun |
 
 ## Прочее
 
