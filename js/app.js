@@ -1,5 +1,31 @@
 import { PROGRAM, BASELINES, LIFT_NAMES } from "../data/program.js";
 
+/* ================= иконки (внутренняя SVG-разметка, fill = currentColor) ================= */
+const ICONS = {
+  // тренировки
+  anvil: `<path d="M2 8h10c0 2-1.6 2.9-3.6 3L7 14h8l1.9 3.4H5.7L4 13.9C2.9 13.4 2 12.1 2 10.6V8z"/><rect x="16.4" y="8" width="4.6" height="1.9" rx=".5"/><rect x="6.6" y="18" width="8.8" height="2.7" rx=".9"/>`,
+  pillars: `<rect x="3.5" y="3" width="17" height="2.4" rx=".5"/><rect x="5.5" y="6.2" width="2.6" height="9.6"/><rect x="10.7" y="6.2" width="2.6" height="9.6"/><rect x="15.9" y="6.2" width="2.6" height="9.6"/><rect x="3.5" y="16.6" width="17" height="3" rx=".6"/>`,
+  mountain: `<path d="M2 20L8.6 6.5l3.6 6.6 2.1-3.1L22 20H2z"/><circle cx="17.3" cy="6.6" r="2.4"/>`,
+  spine: `<rect x="9.7" y="2.6" width="4.6" height="2.3" rx="1.1"/><rect x="9.3" y="5.8" width="5.4" height="2.3" rx="1.1"/><rect x="9.7" y="9" width="4.6" height="2.3" rx="1.1"/><rect x="9.3" y="12.2" width="5.4" height="2.3" rx="1.1"/><rect x="9.7" y="15.4" width="4.6" height="2.3" rx="1.1"/><rect x="9.3" y="18.6" width="5.4" height="2.3" rx="1.1"/>`,
+  dagger: `<path d="M12 1.5l2.1 5.3v8.4l-2.1 3.6-2.1-3.6V6.8L12 1.5z"/><rect x="7.6" y="15" width="8.8" height="1.9" rx=".6"/><rect x="11" y="16.6" width="2" height="4.4" rx=".4"/>`,
+  tower: `<path d="M4 9.2V5.2h2.2v1.9h1.8V5.2h2.2v1.9h1.6V5.2h2.2v1.9h1.8V5.2H20v4H4z"/><path d="M5 9.2h14V21H5z"/><rect x="9.4" y="13.4" width="5.2" height="7.6" rx=".4" fill="#171307"/>`,
+  sun: `<circle cx="12" cy="12" r="4.4"/><g><rect x="11" y="1.2" width="2" height="3.4" rx="1"/><rect x="11" y="19.4" width="2" height="3.4" rx="1"/><rect x="1.2" y="11" width="3.4" height="2" rx="1"/><rect x="19.4" y="11" width="3.4" height="2" rx="1"/><rect x="3.6" y="4.4" width="2" height="3.3" rx="1" transform="rotate(-45 4.6 6)"/><rect x="18.4" y="16.3" width="2" height="3.3" rx="1" transform="rotate(-45 19.4 18)"/><rect x="18.4" y="4.4" width="2" height="3.3" rx="1" transform="rotate(45 19.4 6)"/><rect x="3.6" y="16.3" width="2" height="3.3" rx="1" transform="rotate(45 4.6 18)"/></g>`,
+  hourglass: `<rect x="4.6" y="2.2" width="14.8" height="1.9" rx=".6"/><rect x="4.6" y="19.9" width="14.8" height="1.9" rx=".6"/><path d="M6 4.4h12v1.9l-5 5.7 5 5.7v1.9H6v-1.9l5-5.7-5-5.7V4.4z"/>`,
+  wings: `<path d="M12 5.2c-2 4.1-5.2 6.2-9.4 6.2 2.1 3.1 5.3 4.1 8.4 3l1 4.4 1-4.4c3.1 1.1 6.3.1 8.4-3-4.2 0-7.4-2.1-9.4-6.2z"/>`,
+  tree: `<circle cx="12" cy="7.4" r="5"/><path d="M11 11.2h2v4.4l3.4 4.4-4.4-2.2-4.4 2.2 3.4-4.4v-4.4z"/>`,
+  flame: `<path d="M12 2c1 3.2 5 5 5 9.2A5 5 0 0 1 7 11.2c0-2.1 1-3.2 2.1-4.2 0 1.1.5 2.1 1.6 2.1.6 0 1-.6 1-1.6 0-2.1-1.1-4.1.3-5.5z"/>`,
+  peak: `<path d="M2 20.5L8.4 7l3.6 6.6 2.1-3.1L22 20.5H2z"/><rect x="11.3" y="2" width="1.4" height="6.2"/><path d="M12.7 2.6l4.4 1.3-4.4 1.3z"/>`,
+  // характеристики
+  hammer: `<rect x="11.5" y="2.6" width="8.4" height="4.2" rx="1" transform="rotate(45 15.7 4.7)"/><rect x="2.6" y="14.8" width="12.4" height="2.7" rx="1.1" transform="rotate(-45 8.8 16.1)"/>`,
+  bolt: `<path d="M13 2L4 13.6h6l-1 8.4 9-12h-6l1-8z"/>`,
+  layers: `<path d="M12 2.2l9.2 4.1-9.2 4.1-9.2-4.1L12 2.2z"/><path d="M2.8 11l9.2 4.1 9.2-4.1 1 1.7-10.2 4.5L1.8 12.7l1-1.7z"/><path d="M2.8 15.4l9.2 4.1 9.2-4.1 1 1.7-10.2 4.5-10.2-4.5 1-1.7z"/>`,
+  shield: `<path d="M12 2l8 3v6c0 5-3.5 8.6-8 11-4.5-2.4-8-6-8-11V5l8-3z"/>`,
+  gem: `<path d="M12 2l6 6-6 14L6 8l6-6z"/>`,
+};
+const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
+// какая иконка у какой характеристики
+const STAT_ICONS = { СИЛА: "hammer", МОЩЬ: "bolt", ВЫНОСЛ: "flame", ОБЪЁМ: "layers", ДИСЦИПЛ: "shield", СТОЙКОСТЬ: "gem" };
+
 /* ================= состояние (БД = localStorage + экспорт в JSON-файл) ================= */
 const DB_KEY = "bodyupgrade.v1";
 
@@ -89,6 +115,10 @@ function heroStats() {
 
   // Сила: старт 62, растёт от прибавок e1RM
   const str = Math.min(99, Math.round(62 + strengthGain * 220));
+  // Мощь: суммарный расчётный 1ПМ относительно веса тела (relative strength)
+  const totalE1RM = Object.values(lifts).reduce((a, v) => a + v.cur, 0);
+  const bw = S.hero.bodyweight || 90;
+  const pow = Math.min(99, Math.round((totalE1RM / bw) * 13));
   // Выносливость: средний тоннаж последних 6 сессий (т)
   const tonn = S.sessions.slice(-6).map((s) => {
     let t = 0; Object.values(s.entries).forEach((sets) => sets.forEach(({ w, r }) => (t += (w || 0) * (r || 0))));
@@ -96,6 +126,11 @@ function heroStats() {
   });
   const avgT = tonn.length ? tonn.reduce((a, b) => a + b, 0) / tonn.length : 0;
   const endr = Math.min(99, Math.round(40 + avgT * 2.4));
+  // Объём: суммарный тоннаж всех походов за всё время (т)
+  let lifetimeT = 0;
+  S.sessions.forEach((s) => Object.values(s.entries).forEach((sets) => sets.forEach(({ w, r }) => (lifetimeT += (w || 0) * (r || 0)))));
+  lifetimeT /= 1000;
+  const vol = Math.min(99, Math.round(Math.sqrt(lifetimeT) * 13));
   // Дисциплина: сессии за последние 14 дней против плана 6
   const cutoff = Date.now() - 14 * 864e5;
   const recent = S.sessions.filter((s) => new Date(s.date).getTime() >= cutoff).length;
@@ -104,7 +139,7 @@ function heroStats() {
   const avgScore = S.sessions.length ? S.sessions.reduce((a, s) => a + s.score, 0) / S.sessions.length : 0;
   const grit = Math.round(avgScore * 0.99);
 
-  return { level, lvlProgress, lifts, stats: { СИЛА: str, ВЫНОСЛ: endr, ДИСЦИПЛ: disc, СТОЙКОСТЬ: grit } };
+  return { level, lvlProgress, lifts, stats: { СИЛА: str, МОЩЬ: pow, ВЫНОСЛ: endr, ОБЪЁМ: vol, ДИСЦИПЛ: disc, СТОЙКОСТЬ: grit } };
 }
 
 function nextWorkoutId() {
@@ -165,6 +200,7 @@ function renderProfile() {
       <div class="statgrid">
         ${Object.entries(h.stats).map(([k, v]) => `
           <div class="stat">
+            <span class="stat-ico">${icon(STAT_ICONS[k] || "gem")}</span>
             <span class="label">${k}</span>
             <span class="bar"><i style="width:${v}%"></i></span>
             <span class="val mono">${v}</span>
@@ -224,17 +260,21 @@ function renderCycle() {
         <div class="week-tag ${wk.type === "объёмная" ? "vol" : ""}">
           <span class="dot"></span> Неделя ${wk.n} — ${wk.type} · ${wk.pattern}
         </div>
+        ${wk.saga ? `<div class="saga display">${wk.saga}</div>` : ""}
         ${wk.workouts.map((w) => {
           const done = S.sessions.filter((s) => s.workoutId === w.id);
           const last = done[done.length - 1];
           const isNext = w.id === nextId;
           return `
-          <button class="wcard ${last ? "done" : ""}" data-w="${w.id}">
-            <div class="row1">
-              <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
-              ${last ? `<span class="verdict-chip ${last.cls}">${last.score}%</span>` : `<span class="dim small">—</span>`}
-            </div>
-            <div class="sub">${w.title} · ${w.exercises.length} упражнений${last ? ` · был ${fmtDate(last.date)}` : ""}</div>
+          <button class="wcard ${last ? "done" : ""} ${isNext ? "next" : ""}" data-w="${w.id}">
+            <span class="medallion">${icon(w.icon || "anvil")}</span>
+            <span class="wcard-body">
+              <span class="row1">
+                <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
+                ${last ? `<span class="verdict-chip ${last.cls}">${last.score}%</span>` : `<span class="dim small">—</span>`}
+              </span>
+              <span class="sub">${w.title} · ${w.exercises.length} упражнений${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
+            </span>
           </button>`;
         }).join("")}
       </div>`).join("")}`;
@@ -252,6 +292,7 @@ function renderWorkout(wid) {
   app.innerHTML = `
     <div class="topbar">
       <button class="back-btn" id="back"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
+      <span class="medallion medallion--lg">${icon(w.icon || "anvil")}</span>
       <div>
         <div class="eyebrow">${WEEK_OF[wid].type === "объёмная" ? "объёмная" : "силовая"} · неделя ${WEEK_OF[wid].n}</div>
         <h2 class="display">${w.boss}</h2>

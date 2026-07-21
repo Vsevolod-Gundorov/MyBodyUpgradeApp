@@ -1,13 +1,14 @@
 // Месячный цикл: 3 тренировки/нед · Недели 1–2 силовые · 3–4 объёмные
 // main: движение дня (единственное на пределе)
+// icon: ключ иконки из ICONS в js/app.js — у каждой тренировки своя
 export const PROGRAM = {
   cycleName: "Цикл I — Кузница",
   weeks: [
     {
-      n: 1, type: "силовая", pattern: "Верх · Низ · Верх",
+      n: 1, type: "силовая", pattern: "Верх · Низ · Верх", saga: "Сага о Пробуждении",
       workouts: [
         {
-          id: "w1t1", title: "Верх тяжёлый А", boss: "Испытание Стали",
+          id: "w1t1", title: "Верх тяжёлый А", boss: "Пробуждение Стали", icon: "anvil",
           exercises: [
             { id: "bench", name: "Жим штанги лёжа", scheme: "Лесенка / 5×5", sets: 5, reps: [5, 5], w: [100, 140], main: true, lift: "bench" },
             { id: "row", name: "Тяга штанги в наклоне", scheme: "4 × 6–8", sets: 4, reps: [6, 8], w: [100, 120] },
@@ -19,7 +20,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w1t2", title: "Низ тяжёлый — присед", boss: "Испытание Опоры",
+          id: "w1t2", title: "Низ тяжёлый — присед", boss: "Столпы Земли", icon: "pillars",
           exercises: [
             { id: "squat", name: "Приседания свободный вес", scheme: "Лесенка / 5×5", sets: 5, reps: [5, 5], w: [100, 150], main: true, lift: "squat" },
             { id: "rdl", name: "Мёртвая тяга", scheme: "3 × 6–8 · RPE 7", sets: 3, reps: [6, 8], w: [100, 120] },
@@ -30,7 +31,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w1t3", title: "Верх тяжёлый Б", boss: "Испытание Наклона",
+          id: "w1t3", title: "Верх тяжёлый Б", boss: "Восхождение по Склону", icon: "mountain",
           exercises: [
             { id: "incline-bb", name: "Жим штанги в наклоне", scheme: "5 × 5–8", sets: 5, reps: [5, 8], w: [80, 100], main: true },
             { id: "db-row", name: "Тяга гантели в наклоне", scheme: "4 × 6–8", sets: 4, reps: [6, 8], w: [42, 42] },
@@ -44,10 +45,10 @@ export const PROGRAM = {
       ],
     },
     {
-      n: 2, type: "силовая", pattern: "Низ · Верх · Низ",
+      n: 2, type: "силовая", pattern: "Низ · Верх · Низ", saga: "Сага о Закалке",
       workouts: [
         {
-          id: "w2t1", title: "Низ тяжёлый — становая", boss: "Испытание Хребта",
+          id: "w2t1", title: "Низ тяжёлый — становая", boss: "Гнев Хребта", icon: "spine",
           exercises: [
             { id: "deadlift", name: "Становая тяга", scheme: "Лесенка до топ-сета 3–5", sets: 5, reps: [3, 5], w: [130, 180], main: true, lift: "deadlift" },
             { id: "squat", name: "Приседания (вспомогат.)", scheme: "3 × 6–8 · RPE 7", sets: 3, reps: [6, 8], w: [100, 120], lift: "squat" },
@@ -58,7 +59,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w2t2", title: "Верх тяжёлый А · прогрессия", boss: "Испытание Стали II",
+          id: "w2t2", title: "Верх тяжёлый А · прогрессия", boss: "Клинок Закалённый", icon: "dagger",
           exercises: [
             { id: "bench", name: "Жим штанги лёжа", scheme: "Лесенка / 5×5 · +2,5", sets: 5, reps: [5, 5], w: [100, 142.5], main: true, lift: "bench" },
             { id: "row", name: "Тяга штанги в наклоне", scheme: "4 × 6–8 · +2,5", sets: 4, reps: [6, 8], w: [100, 122.5] },
@@ -70,7 +71,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w2t3", title: "Низ тяжёлый — присед · прогрессия", boss: "Испытание Опоры II",
+          id: "w2t3", title: "Низ тяжёлый — присед · прогрессия", boss: "Бастион Ног", icon: "tower",
           exercises: [
             { id: "squat", name: "Приседания свободный вес", scheme: "Лесенка / 5×5 · +5", sets: 5, reps: [5, 5], w: [100, 155], main: true, lift: "squat" },
             { id: "rdl", name: "Мёртвая тяга", scheme: "3 × 6–8 · RPE 7", sets: 3, reps: [6, 8], w: [100, 120] },
@@ -83,10 +84,10 @@ export const PROGRAM = {
       ],
     },
     {
-      n: 3, type: "объёмная", pattern: "Верх · Низ · Верх",
+      n: 3, type: "объёмная", pattern: "Верх · Низ · Верх", saga: "Сага о Полноте",
       workouts: [
         {
-          id: "w3t1", title: "Верх объёмный А — грудь + плечи", boss: "Испытание Полноты",
+          id: "w3t1", title: "Верх объёмный А — грудь + плечи", boss: "Пламя Полноты", icon: "sun",
           exercises: [
             { id: "incline-db", name: "Жим гантелей в наклоне", scheme: "4 × 8–12", sets: 4, reps: [8, 12], w: [34, 42], main: true },
             { id: "cross-mid", name: "Кроссовер сведение на грудь", scheme: "3 × 12–15", sets: 3, reps: [12, 15], w: [15, 20] },
@@ -101,7 +102,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w3t2", title: "Низ объёмный А — многоповторка", boss: "Испытание Выдержки",
+          id: "w3t2", title: "Низ объёмный А — многоповторка", boss: "Песнь Выдержки", icon: "hourglass",
           exercises: [
             { id: "squat-vol", name: "Присед многоповторный", scheme: "4–5 × 12–15", sets: 5, reps: [12, 15], w: [100, 100], main: true, lift: "squat" },
             { id: "hack", name: "Присед в гак-машине", scheme: "3 × 10–12", sets: 3, reps: [10, 12], w: [80, 80] },
@@ -113,7 +114,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w3t3", title: "Верх объёмный Б — спина + руки", boss: "Испытание Крыльев",
+          id: "w3t3", title: "Верх объёмный Б — спина + руки", boss: "Расправить Крылья", icon: "wings",
           exercises: [
             { id: "db-row", name: "Тяга гантели в наклоне", scheme: "4 × 8–12", sets: 4, reps: [8, 12], w: [42, 42], main: true },
             { id: "lat", name: "Верхняя тяга в тренажёре", scheme: "4 × 10–12", sets: 4, reps: [10, 12], w: [70, 100] },
@@ -130,10 +131,10 @@ export const PROGRAM = {
       ],
     },
     {
-      n: 4, type: "объёмная", pattern: "Низ · Верх · Низ",
+      n: 4, type: "объёмная", pattern: "Низ · Верх · Низ", saga: "Сага о Мощи",
       workouts: [
         {
-          id: "w4t1", title: "Низ объёмный Б — задняя цепь", boss: "Испытание Корней",
+          id: "w4t1", title: "Низ объёмный Б — задняя цепь", boss: "Корни Титана", icon: "tree",
           exercises: [
             { id: "rdl", name: "Мёртвая тяга", scheme: "3–4 × 8–10", sets: 4, reps: [8, 10], w: [100, 120], main: true },
             { id: "legpress", name: "Жим ногами", scheme: "4 × 10–12", sets: 4, reps: [10, 12], w: [150, 200] },
@@ -145,7 +146,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w4t2", title: "Верх объёмный А · прогрессия", boss: "Испытание Полноты II",
+          id: "w4t2", title: "Верх объёмный А · прогрессия", boss: "Второе Пламя", icon: "flame",
           exercises: [
             { id: "incline-db", name: "Жим гантелей в наклоне", scheme: "4 × 8–12 · +повторы", sets: 4, reps: [8, 12], w: [34, 42], main: true },
             { id: "cross-mid", name: "Кроссовер сведение на грудь", scheme: "3 × 12–15", sets: 3, reps: [12, 15], w: [15, 20] },
@@ -160,7 +161,7 @@ export const PROGRAM = {
           ],
         },
         {
-          id: "w4t3", title: "Низ объёмный А · прогрессия", boss: "Испытание Выдержки II",
+          id: "w4t3", title: "Низ объёмный А · прогрессия", boss: "Вершина Цикла", icon: "peak",
           exercises: [
             { id: "squat-vol", name: "Присед многоповторный", scheme: "4–5 × 12–15 · +2,5–5", sets: 5, reps: [12, 15], w: [100, 105], main: true, lift: "squat" },
             { id: "hack", name: "Присед в гак-машине", scheme: "3 × 10–12", sets: 3, reps: [10, 12], w: [80, 80] },

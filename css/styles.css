@@ -26,8 +26,21 @@ body {
   line-height: 1.55;
   min-height: 100dvh;
   background-image:
-    radial-gradient(1200px 500px at 50% -10%, rgba(201,169,97,.06), transparent 60%),
-    radial-gradient(800px 400px at 50% 110%, rgba(180,84,58,.04), transparent 60%);
+    radial-gradient(1200px 500px at 50% -10%, rgba(201,169,97,.08), transparent 60%),
+    radial-gradient(800px 400px at 50% 110%, rgba(180,84,58,.05), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(201,169,97,.018) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(-45deg, rgba(201,169,97,.018) 0 1px, transparent 1px 26px);
+}
+/* зернистая текстура-оверлей поверх фона (пергамент/выделанная кожа) */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  opacity: .05; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* виньетка по краям для «глубины» */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  box-shadow: inset 0 0 180px rgba(0,0,0,.55);
 }
 
 #app { max-width: 520px; margin: 0 auto; padding: 20px 16px calc(88px + env(safe-area-inset-bottom)); }
@@ -80,9 +93,11 @@ h2.display { font-size: 1.35rem; }
 .level-ring .lvl b { font-family: var(--font-display); font-size: 2.1rem; font-weight: 700; color: var(--gold-bright); line-height: 1; }
 .level-ring .lvl span { font-size: .62rem; letter-spacing: .2em; color: var(--dim); text-transform: uppercase; }
 
-.statgrid { display: grid; gap: 10px; margin-top: 8px; }
-.stat { display: grid; grid-template-columns: 92px 1fr 44px; align-items: center; gap: 10px; }
-.stat .label { font-size: .72rem; letter-spacing: .14em; color: var(--dim); text-transform: uppercase; }
+.statgrid { display: grid; gap: 11px; margin-top: 8px; }
+.stat { display: grid; grid-template-columns: 22px 74px 1fr 40px; align-items: center; gap: 9px; }
+.stat-ico { display: grid; place-content: center; color: var(--gold); }
+.stat-ico .ico { width: 16px; height: 16px; }
+.stat .label { font-size: .7rem; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; }
 .stat .bar { height: 7px; background: #0c0b09; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
 .stat .bar i { display: block; height: 100%; background: linear-gradient(90deg, #8a713e, var(--gold), var(--gold-bright)); border-radius: 99px; transition: width .8s cubic-bezier(.2,.8,.2,1); }
 .stat .val { text-align: right; color: var(--gold); font-weight: 600; }
@@ -100,18 +115,35 @@ h2.display { font-size: 1.35rem; }
 .week-tag.vol { color: var(--moss); }
 .week-tag.vol .dot { background: var(--moss); }
 
-.wcard {
-  display: block; width: 100%; text-align: left; cursor: pointer;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
-  padding: 14px 16px; margin-top: 10px; color: inherit; font: inherit;
-  transition: border-color .2s, transform .15s;
+.saga { font-size: 1.15rem; color: var(--gold-bright); font-style: italic; margin: 6px 0 2px; opacity: .95; }
+
+/* медальон с иконкой тренировки */
+.medallion {
+  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%;
+  display: grid; place-content: center; color: var(--gold-bright);
+  background: radial-gradient(circle at 50% 35%, rgba(201,169,97,.22), rgba(12,11,9,.6));
+  border: 1px solid var(--line-strong);
+  box-shadow: inset 0 1px 0 rgba(232,205,130,.25), 0 2px 8px rgba(0,0,0,.35);
 }
+.medallion .ico { width: 23px; height: 23px; }
+.medallion--lg { width: 52px; height: 52px; }
+.medallion--lg .ico { width: 29px; height: 29px; }
+
+.wcard {
+  display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 13px 15px; margin-top: 10px; color: inherit; font: inherit;
+  transition: border-color .2s, transform .15s, box-shadow .2s;
+}
+.wcard-body { flex: 1; min-width: 0; }
 .wcard:active { transform: scale(.985); }
 .wcard:focus-visible, .tab:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .wcard .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .wcard .boss { font-family: var(--font-display); font-size: 1.12rem; font-weight: 600; letter-spacing: .03em; }
-.wcard .sub { color: var(--dim); font-size: .82rem; margin-top: 2px; }
+.wcard .sub { display: block; color: var(--dim); font-size: .82rem; margin-top: 2px; }
 .wcard.done { border-color: var(--line-strong); background: linear-gradient(180deg, rgba(201,169,97,.05), transparent); }
+.wcard.next { border-color: var(--line-strong); box-shadow: 0 0 0 1px var(--line-strong), 0 0 22px rgba(201,169,97,.14); }
+.wcard.next .medallion { box-shadow: inset 0 1px 0 rgba(232,205,130,.3), 0 0 14px rgba(201,169,97,.4); }
 .wcard .verdict-chip { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
 .verdict-gold { color: var(--gold-bright); }
 .verdict-mid { color: var(--dim); }
@@ -216,6 +248,9 @@ h2.display { font-size: 1.35rem; }
 }
 .tab svg { width: 21px; height: 21px; fill: currentColor; }
 .tab.active { color: var(--gold-bright); }
+
+/* ---------- иконки ---------- */
+.ico { display: block; width: 20px; height: 20px; fill: currentColor; }
 
 /* ---------- утилиты ---------- */
 .btn-ghost {
