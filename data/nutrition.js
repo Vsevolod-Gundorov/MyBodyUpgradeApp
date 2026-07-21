@@ -17,7 +17,7 @@ export const WATER_TARGET_ML = 3300;
 // Для мгновенного оффлайн-поиска; всё остальное подтягивается из Open Food Facts.
 export const FOOD_CATS = [
   "Мясо и птица", "Рыба и морепродукты", "Яйца и молочка", "Крупы и гарниры",
-  "Хлеб", "Овощи", "Фрукты и ягоды", "Орехи и жиры", "Снеки и спортпит",
+  "Хлеб", "Овощи", "Фрукты и ягоды", "Орехи и жиры", "Снеки и спортпит", "Напитки",
 ];
 export const FOODS = [
   // Мясо и птица
@@ -105,6 +105,22 @@ export const FOODS = [
   { n: "Молочный шоколад", c: "Снеки и спортпит", k: 535, p: 7, f: 30, cb: 59, fb: 3 },
   { n: "Мёд", c: "Снеки и спортпит", k: 304, p: 0.3, f: 0, cb: 82, fb: 0.2 },
   { n: "Сахар", c: "Снеки и спортпит", k: 387, p: 0, f: 0, cb: 100, fb: 0 },
+  // Напитки (drink: true, hy — индекс гидратации; вода из них засчитывается в «Вода»)
+  { n: "Вода", c: "Напитки", k: 0, p: 0, f: 0, cb: 0, fb: 0, drink: true, hy: 1 },
+  { n: "Минеральная вода", c: "Напитки", k: 0, p: 0, f: 0, cb: 0, fb: 0, drink: true, hy: 1 },
+  { n: "Кофе чёрный (без сахара)", c: "Напитки", k: 2, p: 0.1, f: 0, cb: 0, fb: 0, drink: true, hy: 0.95 },
+  { n: "Кофе с молоком", c: "Напитки", k: 35, p: 1.8, f: 1.8, cb: 3.4, fb: 0, drink: true, hy: 0.9 },
+  { n: "Капучино", c: "Напитки", k: 40, p: 2, f: 2, cb: 4, fb: 0, drink: true, hy: 0.9 },
+  { n: "Чай без сахара", c: "Напитки", k: 1, p: 0, f: 0, cb: 0.2, fb: 0, drink: true, hy: 0.95 },
+  { n: "Зелёный чай", c: "Напитки", k: 1, p: 0, f: 0, cb: 0, fb: 0, drink: true, hy: 0.95 },
+  { n: "Кола", c: "Напитки", k: 42, p: 0, f: 0, cb: 10.6, fb: 0, drink: true, hy: 0.9 },
+  { n: "Кола без сахара (Zero)", c: "Напитки", k: 0.3, p: 0, f: 0, cb: 0, fb: 0, drink: true, hy: 0.95 },
+  { n: "Энергетик", c: "Напитки", k: 45, p: 0, f: 0, cb: 11, fb: 0, drink: true, hy: 0.85 },
+  { n: "Энергетик без сахара", c: "Напитки", k: 5, p: 0, f: 0, cb: 1, fb: 0, drink: true, hy: 0.85 },
+  { n: "Сок апельсиновый", c: "Напитки", k: 45, p: 0.7, f: 0.2, cb: 10, fb: 0.2, drink: true, hy: 0.85 },
+  { n: "Морс / компот", c: "Напитки", k: 40, p: 0, f: 0, cb: 10, fb: 0, drink: true, hy: 0.85 },
+  { n: "Кефир 1%", c: "Напитки", k: 40, p: 3, f: 1, cb: 4, fb: 0, drink: true, hy: 0.9 },
+  { n: "Протеиновый коктейль (на воде)", c: "Напитки", k: 120, p: 24, f: 2, cb: 3, fb: 0, drink: true, hy: 0.9 },
 ].map((x, i) => ({ id: "loc" + i, src: "loc", ...x }));
 
 // Поиск в Open Food Facts (открытый API, без ключа, база на GitHub).
@@ -113,7 +129,7 @@ export async function offSearch(query, signal) {
   const url = "https://world.openfoodfacts.org/cgi/search.pl?" +
     "search_terms=" + encodeURIComponent(query) +
     "&search_simple=1&action=process&json=1&page_size=25&lc=ru" +
-    "&fields=code,product_name,product_name_ru,brands,nutriments";
+    "&fields=code,product_name,product_name_ru,brands,nutriments,categories_tags";
   const res = await fetch(url, { signal });
   const data = await res.json();
   return (data.products || []).map((pr) => {
@@ -123,6 +139,11 @@ export async function offSearch(query, signal) {
     let name = (pr.product_name_ru || pr.product_name || "").trim();
     if (!name) return null;
     if (pr.brands) name += " · " + String(pr.brands).split(",")[0].trim();
+    // напиток? — по категориям OFF или по названию
+    const tags = pr.categories_tags || [];
+    const drink = tags.some((t) => /beverage|drink|water|soda|juice|tea|coffee|smoothie/.test(t)) ||
+      /напит|вода|чай|кофе|кол[аы]|сок|энерг|energ|cola|coffee|tea|juice|water|soda|drink/i.test(name);
+    const hy = drink ? (/кофе|чай|coffee|tea/i.test(name) ? 0.95 : /вода|water/i.test(name) ? 1 : 0.9) : undefined;
     return {
       id: "off" + pr.code, src: "off", n: name,
       k: Math.round(+kcal),
@@ -130,6 +151,7 @@ export async function offSearch(query, signal) {
       f: +nu.fat_100g || 0,
       cb: +nu.carbohydrates_100g || 0,
       fb: +nu.fiber_100g || 0,
+      drink, hy,
     };
   }).filter(Boolean);
 }

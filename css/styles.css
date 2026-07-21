@@ -305,7 +305,31 @@ h2.display { font-size: 1.35rem; }
 }
 
 /* ---------- ресурсы / питание ---------- */
-.daytype-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 14px; }
+/* календарь дней */
+.daynav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.dn-arrow { background: none; border: 1px solid var(--line); color: var(--bone); width: 36px; height: 36px;
+  border-radius: 8px; display: grid; place-content: center; cursor: pointer; flex: 0 0 auto; }
+.dn-arrow svg { width: 15px; height: 15px; fill: currentColor; }
+.dn-arrow:disabled { opacity: .3; cursor: default; }
+.dn-label { font-family: var(--font-display); font-size: 1.1rem; letter-spacing: .04em; text-align: center; flex: 1; }
+.dn-today { font-family: var(--font-body); font-size: .6rem; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--gold-bright); border: 1px solid var(--line-strong); padding: 2px 6px; border-radius: 4px; margin-left: 4px; }
+
+.weekstrip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
+.cday { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 7px 2px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; color: var(--dim); font: inherit; }
+.cday .cw { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; }
+.cday .cn { font-family: var(--font-mono); font-size: .95rem; color: var(--bone); }
+.cday .cdot { width: 5px; height: 5px; border-radius: 50%; background: transparent; }
+.cday .cdot.has { background: var(--gold); box-shadow: 0 0 6px rgba(201,169,97,.6); }
+.cday.on { border-color: var(--line-strong); background: linear-gradient(180deg, rgba(201,169,97,.12), var(--panel)); color: var(--gold-bright); }
+.cday.on .cn { color: var(--gold-bright); }
+.cday.future { opacity: .35; cursor: default; }
+
+.today-btn { width: 100%; margin-top: 8px; background: none; border: 1px dashed var(--line-strong);
+  color: var(--gold); padding: 8px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .82rem; }
+
+.daytype-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0 14px; }
 .daytype-toggle .dt {
   display: flex; align-items: center; justify-content: center; gap: 7px;
   background: var(--panel); border: 1px solid var(--line); color: var(--dim);
@@ -337,9 +361,10 @@ h2.display { font-size: 1.35rem; }
   background: linear-gradient(90deg, #8a713e, var(--gold), var(--gold-bright)); }
 .g-bar i.water { background: linear-gradient(90deg, #3f6d78, #6bb0c0, #9fd8e4); }
 .g-sub { font-size: .7rem; color: var(--dim); letter-spacing: .04em; }
-.gauge.ok .g-bar i { background: linear-gradient(90deg, #6f8a52, var(--moss), #a9c489); }
-.gauge.ok .g-name { color: var(--moss); }
-.gauge.hi .g-bar i { background: linear-gradient(90deg, #8a713e, var(--gold), var(--ember)); }
+/* цвет заливки задаётся инлайново на каждую шкалу; статус — рамкой и подписью */
+.gauge.ok { border-color: rgba(125,148,100,.45); box-shadow: 0 0 16px rgba(125,148,100,.1); }
+.gauge.ok .g-sub { color: var(--moss); }
+.gauge.hi { border-color: rgba(180,84,58,.45); }
 .gauge.hi .g-sub { color: var(--ember); }
 
 .water-panel { margin-top: 11px; }
@@ -371,6 +396,8 @@ h2.display { font-size: 1.35rem; }
   padding: 10px 0; border-bottom: 1px dashed var(--line); }
 .meal-row:last-child { border-bottom: 0; }
 .meal-name { font-size: .9rem; min-width: 0; }
+.water-badge { display: inline-flex; align-items: center; gap: 2px; margin-left: 7px; color: #7fc7d6; font-size: .72rem; vertical-align: middle; }
+.water-badge .ico { width: 11px; height: 11px; }
 .meal-kcal { color: var(--gold); font-size: .82rem; white-space: nowrap; }
 .meal-del { background: none; border: 0; color: var(--dim); font-size: 1rem; cursor: pointer; }
 

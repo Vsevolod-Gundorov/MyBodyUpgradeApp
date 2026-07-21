@@ -37,8 +37,17 @@ const ICONS = {
   avocado: `<path d="M12 2.6c3 0 5.2 3.2 5.2 8.2S15 21.4 12 21.4 6.8 15.8 6.8 10.8 9 2.6 12 2.6z"/><circle cx="12" cy="15" r="2.7" fill="#171307"/>`,
 };
 const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
-// какая иконка у какой характеристики
+// какая иконка у какой характеристики + свой цвет шкалы и акцент
 const STAT_ICONS = { СИЛА: "hammer", МОЩЬ: "bolt", ВЫНОСЛ: "flame", ОБЪЁМ: "layers", ДИСЦИПЛ: "shield", СТОЙКОСТЬ: "gem" };
+const STAT_GRAD = {
+  СИЛА: "linear-gradient(90deg,#8f3030,#cf5a4a,#ec8a72)",       // багрянец
+  МОЩЬ: "linear-gradient(90deg,#5a3f8f,#8a6bcf,#b49ae8)",       // фиолет
+  ВЫНОСЛ: "linear-gradient(90deg,#b5732f,#e0a24a,#f3c66e)",     // янтарь
+  ОБЪЁМ: "linear-gradient(90deg,#2f7d7a,#4fb0aa,#8fd8d0)",      // бирюза
+  ДИСЦИПЛ: "linear-gradient(90deg,#2f5a8f,#4f86c0,#8fb6e0)",    // синь
+  СТОЙКОСТЬ: "linear-gradient(90deg,#5c7d3f,#8fb15e,#c0dd92)",  // зелень
+};
+const STAT_ACCENT = { СИЛА: "#e07a5f", МОЩЬ: "#a98be0", ВЫНОСЛ: "#e0a24a", ОБЪЁМ: "#5fc0b8", ДИСЦИПЛ: "#6fa0dc", СТОЙКОСТЬ: "#9fc46e" };
 
 /* ================= баффы: арсенал натурального атлета ================= */
 // Только легальные, натуральные добавки. dose — доза по умолчанию при активации.
@@ -84,7 +93,20 @@ let S = load();
 function load() {
   try {
     const raw = localStorage.getItem(DB_KEY);
-    if (raw) return Object.assign(defaultState(), JSON.parse(raw));
+    if (raw) {
+      const parsed = JSON.parse(raw) || {};
+      const base = defaultState();
+      const S2 = Object.assign(base, parsed);
+      // бережно достраиваем вложенные объекты: новые поля появляются,
+      // но ничего сохранённого пользователем не стирается
+      S2.hero = Object.assign({}, base.hero, parsed.hero);
+      S2.buffs = Object.assign({}, base.buffs, parsed.buffs);
+      if (parsed.buffs && parsed.buffs.active) S2.buffs.active = parsed.buffs.active;
+      S2.nutrition = Object.assign({}, base.nutrition, parsed.nutrition);
+      S2.nutrition.log = (parsed.nutrition && parsed.nutrition.log) || {};
+      S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
+      return S2;
+    }
   } catch (e) { /* повреждённые данные — начинаем заново */ }
   return defaultState();
 }
@@ -263,10 +285,10 @@ function renderProfile() {
       <div class="statgrid">
         ${Object.entries(h.stats).map(([k, v]) => `
           <div class="stat">
-            <span class="stat-ico">${icon(STAT_ICONS[k] || "gem")}</span>
+            <span class="stat-ico" style="color:${STAT_ACCENT[k] || "#c9a961"}">${icon(STAT_ICONS[k] || "gem")}</span>
             <span class="label">${k}</span>
-            <span class="bar"><i style="width:${v}%"></i></span>
-            <span class="val mono">${v}</span>
+            <span class="bar"><i style="width:${v}%;background:${STAT_GRAD[k] || "linear-gradient(90deg,#8a713e,#c9a961,#e8cd82)"}"></i></span>
+            <span class="val mono" style="color:${STAT_ACCENT[k] || "#c9a961"}">${v}</span>
           </div>`).join("")}
       </div>
     </div>
@@ -561,14 +583,34 @@ function renderBuffs() {
 
 /* ================= РЕСУРСЫ (снабжение / питание) ================= */
 const NUT_ICON = { kcal: "flame", protein: "drumstick", carbs: "wheat", fat: "avocado" };
+// у каждой шкалы — свой цвет заливки и акцент иконки
+const NUT_GRAD = {
+  kcal: "linear-gradient(90deg,#b5732f,#e0a24a,#f3c66e)",   // янтарь
+  protein: "linear-gradient(90deg,#8f3030,#cf5a4a,#ec8a72)", // багрянец
+  carbs: "linear-gradient(90deg,#9a7a24,#d8b43f,#f2dd78)",   // золото
+  fat: "linear-gradient(90deg,#5c7d3f,#8fb15e,#c0dd92)",     // зелень
+};
+const NUT_ACCENT = { kcal: "#e0a24a", protein: "#e07a5f", carbs: "#e6c24a", fat: "#9fc46e" };
 
-function nutDay(date) {
+let resDate = null;               // выбранный день (по умолчанию сегодня)
+const curResDate = () => resDate || today();
+const WD = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+const MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+// даты считаем в UTC — согласованно с today() (он тоже из toISOString)
+function addDays(iso, n) { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function dateLabel(iso) { const d = new Date(iso + "T00:00:00Z"); return `${WD[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; }
+
+function nutDay(date) { // создаёт и сохраняет запись дня (для записи)
   if (!S.nutrition) S.nutrition = { log: {}, recent: [] };
   if (!S.nutrition.log[date]) {
-    const trainedToday = S.sessions.some((s) => s.date === date);
-    S.nutrition.log[date] = { dayType: trainedToday ? "training" : "rest", items: [], water: 0 };
+    const trained = S.sessions.some((s) => s.date === date);
+    S.nutrition.log[date] = { dayType: trained ? "training" : "rest", items: [], water: 0 };
   }
   return S.nutrition.log[date];
+}
+function nutRead(date) { // читает без создания (для отображения прошлых пустых дней)
+  return (S.nutrition && S.nutrition.log[date]) ||
+    { dayType: S.sessions.some((s) => s.date === date) ? "training" : "rest", items: [], water: 0 };
 }
 function nutTotals(day) {
   const t = { k: 0, p: 0, f: 0, cb: 0, fb: 0 };
@@ -583,6 +625,23 @@ function pushRecent(food) {
   S.nutrition.recent = [food, ...S.nutrition.recent.filter((r) => r.id !== food.id)].slice(0, 12);
 }
 
+/* ---- гидратация: сколько воды даёт напиток (кофе/чай/кола/энергетик и т.п.) ---- */
+const DRINK_RE = /(вода|минерал|чай|кофе|кол[аы]|лимонад|газиров|морс|компот|квас|энергет|energ|сок|juice|смузи|коктейл|молоко|кефир|айран|латте|latte|капучино|cappuccino|americano|espresso|эспрессо|тоник|tonic|нектар|напит|cola|soda|drink|tea|coffee|water)/i;
+const itemIsDrink = (it) => it.drink === true || DRINK_RE.test(it.n || "");
+function itemHy(it) { // индекс гидратации
+  if (it.hy) return it.hy;
+  const n = it.n || "";
+  if (/кофе|чай|coffee|tea/i.test(n)) return 0.95;
+  if (/вода|минерал|water/i.test(n)) return 1;
+  return 0.9;
+}
+function itemWaterMl(it) { // вода из напитка = масса × доля воды × индекс гидратации
+  if (!itemIsDrink(it)) return 0;
+  const frac = Math.max(0, Math.min(1, 1 - ((it.p + it.f + it.cb) / 100)));
+  return it.g * frac * itemHy(it);
+}
+const drinkWaterOf = (day) => day.items.reduce((a, it) => a + itemWaterMl(it), 0);
+
 // класс шкалы: недобор / в цель / перебор (для белка перебор — не беда)
 function gaugeState(pct, kind) {
   if (pct < 0.9) return "lo";
@@ -591,8 +650,9 @@ function gaugeState(pct, kind) {
 }
 
 function renderResources() {
-  const date = today();
-  const day = nutDay(date);
+  const date = curResDate();
+  const isToday = date === today();
+  const day = nutRead(date);
   const T = NUTRITION.dayTypes[day.dayType];
   const tot = nutTotals(day);
 
@@ -602,7 +662,6 @@ function renderResources() {
     { key: "carbs", name: "Углеводы", unit: "г", cur: tot.cb, tgt: T.carbs },
     { key: "fat", name: "Жиры", unit: "г", cur: tot.f, tgt: T.fat },
   ];
-  // готовность пайка: среднее заполнение 4 шкал (перебор капается на 100%)
   const readiness = Math.round(100 * macros.reduce((a, m) => a + Math.min(1, m.cur / m.tgt), 0) / macros.length);
   const proteinOk = tot.p >= T.protein * 0.95;
   const kcalPct = tot.k / T.kcal;
@@ -617,37 +676,65 @@ function renderResources() {
     const pct = m.tgt ? m.cur / m.tgt : 0;
     const st = gaugeState(pct, m.key === "protein" ? "protein" : m.key);
     const left = Math.round(m.tgt - m.cur);
+    const sub = st === "ok" ? "в цель ✓" : (left > 0 ? `осталось ${left} ${m.unit}` : `перебор ${Math.abs(left)} ${m.unit}`);
     return `
       <div class="gauge ${st}">
         <div class="g-top">
-          <span class="g-name">${icon(NUT_ICON[m.key])}<b>${m.name}</b></span>
+          <span class="g-name" style="color:${NUT_ACCENT[m.key]}">${icon(NUT_ICON[m.key])}<b>${m.name}</b></span>
           <span class="g-val mono">${Math.round(m.cur)} / ${m.tgt} ${m.unit}</span>
         </div>
-        <div class="g-bar"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%"></i></div>
-        <div class="g-sub mono">${left > 0 ? `осталось ${left} ${m.unit}` : `перебор ${Math.abs(left)} ${m.unit}`}</div>
+        <div class="g-bar"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%;background:${NUT_GRAD[m.key]}"></i></div>
+        <div class="g-sub mono">${sub}</div>
       </div>`;
   }).join("");
 
+  // вода = стаканы вручную + вода из напитков дня
+  const drinkWater = Math.round(drinkWaterOf(day));
+  const totalWater = day.water + drinkWater;
   const waterCups = Math.round(day.water / 250);
-  const waterPct = Math.min(100, (day.water / WATER_TARGET_ML) * 100);
+  const waterPct = Math.min(100, (totalWater / WATER_TARGET_ML) * 100);
   const fiberTgt = NUTRITION.constants.fiber[0];
 
   const itemsHTML = day.items.length
-    ? day.items.map((it, i) => `
+    ? day.items.map((it, i) => {
+        const wml = Math.round(itemWaterMl(it));
+        return `
         <div class="meal-row">
-          <span class="meal-name">${it.n}<span class="dim small"> · ${it.g} г</span></span>
+          <span class="meal-name">${it.n}<span class="dim small"> · ${it.g} г</span>${wml ? `<span class="water-badge mono">${icon("droplet")}${wml} мл</span>` : ""}</span>
           <span class="meal-kcal mono">${Math.round(it.k * it.g / 100)} ккал</span>
           <button class="meal-del" data-i="${i}" aria-label="Убрать">✕</button>
-        </div>`).join("")
+        </div>`;
+      }).join("")
     : `<div class="empty">Провизии пока нет. Найди продукт и добавь порцию.</div>`;
 
   const tip = day.dayType === "training"
     ? `<div class="nut-tip"><span class="dim small">⚔ Тренировочный день · за 2 ч до похода: ${NUTRITION.timing.pre.carbs.join("–")} г углеводов + ${NUTRITION.timing.pre.protein.join("–")} г белка · после: ${NUTRITION.timing.post.carbs.join("–")} г углеводов + ${NUTRITION.timing.post.protein.join("–")} г белка.</span></div>`
     : `<div class="nut-tip"><span class="dim small">☾ День отдыха · углеводы ровнее по приёмам, ужин легче. Белок держим ${T.protein} г.</span></div>`;
 
+  // календарь: 7 дней. Окно оканчивается сегодня, либо выбранным днём, если он раньше.
+  const winEnd = (date <= today() && date > addDays(today(), -6)) ? today() : date;
+  const strip = Array.from({ length: 7 }, (_, i) => addDays(winEnd, -(6 - i))).map((iso) => {
+    const d = new Date(iso + "T00:00:00Z");
+    const rec = S.nutrition && S.nutrition.log[iso];
+    const has = rec && (rec.items.length || rec.water > 0);
+    const future = iso > today();
+    return `<button class="cday ${iso === date ? "on" : ""} ${future ? "future" : ""}" data-d="${iso}" ${future ? "disabled" : ""}>
+      <span class="cw">${WD[d.getUTCDay()]}</span><span class="cn">${d.getUTCDate()}</span>
+      <span class="cdot ${has ? "has" : ""}"></span>
+    </button>`;
+  }).join("");
+
   app.innerHTML = `
     <div class="eyebrow">Ресурсы · снабжение героя</div>
     <h1 class="display">Провизия дня</h1>
+
+    <div class="daynav">
+      <button class="dn-arrow" id="day-prev" aria-label="Прошлый день"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
+      <div class="dn-label">${dateLabel(date)}${isToday ? ' <span class="dn-today">сегодня</span>' : ""}</div>
+      <button class="dn-arrow" id="day-next" aria-label="Следующий день" ${isToday ? "disabled" : ""}><svg viewBox="0 0 24 24"><path d="M9 4l8 8-8 8V4z"/></svg></button>
+    </div>
+    <div class="weekstrip">${strip}</div>
+    ${!isToday ? `<button class="today-btn" id="day-today">← Вернуться в сегодня</button>` : ""}
 
     <div class="daytype-toggle">
       <button class="dt ${day.dayType === "training" ? "on" : ""}" data-dt="training">${icon("hammer")} Тренировочный</button>
@@ -671,13 +758,13 @@ function renderResources() {
 
     <div class="panel water-panel">
       <div class="g-top">
-        <span class="g-name">${icon("droplet")}<b>Вода</b></span>
-        <span class="g-val mono">${(day.water / 1000).toFixed(2)} / ${(WATER_TARGET_ML / 1000).toFixed(1)} л</span>
+        <span class="g-name" style="color:#7fc7d6">${icon("droplet")}<b>Вода</b></span>
+        <span class="g-val mono">${(totalWater / 1000).toFixed(2)} / ${(WATER_TARGET_ML / 1000).toFixed(1)} л</span>
       </div>
       <div class="g-bar"><i class="water" style="width:${waterPct.toFixed(0)}%"></i></div>
       <div class="water-ctl">
         <button class="wbtn" id="water-minus" aria-label="Убрать стакан">−</button>
-        <span class="mono dim small">${waterCups} × 250 мл</span>
+        <span class="mono dim small">${waterCups} × 250 мл${drinkWater ? ` + ${drinkWater} мл из напитков` : ""}</span>
         <button class="wbtn" id="water-plus" aria-label="Добавить стакан">+ стакан</button>
       </div>
       <div class="g-sub mono">≈ клетчатка ${Math.round(tot.fb)} / ${fiberTgt} г</div>
@@ -689,34 +776,36 @@ function renderResources() {
 
     <div class="eyebrow" style="margin-bottom:6px">Добавить провизию</div>
     <div class="food-search">
-      <input id="food-q" type="search" inputmode="search" placeholder="Найди продукт — курица, рис, банан…" autocomplete="off" />
+      <input id="food-q" type="search" inputmode="search" placeholder="Найди продукт — курица, кофе, кола…" autocomplete="off" />
     </div>
     <div id="food-results"></div>
 
     <div class="rune-divider">${runeSVG}</div>
-    <div class="eyebrow" style="margin-bottom:6px">Съедено сегодня · ${day.items.length}</div>
+    <div class="eyebrow" style="margin-bottom:6px">${isToday ? "Съедено сегодня" : "Съедено в этот день"} · ${day.items.length}</div>
     <div id="meal-log">${itemsHTML}</div>`;
 
-  // тип дня
-  app.querySelectorAll(".dt").forEach((b) => b.onclick = () => {
-    day.dayType = b.dataset.dt; save(); render();
-  });
-  // вода
-  document.getElementById("water-plus").onclick = () => { day.water += 250; save(); render(); };
-  document.getElementById("water-minus").onclick = () => { day.water = Math.max(0, day.water - 250); save(); render(); };
-  // удаление приёма
-  app.querySelectorAll(".meal-del").forEach((b) => b.onclick = () => {
-    day.items.splice(+b.dataset.i, 1); save(); render();
-  });
+  // навигация по дням
+  document.getElementById("day-prev").onclick = () => { resDate = addDays(date, -1); render(); };
+  const nextBtn = document.getElementById("day-next");
+  if (nextBtn && !nextBtn.disabled) nextBtn.onclick = () => { if (date < today()) { resDate = addDays(date, 1); render(); } };
+  const todayBtn = document.getElementById("day-today");
+  if (todayBtn) todayBtn.onclick = () => { resDate = today(); render(); };
+  app.querySelectorAll(".cday").forEach((b) => { if (!b.disabled) b.onclick = () => { resDate = b.dataset.d; render(); }; });
 
-  wireFoodSearch(day);
+  // тип дня, вода, удаление — пишем в постоянную запись выбранного дня
+  app.querySelectorAll(".dt").forEach((b) => b.onclick = () => { nutDay(date).dayType = b.dataset.dt; save(); render(); });
+  document.getElementById("water-plus").onclick = () => { nutDay(date).water += 250; save(); render(); };
+  document.getElementById("water-minus").onclick = () => { const d = nutDay(date); d.water = Math.max(0, d.water - 250); save(); render(); };
+  app.querySelectorAll(".meal-del").forEach((b) => b.onclick = () => { nutDay(date).items.splice(+b.dataset.i, 1); save(); render(); });
+
+  wireFoodSearch(date);
 }
 
 /* ---------- поиск продуктов: локальный справочник + Open Food Facts ---------- */
 let foodSearchTimer = null;
 let foodSearchCtl = null;
 
-function wireFoodSearch(day) {
+function wireFoodSearch(date) {
   const input = document.getElementById("food-q");
   const box = document.getElementById("food-results");
   if (!input || !box) return;
@@ -736,7 +825,7 @@ function wireFoodSearch(day) {
     box._foods = {};
     foods.forEach((f) => (box._foods[f.id] = f));
     box.querySelectorAll(".food-item").forEach((el) => {
-      el.querySelector(".food-add").onclick = () => openPortion(box._foods[el.dataset.id], day);
+      el.querySelector(".food-add").onclick = () => openPortion(box._foods[el.dataset.id], date);
     });
   };
 
@@ -776,7 +865,7 @@ function wireFoodSearch(day) {
   };
 }
 
-function openPortion(food, day) {
+function openPortion(food, date) {
   if (!food) return;
   const o = document.createElement("div");
   o.className = "overlay portion-overlay";
@@ -809,8 +898,8 @@ function openPortion(food, day) {
   o.querySelector("#portion-add").onclick = () => {
     const g = parseFloat(gInput.value.replace(",", ".")) || 0;
     if (g <= 0) { gInput.focus(); return; }
-    day.items.push({ n: food.n, g, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0, src: food.src });
-    pushRecent({ id: food.id, src: food.src, n: food.n, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0 });
+    nutDay(date).items.push({ n: food.n, g, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0, src: food.src, drink: food.drink, hy: food.hy });
+    pushRecent({ id: food.id, src: food.src, n: food.n, k: food.k, p: food.p, f: food.f, cb: food.cb, fb: food.fb || 0, drink: food.drink, hy: food.hy });
     save();
     o.remove();
     render();
