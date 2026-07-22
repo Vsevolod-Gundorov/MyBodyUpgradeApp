@@ -503,7 +503,7 @@ function renderWorkout(wid) {
         <span>
           <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}
           <div class="plan">План: ${ex.scheme} · ${ex.wNote || `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`}</div>
-          ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]))}
+          ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]), (movSeries[movementKey(ex)] || []).length)}
         </span>
         <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length ? saved.length + " подх." : "0 / " + ex.sets}</span>
       </button>
@@ -1264,7 +1264,7 @@ function trendPctPerMonth(points, key) {
   return ((num / den) * 30 / my) * 100;
 }
 function analyzeLift(pts) {
-  if (!pts || pts.length < 2) return null;
+  if (!pts || pts.length < 2) return null; // нужно ≥2 замеров, чтобы считать пределы
   let running = 0; const heavy = [];
   for (const p of pts) { running = Math.max(running, p.ceil); if (p.ceil >= running * AN.HEAVY) heavy.push(p); }
   const src = heavy.length >= 2 ? heavy : pts;
@@ -1279,7 +1279,8 @@ function analyzeLift(pts) {
   const tCeil = trendPctPerMonth(src, "ceil");
   const tFloor = trendPctPerMonth(src, "floor");
   let status, cls;
-  if (sinceCeil >= AN.PLATEAU && sinceFloor >= AN.PLATEAU) { status = "Плато — пора делоад и смена стимула"; cls = "verdict-fail"; }
+  if (src.length < 3) { status = "Замеры идут — копим данные для тренда"; cls = "verdict-mid"; }
+  else if (sinceCeil >= AN.PLATEAU && sinceFloor >= AN.PLATEAU) { status = "Плато — пора делоад и смена стимула"; cls = "verdict-fail"; }
   else if (tFloor != null && tFloor > 0.3 && (tCeil == null || tCeil >= 0)) { status = "Рост — база крепнет, пол ползёт вверх"; cls = "verdict-gold"; }
   else if (tCeil != null && tCeil > 0.3 && tFloor != null && tFloor <= 0) { status = "Потолок без базы — добавь объём в рабочей зоне"; cls = "verdict-mid"; }
   else if (tCeil != null && tCeil < -0.5) { status = "Откат — проверь сон/питание/делоад"; cls = "verdict-fail"; }
@@ -1291,9 +1292,14 @@ function analyzeLift(pts) {
   };
 }
 // Целевой блок пределов силы для упражнения квеста (считается из завершённых квестов).
-function exTargetHTML(ex, a) {
+function exTargetHTML(ex, a, count = 0) {
   const loReps = (ex.reps && ex.reps[0]) || 5;
-  if (!a) return `<div class="ex-target neu">◎ Пределы силы: первый замер — задаём точку отсчёта</div>`;
+  if (!a) {
+    const msg = count >= 1
+      ? "◎ Пределы силы: делаем 2-й замер — после него посчитаю потолок и пол"
+      : "◎ Пределы силы: 1-й замер — задаём точку отсчёта";
+    return `<div class="ex-target neu">${msg}</div>`;
+  }
   // вес топ-сета, который на loReps повторов даёт целевой потолок (обратная формула Эпли)
   const topSet = Math.round((a.targetCeil / (1 + loReps / 30)) / 2.5) * 2.5;
   return `<div class="ex-target">
