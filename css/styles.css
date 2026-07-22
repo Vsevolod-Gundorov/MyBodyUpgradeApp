@@ -607,6 +607,40 @@ h2.display { font-size: 1.4rem; }
 .method-body { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; line-height: 1.5; }
 .method-body b { color: var(--bone); }
 
+/* ---------- «частое и недавнее» / развернуть ---------- */
+.freq-badge { font-size: .62rem; letter-spacing: .04em; color: var(--gold-bright);
+  border: 1px solid var(--line-strong); border-radius: 4px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
+.food-more { width: 100%; margin-top: 8px; background: none; border: 1px dashed var(--line-strong);
+  color: var(--gold); padding: 9px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .82rem; }
+.food-more:active { transform: scale(.99); }
+
+/* ---------- кликабельный чип результата ---------- */
+.verdict-chip.clickable { cursor: pointer; }
+
+/* ---------- лог квестов — кликабельные строки ---------- */
+button.log-row { width: 100%; background: none; border: 0; border-bottom: 1px dashed var(--line);
+  color: inherit; font: inherit; text-align: left; cursor: pointer; }
+button.log-row:last-child { border-bottom: 0; }
+button.log-row:active { background: rgba(224,189,102,.05); }
+
+/* ---------- деталь прошлого квеста ---------- */
+.sd-card { max-height: 82vh; overflow-y: auto; }
+.sd-verdict { margin: 2px 0 12px; }
+.sd-list { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
+.sd-ex { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; }
+.sd-ex-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.sd-name { font-size: .9rem; font-weight: 500; }
+.sd-ceil { color: var(--gold-bright); font-size: .8rem; white-space: nowrap; }
+.sd-sets { margin-top: 4px; color: var(--bone); font-size: .9rem; letter-spacing: .02em; }
+
+/* ---------- деталь достижения ---------- */
+.status-overlay { padding: 24px; }
+.status-detail { text-align: center; display: flex; flex-direction: column; align-items: center;
+  max-width: 320px; animation: risein .5s cubic-bezier(.2,.8,.2,1); }
+.status-detail .medallion { margin-bottom: 12px; }
+.status-detail .sd-title { font-size: 1.6rem; margin-bottom: 6px; }
+.status-detail .sd-desc { color: var(--bone); }
+
 /* ---------- иконки ---------- */
 .ico { display: block; width: 20px; height: 20px; fill: currentColor; }
 

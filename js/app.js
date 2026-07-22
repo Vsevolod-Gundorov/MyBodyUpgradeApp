@@ -65,8 +65,9 @@ const defaultState = () => ({
     checkedAt: null,                                // ISO даты последней проверки арсенала
   },
   nutrition: {
-    log: {},     // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
-    recent: [],  // недавно использованные продукты (макс. 12)
+    log: {},        // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
+    recent: [],     // недавно использованные продукты (макс. 12)
+    foodStats: {},  // id -> { food, count, last } — для «частое + недавнее»
   },
   statuses: [],  // заработанные ситуационные статусы [{id,name,desc,icon,date}]
 });
@@ -87,6 +88,7 @@ function load() {
       S2.nutrition = Object.assign({}, base.nutrition, parsed.nutrition);
       S2.nutrition.log = (parsed.nutrition && parsed.nutrition.log) || {};
       S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
+      S2.nutrition.foodStats = (parsed.nutrition && parsed.nutrition.foodStats) || {};
       S2.statuses = Array.isArray(parsed.statuses) ? parsed.statuses : [];
       S2.settings = Object.assign({}, base.settings, parsed.settings);
       S2.cycleStart = Number.isInteger(parsed.cycleStart) ? parsed.cycleStart : 0;
@@ -364,11 +366,11 @@ function renderProfile() {
     <div class="panel">
       <div class="eyebrow" style="margin-bottom:10px">Знаки отличия${statuses.length ? ` · ${statuses.length}` : ""}</div>
       ${statuses.length
-        ? `<div class="status-grid">${statuses.slice(0, 24).map((st) => `
-            <div class="status-badge" title="${st.name}: ${st.desc}">
+        ? `<div class="status-grid">${statuses.slice(0, 24).map((st, i) => `
+            <button class="status-badge" data-si="${i}" title="${st.name}: ${st.desc}">
               <span class="medallion">${icon(st.icon || "gem")}</span>
               <span class="sb-name">${st.name}</span>
-            </div>`).join("")}</div>`
+            </button>`).join("")}</div>`
         : `<div class="empty">Пока пусто. Бей рекорды, закрывай нормативы и перевыполняй квесты — статусы придут сами.</div>`}
     </div>
 
@@ -399,6 +401,7 @@ function renderProfile() {
 
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };
+  app.querySelectorAll(".status-badge").forEach((b) => b.onclick = () => showStatusDetail(statuses[+b.dataset.si]));
 
   document.getElementById("btn-export").onclick = () => {
     const blob = new Blob([JSON.stringify(S, null, 2)], { type: "application/json" });
@@ -446,7 +449,7 @@ function renderCycle() {
               <span class="wcard-body">
                 <span class="row1">
                   <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
-                  ${last ? `<span class="verdict-chip ${last.cls}">${last.score}%</span>` : `<span class="dim small">—</span>`}
+                  ${last ? `<span class="verdict-chip ${last.cls} clickable" data-sid="${last.id}">${last.score}% ›</span>` : `<span class="dim small">—</span>`}
                 </span>
                 <span class="sub">${w.title} · ${w.exercises.length} упр.${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
               </span>
@@ -458,6 +461,7 @@ function renderCycle() {
       </div>`).join("")}`;
 
   app.querySelectorAll(".wcard").forEach((c) => c.addEventListener("click", () => withLoader(() => renderWorkout(c.dataset.w))));
+  app.querySelectorAll(".verdict-chip.clickable").forEach((ch) => ch.addEventListener("click", (e) => { e.stopPropagation(); showSessionDetail(ch.dataset.sid); }));
   app.querySelectorAll(".wflag").forEach((f) => f.addEventListener("click", (e) => {
     e.stopPropagation();
     const i = +f.dataset.i;
@@ -499,7 +503,7 @@ function renderWorkout(wid) {
         <span>
           <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}
           <div class="plan">План: ${ex.scheme} · ${ex.wNote || `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`}</div>
-          ${(ex.main || ex.lift) ? exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)])) : ""}
+          ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]))}
         </span>
         <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length ? saved.length + " подх." : "0 / " + ex.sets}</span>
       </button>
@@ -648,6 +652,56 @@ function showVerdict(res, awarded) {
   o.querySelector(".v-close").onclick = () => { o.remove(); withLoader(() => { view = "cycle"; render(); }); };
 }
 
+/* просмотр ранее выполненного квеста (прошлые победы) */
+function showSessionDetail(sessionId) {
+  const s = S.sessions.find((x) => x.id === sessionId);
+  if (!s) return;
+  const w = WORKOUTS[s.workoutId];
+  fxTap();
+  const rows = (w ? w.exercises : []).map((ex) => {
+    const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
+    if (!sets.length) return "";
+    const ceil = Math.max(...sets.map((x) => e1rmAvg(x.w, x.r)));
+    const setStr = sets.map((x) => `${fmt(x.w)}×${x.r}`).join("  ");
+    return `<div class="sd-ex">
+      <div class="sd-ex-top"><span class="sd-name">${ex.name}${ex.main ? ' <span class="main-badge">дв. дня</span>' : ""}</span><span class="sd-ceil mono">1ПМ ${fmt(ceil)}</span></div>
+      <div class="sd-sets mono">${setStr}</div>
+    </div>`;
+  }).join("");
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  o.innerHTML = `
+    <div class="portion-card sd-card">
+      <div class="eyebrow">Прошлый квест · ${fmtDate(s.date)}</div>
+      <div class="portion-name display">${w ? w.boss : s.workoutId}</div>
+      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${w ? ` · ${w.title}` : ""}</div>
+      <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
+      <button class="btn-ghost" id="sd-close">Закрыть</button>
+    </div>`;
+  overlayRoot.appendChild(o);
+  o.querySelector("#sd-close").onclick = () => o.remove();
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
+/* детали достижения (по тапу на значок) */
+function showStatusDetail(st) {
+  if (!st) return;
+  fxTap();
+  const o = document.createElement("div");
+  o.className = "overlay status-overlay";
+  o.innerHTML = `
+    <div class="status-detail">
+      <span class="medallion medallion--lg">${icon(st.icon || "gem")}</span>
+      <div class="sd-title display">${st.name}</div>
+      <div class="sd-desc">${st.desc || ""}</div>
+      ${st.date ? `<div class="dim small mono" style="margin-top:8px">получено ${fmtDate(st.date)}</div>` : ""}
+      <button class="btn-ghost" id="st-close" style="margin-top:16px;max-width:200px">Закрыть</button>
+    </div>`;
+  overlayRoot.appendChild(o);
+  o.querySelector("#st-close").onclick = () => o.remove();
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
 /* ================= БАФФЫ (арсенал добавок) ================= */
 function renderBuffs() {
   const active = S.buffs?.active || {};
@@ -777,6 +831,15 @@ function nutTotals(day) {
 function pushRecent(food) {
   if (!S.nutrition.recent) S.nutrition.recent = [];
   S.nutrition.recent = [food, ...S.nutrition.recent.filter((r) => r.id !== food.id)].slice(0, 12);
+  if (!S.nutrition.foodStats) S.nutrition.foodStats = {};
+  const cur = S.nutrition.foodStats[food.id];
+  S.nutrition.foodStats[food.id] = { food, count: (cur ? cur.count : 0) + 1, last: Date.now() };
+  // не даём словарю расти бесконечно — держим 60 самых свежих
+  const ids = Object.keys(S.nutrition.foodStats);
+  if (ids.length > 60) {
+    ids.sort((a, b) => S.nutrition.foodStats[a].last - S.nutrition.foodStats[b].last)
+      .slice(0, ids.length - 60).forEach((id) => delete S.nutrition.foodStats[id]);
+  }
 }
 
 /* ---- гидратация: сколько воды даёт напиток (кофе/чай/кола/энергетик и т.п.) ---- */
@@ -972,28 +1035,46 @@ function wireFoodSearch(date) {
   const box = document.getElementById("food-results");
   if (!input || !box) return;
 
-  const renderList = (foods, note) => {
+  const renderList = (foods, note, opts = {}) => {
+    const star = opts.starIds || new Set();
     box.innerHTML =
       (note ? `<div class="dim small" style="padding:4px 2px">${note}</div>` : "") +
       (foods.length ? foods.map((f) => `
         <div class="food-item" data-id="${f.id}">
           <span class="food-body">
-            <span class="food-name">${f.n}</span>
+            <span class="food-name">${f.n}${star.has(f.id) ? ' <span class="freq-badge">★ часто</span>' : ""}</span>
             <span class="food-macros dim small mono">${f.k} ккал · Б ${fmt(f.p)} · Ж ${fmt(f.f)} · У ${fmt(f.cb)} <span class="per100">/ 100 г</span></span>
           </span>
           <button class="food-add" aria-label="Добавить">+</button>
-        </div>`).join("") : `<div class="empty">Ничего не найдено. Попробуй другое слово.</div>`);
+        </div>`).join("") : `<div class="empty">Ничего не найдено. Попробуй другое слово.</div>`) +
+      (opts.moreCount ? `<button class="food-more" id="food-more">Развернуть · ещё ${opts.moreCount}</button>` : "");
     // кэш найденных, чтобы открыть порцию
     box._foods = {};
     foods.forEach((f) => (box._foods[f.id] = f));
     box.querySelectorAll(".food-item").forEach((el) => {
       el.querySelector(".food-add").onclick = () => openPortion(box._foods[el.dataset.id], date);
     });
+    const more = box.querySelector("#food-more");
+    if (more && opts.onMore) more.onclick = opts.onMore;
   };
 
-  const showDefault = () => {
-    const recent = (S.nutrition.recent || []);
-    renderList(recent.length ? recent : FOODS.slice(0, 8), recent.length ? "Недавнее" : "Популярное");
+  // «Частое и недавнее»: 2 самых частых + 3 последних, остальное — под «Развернуть»
+  const showDefault = (expanded = false) => {
+    const fs = S.nutrition.foodStats || {};
+    let pool = Object.values(fs);
+    if (!pool.length && (S.nutrition.recent || []).length) pool = S.nutrition.recent.map((f, i) => ({ food: f, count: 1, last: 1e12 - i }));
+    if (!pool.length) { renderList(FOODS.slice(0, 8), "Популярное"); return; }
+    const freq = [...pool].sort((a, b) => b.count - a.count || b.last - a.last).filter((x) => x.count >= 2).slice(0, 2);
+    const freqIds = new Set(freq.map((x) => x.food.id));
+    const byRecent = pool.filter((x) => !freqIds.has(x.food.id)).sort((a, b) => b.last - a.last);
+    const rest = byRecent.slice(3);
+    const head = [...freq, ...byRecent.slice(0, 3)].map((x) => x.food);
+    const list = expanded ? [...head, ...rest.map((x) => x.food)] : head;
+    renderList(list, "Частое и недавнее", {
+      starIds: freqIds,
+      moreCount: (!expanded && rest.length) ? rest.length : 0,
+      onMore: () => showDefault(true),
+    });
   };
   showDefault();
 
@@ -1315,13 +1396,14 @@ function renderProgress() {
   });
 
   const log = document.getElementById("log");
-  const rows = [...S.sessions].reverse().slice(0, 12);
+  const rows = [...S.sessions].reverse().slice(0, 20);
   log.innerHTML = rows.length
-    ? rows.map((s) => `<div class="log-row">
+    ? rows.map((s) => `<button class="log-row" data-sid="${s.id}">
         <span>${WORKOUTS[s.workoutId]?.boss || s.workoutId}</span>
         <span class="dim mono small">${fmtDate(s.date)}</span>
-        <span class="${s.cls} mono">${s.score}%</span></div>`).join("")
+        <span class="${s.cls} mono">${s.score}% ›</span></button>`).join("")
     : `<div class="empty">Летопись чиста, странник.</div>`;
+  log.querySelectorAll(".log-row").forEach((r) => r.onclick = () => showSessionDetail(r.dataset.sid));
 }
 
 function sparkline(values) {
