@@ -59,6 +59,7 @@ const defaultState = () => ({
   sessions: [], // { id, workoutId, date, verdict, score, xp, entries: { exId: [{w, r}] } }
   drafts: {},   // workoutId -> entries (незавершённые)
   cycleStart: 0, // с какого квеста (индекс в ORDER) начинается цикл
+  questStart: {}, // wid -> ts начала квеста (для таймера квеста)
   settings: { sound: true, haptics: true },
   buffs: {
     active: { creatine: "10 г", arginine: "7 г" }, // id -> доза
@@ -92,6 +93,7 @@ function load() {
       S2.statuses = Array.isArray(parsed.statuses) ? parsed.statuses : [];
       S2.settings = Object.assign({}, base.settings, parsed.settings);
       S2.cycleStart = Number.isInteger(parsed.cycleStart) ? parsed.cycleStart : 0;
+      S2.questStart = (parsed.questStart && typeof parsed.questStart === "object") ? parsed.questStart : {};
       return S2;
     }
   } catch (e) { /* повреждённые данные — начинаем заново */ }
@@ -288,6 +290,93 @@ function fxTransition() { tone(300, 0.16, "triangle", 0.035); tone(470, 0.13, "s
 function fxChime() { tone(660, 0.2, "sine", 0.05); tone(990, 0.24, "sine", 0.04, 0.07); tone(1320, 0.3, "sine", 0.03, 0.15); haptic([14, 40, 22]); }
 function fxTap() { tone(240, 0.05, "square", 0.02); haptic(7); }
 
+/* ================= таймеры квеста и умного отдыха ================= */
+const fmtClock = (sec) => { sec = Math.max(0, Math.round(sec)); const m = Math.floor(sec / 60); return `${m}:${String(sec % 60).padStart(2, "0")}`; };
+let questTimerId = null;         // интервал часов квеста (перерисовывается на каждый render)
+let restIntervalId = null;       // интервал таймера отдыха (живёт поверх экранов)
+let restState = null;            // { endAt, total, note }
+const timedSets = new WeakSet(); // подходы, для которых отдых уже запускался
+let restFeel = "norm";           // состояние: fresh | norm | tired
+const FEEL_FACTOR = { fresh: 0.85, norm: 1, tired: 1.25 };
+
+// умный отдых: база по типу движения + интенсивность (к потолку) + повторы + состояние
+function smartRest(ex, set, a) {
+  const compound = !!(ex.main || ex.lift);
+  let rest = compound ? 150 : 80;
+  let intensity = 0.8;
+  const e1 = e1rmAvg(set.w, set.r);
+  if (a && a.bestCeil) intensity = e1 / a.bestCeil;
+  else if (ex.w && ex.w[1]) intensity = set.w / ex.w[1];
+  if (intensity >= 0.95) rest += 90;
+  else if (intensity >= 0.9) rest += 60;
+  else if (intensity >= 0.82) rest += 30;
+  if (set.r <= 3) rest += 45; else if (set.r <= 5) rest += 20; else if (set.r >= 12) rest -= 15;
+  rest *= (FEEL_FACTOR[restFeel] || 1);
+  rest = Math.round(rest / 15) * 15;
+  return Math.max(45, Math.min(360, rest));
+}
+
+function ensureRestBar() {
+  let b = document.getElementById("rest-bar");
+  if (!b) {
+    b = document.createElement("div");
+    b.id = "rest-bar"; b.className = "rest-bar";
+    b.innerHTML = `
+      <div class="rest-prog"><i></i></div>
+      <div class="rest-row">
+        <span class="rest-label">Отдых · <b id="rest-time">0:00</b><span class="rest-note dim small" id="rest-note"></span></span>
+        <div class="rest-ctl">
+          <button id="rest-minus" aria-label="Меньше 15 с">−15</button>
+          <button id="rest-plus" aria-label="Больше 15 с">+15</button>
+          <button id="rest-skip" class="rest-skip">Пропустить</button>
+        </div>
+      </div>`;
+    overlayRoot.appendChild(b);
+    b.querySelector("#rest-minus").onclick = () => { if (restState) { restState.endAt -= 15000; restState.total = Math.max(15, restState.total - 15); tickRest(); fxTap(); } };
+    b.querySelector("#rest-plus").onclick = () => { if (restState) { restState.endAt += 15000; restState.total += 15; tickRest(); fxTap(); } };
+    b.querySelector("#rest-skip").onclick = () => stopRest();
+  }
+  return b;
+}
+function startRest(sec, note) {
+  restState = { endAt: Date.now() + sec * 1000, total: sec, note: note || "" };
+  const b = ensureRestBar(); b.classList.remove("done");
+  const noteEl = b.querySelector("#rest-note"); if (noteEl) noteEl.textContent = note ? ` · ${note}` : "";
+  fxTap();
+  clearInterval(restIntervalId);
+  restIntervalId = setInterval(tickRest, 250);
+  tickRest();
+}
+function tickRest() {
+  const b = document.getElementById("rest-bar");
+  if (!b || !restState) { clearInterval(restIntervalId); return; }
+  const rem = (restState.endAt - Date.now()) / 1000;
+  if (rem <= 0) { finishRest(); return; }
+  b.querySelector("#rest-time").textContent = fmtClock(rem);
+  b.querySelector(".rest-prog i").style.width = Math.max(0, Math.min(100, (rem / restState.total) * 100)) + "%";
+}
+function finishRest() {
+  clearInterval(restIntervalId);
+  const b = document.getElementById("rest-bar");
+  if (b) {
+    b.classList.add("done");
+    b.querySelector("#rest-time").textContent = "готово";
+    b.querySelector(".rest-prog i").style.width = "0%";
+    setTimeout(() => { const x = document.getElementById("rest-bar"); if (x) x.remove(); }, 1400);
+  }
+  restState = null;
+  fxChime(); haptic([25, 60, 25]);
+}
+function stopRest() {
+  clearInterval(restIntervalId); restState = null;
+  const b = document.getElementById("rest-bar"); if (b) b.remove();
+  fxTap();
+}
+function stopRestSilent() {
+  clearInterval(restIntervalId); restState = null;
+  const b = document.getElementById("rest-bar"); if (b) b.remove();
+}
+
 function render() {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
   updateBuffBadge();
@@ -477,20 +566,45 @@ function renderWorkout(wid) {
   // предзаполнение из последней сессии этого workout
   const lastSession = [...S.sessions].reverse().find((s) => s.workoutId === wid);
 
+  // таймер квеста: старт при открытии; сброс, если запись «протухла» (>6 ч)
+  if (!S.questStart) S.questStart = {};
+  const nowTs = Date.now();
+  if (!S.questStart[wid] || nowTs - S.questStart[wid] > 6 * 3600e3) { S.questStart[wid] = nowTs; save(); }
+
   app.innerHTML = `
     <div class="topbar">
       <button class="back-btn" id="back"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
       <span class="medallion medallion--lg">${icon(w.icon || "anvil")}</span>
-      <div>
+      <div class="topbar-mid">
         <div class="eyebrow">${WEEK_OF[wid].type === "объёмная" ? "объёмная" : "силовая"} · неделя ${WEEK_OF[wid].n}</div>
         <h2 class="display">${w.boss}</h2>
         <div class="dim small">${w.title}</div>
       </div>
+      <span class="quest-timer mono" id="quest-timer" title="Время квеста">⏱ 0:00</span>
+    </div>
+    <div class="feel-row">
+      <span class="feel-lbl">Состояние</span>
+      ${[["fresh", "Свежий"], ["norm", "Норма"], ["tired", "Устал"]].map(([k, t]) =>
+        `<button class="feel ${restFeel === k ? "on" : ""}" data-feel="${k}">${t}</button>`).join("")}
     </div>
     <div id="ex-list"></div>
     <button class="finish-btn" id="finish">Завершить квест</button>`;
 
   document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; render(); });
+  app.querySelectorAll(".feel").forEach((b) => b.onclick = () => {
+    restFeel = b.dataset.feel; fxTap();
+    app.querySelectorAll(".feel").forEach((x) => x.classList.toggle("on", x.dataset.feel === restFeel));
+  });
+
+  // часы квеста (интервал самоочищается, когда элемент исчезает при смене экрана)
+  clearInterval(questTimerId);
+  const upQt = () => {
+    const el = document.getElementById("quest-timer");
+    if (!el) { clearInterval(questTimerId); return; }
+    el.textContent = "⏱ " + fmtClock((Date.now() - S.questStart[wid]) / 1000);
+  };
+  upQt();
+  questTimerId = setInterval(upQt, 1000);
 
   const movSeries = buildMovementSeries(); // история по каждому движению для целей потолка/пола
   const list = document.getElementById("ex-list");
@@ -539,7 +653,17 @@ function renderWorkout(wid) {
         const [wi, ri] = row.querySelectorAll("input");
         wi.oninput = () => { s.w = parseFloat(wi.value.replace(",", ".")) || 0; save(); upd(); };
         ri.oninput = () => { s.r = parseInt(ri.value) || 0; save(); upd(); };
-        row.querySelector(".del").onclick = () => { arr.splice(si, 1); save(); drawSets(); upd(); };
+        // умный отдых: запись подхода завершена (ушёл фокус с повторов, вес и повторы заданы)
+        const maybeRest = () => {
+          if (s.w > 0 && s.r > 0 && !timedSets.has(s)) {
+            timedSets.add(s);
+            const a = analyzeLift(movSeries[movementKey(ex)]);
+            startRest(smartRest(ex, s, a), ex.name);
+          }
+        };
+        ri.onchange = maybeRest;
+        wi.onchange = () => { if (s.r > 0) maybeRest(); };
+        row.querySelector(".del").onclick = () => { timedSets.delete(s); arr.splice(si, 1); save(); drawSets(); upd(); };
         setsBox.appendChild(row);
       });
     }
@@ -576,15 +700,18 @@ function renderWorkout(wid) {
     w.exercises.forEach((ex) => { if (ex.lift) prBefore[ex.lift] = Math.max(prBefore[ex.lift] || 0, bestE1RM(ex.lift)); });
     const firstClear = S.sessions.filter((s) => s.workoutId === wid).length === 0;
     let tonn = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => (tonn += (wt || 0) * (r || 0))));
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, entries: e });
+    const durationSec = S.questStart && S.questStart[wid] ? Math.round((Date.now() - S.questStart[wid]) / 1000) : 0;
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, entries: e });
     S.xp += res.xp;
     delete S.drafts[wid];
+    if (S.questStart) delete S.questStart[wid];
+    clearInterval(questTimerId); stopRestSilent();
     const cut = Date.now() - 7 * 864e5;
     const recentCount = S.sessions.filter((s) => new Date(s.date).getTime() >= cut).length;
     const prAfter = {}; Object.keys(prBefore).forEach((l) => (prAfter[l] = bestE1RM(l)));
     const awarded = awardStatuses({ res, prBefore, prAfter, tonn, firstClear, recentCount });
     save();
-    showVerdict(res, awarded);
+    showVerdict(res, awarded, durationSec);
   };
 }
 
@@ -623,7 +750,7 @@ function awardStatuses({ res, prBefore, prAfter, tonn, firstClear, recentCount }
   return out;
 }
 
-function showVerdict(res, awarded) {
+function showVerdict(res, awarded, durationSec) {
   const o = document.createElement("div");
   o.className = "overlay";
   const gold = res.cls === "verdict-fail" ? "#c65b3c" : "#e0bd66";
@@ -643,7 +770,7 @@ function showVerdict(res, awarded) {
       </svg></div>
       <div class="v-title ${res.cls}">${res.verdict}</div>
       <div class="v-sub">${res.flavor}</div>
-      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP</div>
+      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP${durationSec ? ` · ⏱ ${fmtClock(durationSec)}` : ""}</div>
       ${badges}
       <button class="v-close">Вернуться к квестам</button>
     </div>`;
@@ -674,7 +801,7 @@ function showSessionDetail(sessionId) {
     <div class="portion-card sd-card">
       <div class="eyebrow">Прошлый квест · ${fmtDate(s.date)}</div>
       <div class="portion-name display">${w ? w.boss : s.workoutId}</div>
-      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${w ? ` · ${w.title}` : ""}</div>
+      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtClock(s.durationSec)}` : ""}${w ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>
     </div>`;

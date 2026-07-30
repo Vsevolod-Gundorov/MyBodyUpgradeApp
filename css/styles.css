@@ -205,12 +205,49 @@ h2.display { font-size: 1.4rem; }
 .verdict-fail { color: var(--ember); }
 
 /* ---------- экран тренировки ---------- */
-.topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.topbar-mid { flex: 1; min-width: 0; }
 .back-btn {
-  background: none; border: 1px solid var(--line); color: var(--bone);
+  background: none; border: 1px solid var(--line); color: var(--bone); flex: 0 0 auto;
   width: 38px; height: 38px; border-radius: 8px; display: grid; place-content: center; cursor: pointer;
 }
 .back-btn svg { width: 16px; height: 16px; fill: currentColor; }
+/* часы квеста */
+.quest-timer { flex: 0 0 auto; align-self: flex-start; font-size: .9rem; color: var(--gold-bright);
+  background: rgba(224,189,102,.08); border: 1px solid var(--line-strong); border-radius: 8px;
+  padding: 6px 9px; white-space: nowrap; }
+
+/* выбор состояния (влияет на умный отдых) */
+.feel-row { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
+.feel-lbl { font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
+.feel { flex: 1; background: var(--panel); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 8px; padding: 8px; cursor: pointer; font: inherit; font-size: .82rem; }
+.feel.on { color: var(--gold-bright); border-color: var(--line-strong); background: linear-gradient(180deg, rgba(224,189,102,.12), var(--panel)); }
+
+/* панель таймера отдыха (над таббаром, поверх экранов) */
+.rest-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 46;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  width: min(520px, calc(100% - 24px));
+  background: linear-gradient(180deg, #16221f, #0c1512);
+  border: 1px solid var(--line-strong); border-radius: 12px;
+  box-shadow: 0 8px 26px rgba(0,0,0,.5), inset 0 1px 0 rgba(224,189,102,.15);
+  overflow: hidden; animation: restup .3s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes restup { from { transform: translate(-50%, 20px); opacity: 0; } }
+.rest-bar .rest-prog { height: 4px; background: #0a1215; }
+.rest-bar .rest-prog i { display: block; height: 100%; background: var(--metal-gold);
+  box-shadow: 0 0 8px rgba(224,189,102,.6); transition: width .25s linear; }
+.rest-bar .rest-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; }
+.rest-bar .rest-label { font-family: var(--font-display); font-size: 1.05rem; color: var(--bone); }
+.rest-bar .rest-label b { color: var(--gold-bright); font-size: 1.2rem; letter-spacing: .03em; }
+.rest-bar .rest-note { font-family: var(--font-body); }
+.rest-bar .rest-ctl { display: flex; gap: 6px; flex: 0 0 auto; }
+.rest-bar .rest-ctl button { background: rgba(224,189,102,.08); border: 1px solid var(--line-strong);
+  color: var(--gold); border-radius: 7px; padding: 7px 9px; cursor: pointer; font: inherit; font-size: .78rem; }
+.rest-bar .rest-skip { color: var(--dim) !important; }
+.rest-bar.done { border-color: var(--moss); }
+.rest-bar.done .rest-label b { color: var(--moss); }
 
 .ex {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
