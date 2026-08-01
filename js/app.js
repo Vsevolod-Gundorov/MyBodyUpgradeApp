@@ -1898,5 +1898,18 @@ function sparkline(values) {
     <circle cx="${lastX}" cy="${lastY}" r="3"/></svg>`;
 }
 
+/* ================= запрет зума на всех экранах ================= */
+// iOS Safari игнорирует user-scalable — глушим жесты вручную (пинч и двойной тап)
+document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+document.addEventListener("gesturechange", (e) => e.preventDefault(), { passive: false });
+document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
+// добиваем двойной тап на iOS (два касания за <350 мс)
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 350) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
+
 /* ================= старт ================= */
 render();

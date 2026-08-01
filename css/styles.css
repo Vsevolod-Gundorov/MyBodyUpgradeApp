@@ -30,6 +30,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html { font-size: 16px; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* поля ввода не меньше 16px — иначе iOS зумит при фокусе (фолбэк для всех экранов) */
+input, select, textarea { font-size: 16px; }
 body {
   background-color: var(--ink);
   color: var(--bone);
@@ -267,7 +269,7 @@ h2.display { font-size: 1.4rem; }
 .set-row .idx { color: var(--dim); font-size: .78rem; text-align: center; }
 .set-row input {
   width: 100%; background: #0c0b09; border: 1px solid var(--line); color: var(--bone);
-  border-radius: 8px; padding: 10px 10px; font-family: var(--font-mono); font-size: .95rem; text-align: center;
+  border-radius: 8px; padding: 10px 10px; font-family: var(--font-mono); font-size: 16px; text-align: center;
 }
 .set-row input:focus { border-color: var(--gold); outline: none; }
 .set-row .del { background: none; border: 0; color: var(--dim); font-size: 1.1rem; cursor: pointer; }
@@ -421,8 +423,8 @@ h2.display { font-size: 1.4rem; }
 .buff-dose.edit { background: none; border: 0; color: var(--gold-bright); font-size: .8rem;
   cursor: pointer; padding: 2px 4px; border-radius: 6px; white-space: nowrap; }
 .buff-dose.edit:hover, .buff-dose.edit:active { background: rgba(224,189,102,.14); }
-.dose-input { width: 92px; background: #0a1215; border: 1px solid var(--gold); color: var(--bone);
-  border-radius: 6px; padding: 4px 7px; font-family: var(--font-mono); font-size: .82rem; text-align: right; }
+.dose-input { width: 84px; background: #0a1215; border: 1px solid var(--gold); color: var(--bone);
+  border-radius: 6px; padding: 4px 7px; font-family: var(--font-mono); font-size: 16px; text-align: right; }
 .dose-input:focus { outline: none; }
 /* кнопка правки своего баффа + бейдж «своё» */
 .buff-edit { flex: 0 0 auto; width: 30px; height: 34px; background: none; border: 0; color: var(--dim);
@@ -438,7 +440,7 @@ h2.display { font-size: 1.4rem; }
 .be-field > label { font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
 .be-field input, .be-field select {
   background: #0a1215; border: 1px solid var(--line); color: var(--bone);
-  border-radius: 8px; padding: 10px 11px; font: inherit; font-size: .92rem; width: 100%;
+  border-radius: 8px; padding: 10px 11px; font: inherit; font-size: 16px; width: 100%;
 }
 .be-field input:focus, .be-field select:focus { outline: none; border-color: var(--gold); }
 .be-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -589,7 +591,7 @@ h2.display { font-size: 1.4rem; }
 
 .food-search input {
   width: 100%; background: #0c0b09; border: 1px solid var(--line); color: var(--bone);
-  border-radius: 10px; padding: 12px 14px; font: inherit; font-size: .95rem;
+  border-radius: 10px; padding: 12px 14px; font: inherit; font-size: 16px;
 }
 .food-search input:focus { border-color: var(--gold); outline: none; }
 #food-results { margin-top: 8px; }
