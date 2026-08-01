@@ -49,6 +49,11 @@ const BUFFS = [
 ];
 const BUFF_BY_ID = Object.fromEntries(BUFFS.map((b) => [b.id, b]));
 const BUFF_CHECK_DAYS = 30; // раз в месяц — напоминание «Проверить баффы!»
+// иконки на выбор при создании своего баффа (подходящие по контексту)
+const BUFF_ICONS = ["flask", "potion", "capsule", "pill", "droplet", "gem", "shield", "sun", "moon", "leaf", "flame", "bolt", "heart", "sigil", "wheat", "muscle"];
+// все баффы = встроенные + пользовательские
+const allBuffs = () => [...BUFFS, ...((S.buffs && S.buffs.custom) || [])];
+const buffById = (id) => allBuffs().find((b) => b.id === id);
 
 /* ================= состояние (БД = localStorage + экспорт в JSON-файл) ================= */
 const DB_KEY = "bodyupgrade.v1";
@@ -64,6 +69,7 @@ const defaultState = () => ({
   buffs: {
     active: { creatine: "10 г", arginine: "7 г" }, // id -> доза
     checkedAt: null,                                // ISO даты последней проверки арсенала
+    custom: [],                                     // свои баффы [{id,name,real,icon,dose,effect,cat}]
   },
   nutrition: {
     log: {},        // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
@@ -86,6 +92,7 @@ function load() {
       S2.hero = Object.assign({}, base.hero, parsed.hero);
       S2.buffs = Object.assign({}, base.buffs, parsed.buffs);
       if (parsed.buffs && parsed.buffs.active) S2.buffs.active = parsed.buffs.active;
+      S2.buffs.custom = (parsed.buffs && Array.isArray(parsed.buffs.custom)) ? parsed.buffs.custom : [];
       S2.nutrition = Object.assign({}, base.nutrition, parsed.nutrition);
       S2.nutrition.log = (parsed.nutrition && parsed.nutrition.log) || {};
       S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
@@ -889,30 +896,35 @@ function renderBuffs() {
 
   const activeCards = activeIds.length
     ? activeIds.map((id) => {
-        const b = BUFF_BY_ID[id];
+        const b = buffById(id) || { name: id, real: "", effect: "", icon: "flask" };
         return `<div class="buff active" data-id="${id}">
           <span class="medallion">${icon(b.icon)}</span>
           <span class="buff-body">
-            <span class="buff-top"><b class="buff-name">${b.name}</b><span class="buff-dose mono">${active[id]}</span></span>
-            <span class="buff-real dim small">${b.real} · ${b.effect}</span>
+            <span class="buff-top"><b class="buff-name">${b.name}</b><button class="buff-dose edit mono" data-dose="${id}" title="Изменить дозу">${active[id]} ✎</button></span>
+            <span class="buff-real dim small">${b.real}${b.effect ? ` · ${b.effect}` : ""}</span>
           </span>
           <button class="buff-toggle off" title="Снять бафф" aria-label="Снять бафф">✕</button>
         </div>`;
       }).join("")
     : `<div class="empty">Ни одного активного баффа. Загляни в Арсенал ниже.</div>`;
 
-  const arsenal = BUFF_CATS.map((cat) => {
-    const items = BUFFS.filter((b) => b.cat === cat);
+  const cats = [...BUFF_CATS];
+  allBuffs().forEach((b) => { if (b.cat && !cats.includes(b.cat)) cats.push(b.cat); });
+  const arsenal = cats.map((cat) => {
+    const items = allBuffs().filter((b) => b.cat === cat);
+    if (!items.length) return "";
     return `<div class="buff-cat">
       <div class="week-tag" style="margin:14px 0 4px"><span class="dot"></span> ${cat}</div>
       ${items.map((b) => {
         const on = !!active[b.id];
+        const custom = String(b.id).startsWith("cust");
         return `<div class="buff arsenal ${on ? "on" : ""}" data-id="${b.id}">
           <span class="medallion">${icon(b.icon)}</span>
           <span class="buff-body">
-            <span class="buff-top"><b class="buff-name">${b.name}</b><span class="buff-dose mono dim">${b.dose}</span></span>
-            <span class="buff-real dim small">${b.real} · ${b.effect}</span>
+            <span class="buff-top"><b class="buff-name">${b.name}${custom ? ' <span class="buff-mine">своё</span>' : ""}</b><span class="buff-dose mono dim">${b.dose}</span></span>
+            <span class="buff-real dim small">${b.real}${b.effect ? ` · ${b.effect}` : ""}</span>
           </span>
+          ${custom ? `<button class="buff-edit" data-edit="${b.id}" aria-label="Редактировать">✎</button>` : ""}
           <button class="buff-toggle ${on ? "off" : "add"}" aria-label="${on ? "Снять" : "Активировать"}">${on ? "✓" : "+"}</button>
         </div>`;
       }).join("")}
@@ -930,23 +942,109 @@ function renderBuffs() {
 
     <div class="rune-divider">${runeSVG}</div>
     <div class="eyebrow" style="margin-bottom:2px">Арсенал</div>
-    <p class="dim small" style="margin-bottom:2px">Нажми, чтобы активировать или снять бафф.</p>
-    ${arsenal}`;
+    <p class="dim small" style="margin-bottom:8px">Тап по «+» — активировать, доза активного правится по ✎.</p>
+    ${arsenal}
+    <button class="btn-ghost buff-add-btn" id="buff-add" style="margin-top:12px">+ Добавить свой бафф</button>`;
 
   const check = document.getElementById("buff-check");
-  if (check) check.onclick = () => { if (!S.buffs) S.buffs = { active: {}, checkedAt: null }; S.buffs.checkedAt = today(); save(); render(); };
+  if (check) check.onclick = () => { if (!S.buffs) S.buffs = { active: {}, checkedAt: null, custom: [] }; S.buffs.checkedAt = today(); save(); render(); };
+
+  document.getElementById("buff-add").onclick = () => openBuffEditor(null);
+
+  app.querySelectorAll(".buff-edit").forEach((b) => b.onclick = (e) => {
+    e.stopPropagation();
+    openBuffEditor((S.buffs.custom || []).find((x) => x.id === b.dataset.edit));
+  });
+
+  app.querySelectorAll(".buff-dose.edit").forEach((b) => b.onclick = (e) => {
+    e.stopPropagation();
+    editActiveDose(b, b.dataset.dose);
+  });
 
   app.querySelectorAll(".buff[data-id]").forEach((el) => {
     const id = el.dataset.id;
     const toggle = el.querySelector(".buff-toggle");
     if (toggle) toggle.onclick = (e) => {
       e.stopPropagation();
-      if (!S.buffs) S.buffs = { active: {}, checkedAt: null };
+      if (!S.buffs) S.buffs = { active: {}, checkedAt: null, custom: [] };
       if (S.buffs.active[id]) delete S.buffs.active[id];
-      else S.buffs.active[id] = BUFF_BY_ID[id].dose;
+      else S.buffs.active[id] = (buffById(id) || {}).dose || "1 порция";
       save(); render();
     };
   });
+}
+
+// инлайновое редактирование дозы активного баффа
+function editActiveDose(btn, id) {
+  const cur = S.buffs.active[id] || "";
+  const inp = document.createElement("input");
+  inp.className = "dose-input mono"; inp.value = cur; inp.setAttribute("aria-label", "доза");
+  btn.replaceWith(inp);
+  inp.focus(); inp.select();
+  const commit = () => {
+    const v = inp.value.trim();
+    if (v) S.buffs.active[id] = v;
+    save(); render();
+  };
+  inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") render(); };
+  inp.onblur = commit;
+}
+
+// форма создания/правки своего баффа
+function openBuffEditor(buff) {
+  const editing = !!buff;
+  const b = buff || { name: "", real: "", effect: "", dose: "", cat: BUFF_CATS[0], icon: "flask" };
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  let selIcon = b.icon || "flask";
+  o.innerHTML = `
+    <div class="portion-card buff-editor">
+      <div class="eyebrow">${editing ? "Правка баффа" : "Новый бафф"}</div>
+      <div class="be-field"><label>Название (фэнтезийное)</label><input id="be-name" value="${(b.name || "").replace(/"/g, "&quot;")}" placeholder="Эликсир Силы" /></div>
+      <div class="be-field"><label>Реальное название</label><input id="be-real" value="${(b.real || "").replace(/"/g, "&quot;")}" placeholder="Креатин моногидрат" /></div>
+      <div class="be-field"><label>Эффект</label><input id="be-effect" value="${(b.effect || "").replace(/"/g, "&quot;")}" placeholder="сила, объём мышц" /></div>
+      <div class="be-row">
+        <div class="be-field"><label>Доза</label><input id="be-dose" value="${(b.dose || "").replace(/"/g, "&quot;")}" placeholder="5 г" /></div>
+        <div class="be-field"><label>Категория</label><select id="be-cat">${BUFF_CATS.map((c) => `<option ${c === b.cat ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+      </div>
+      <div class="be-field"><label>Иконка</label><div class="icon-pick" id="be-icons">${BUFF_ICONS.map((ic) => `<button class="ic-opt ${ic === selIcon ? "on" : ""}" data-ic="${ic}">${icon(ic)}</button>`).join("")}</div></div>
+      <div class="portion-actions">
+        ${editing ? `<button class="btn-ghost be-del" id="be-del">Удалить</button>` : `<button class="btn-ghost" id="be-cancel">Отмена</button>`}
+        <button class="finish-btn" id="be-save" style="margin-top:0">${editing ? "Сохранить" : "Добавить"}</button>
+      </div>
+      ${editing ? `<button class="btn-ghost" id="be-cancel" style="margin-top:10px">Отмена</button>` : ""}
+    </div>`;
+  overlayRoot.appendChild(o);
+
+  o.querySelectorAll(".ic-opt").forEach((el) => el.onclick = () => {
+    selIcon = el.dataset.ic;
+    o.querySelectorAll(".ic-opt").forEach((x) => x.classList.toggle("on", x.dataset.ic === selIcon));
+    fxTap();
+  });
+  o.querySelector("#be-cancel").onclick = () => o.remove();
+  const delBtn = o.querySelector("#be-del");
+  if (delBtn) delBtn.onclick = () => {
+    S.buffs.custom = (S.buffs.custom || []).filter((x) => x.id !== b.id);
+    delete S.buffs.active[b.id];
+    save(); o.remove(); render();
+  };
+  o.querySelector("#be-save").onclick = () => {
+    const name = o.querySelector("#be-name").value.trim();
+    const real = o.querySelector("#be-real").value.trim();
+    if (!name && !real) { o.querySelector("#be-name").focus(); return; }
+    const rec = {
+      id: editing ? b.id : "cust" + Date.now(),
+      name: name || real, real, effect: o.querySelector("#be-effect").value.trim(),
+      dose: o.querySelector("#be-dose").value.trim() || "1 порция",
+      cat: o.querySelector("#be-cat").value, icon: selIcon,
+    };
+    if (!S.buffs.custom) S.buffs.custom = [];
+    if (editing) {
+      const i = S.buffs.custom.findIndex((x) => x.id === b.id);
+      if (i >= 0) S.buffs.custom[i] = rec; else S.buffs.custom.push(rec);
+    } else S.buffs.custom.push(rec);
+    save(); o.remove(); render();
+  };
 }
 
 /* ================= РЕСУРСЫ (снабжение / питание) ================= */

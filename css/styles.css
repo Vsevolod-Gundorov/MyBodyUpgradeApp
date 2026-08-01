@@ -417,6 +417,38 @@ h2.display { font-size: 1.4rem; }
 .buff-toggle.add { color: var(--gold); }
 .buff-toggle.off { color: var(--gold-bright); background: rgba(201,169,97,.16); }
 .buff-toggle:active { transform: scale(.9); }
+/* правка дозы активного баффа */
+.buff-dose.edit { background: none; border: 0; color: var(--gold-bright); font-size: .8rem;
+  cursor: pointer; padding: 2px 4px; border-radius: 6px; white-space: nowrap; }
+.buff-dose.edit:hover, .buff-dose.edit:active { background: rgba(224,189,102,.14); }
+.dose-input { width: 92px; background: #0a1215; border: 1px solid var(--gold); color: var(--bone);
+  border-radius: 6px; padding: 4px 7px; font-family: var(--font-mono); font-size: .82rem; text-align: right; }
+.dose-input:focus { outline: none; }
+/* кнопка правки своего баффа + бейдж «своё» */
+.buff-edit { flex: 0 0 auto; width: 30px; height: 34px; background: none; border: 0; color: var(--dim);
+  cursor: pointer; font-size: .95rem; }
+.buff-edit:active { transform: scale(.9); }
+.buff-mine { font-family: var(--font-body); font-size: .58rem; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--teal); border: 1px solid var(--teal-dim); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle; }
+.buff-add-btn { border-style: dashed; color: var(--gold); }
+
+/* форма создания/правки баффа */
+.buff-editor { max-height: 86vh; overflow-y: auto; }
+.be-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 11px; }
+.be-field > label { font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.be-field input, .be-field select {
+  background: #0a1215; border: 1px solid var(--line); color: var(--bone);
+  border-radius: 8px; padding: 10px 11px; font: inherit; font-size: .92rem; width: 100%;
+}
+.be-field input:focus, .be-field select:focus { outline: none; border-color: var(--gold); }
+.be-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.icon-pick { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.ic-opt { aspect-ratio: 1; display: grid; place-content: center; cursor: pointer;
+  background: #0a1215; border: 1px solid var(--line); border-radius: 8px; color: var(--dim); }
+.ic-opt .ico { width: 20px; height: 20px; }
+.ic-opt.on { border-color: var(--gold); color: var(--gold-bright); background: rgba(224,189,102,.14);
+  box-shadow: 0 0 8px rgba(224,189,102,.35); }
+@media (max-width: 380px) { .icon-pick { grid-template-columns: repeat(6, 1fr); } }
 
 /* бейдж-напоминание на вкладке */
 .tab { position: relative; }
