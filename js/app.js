@@ -307,37 +307,47 @@ function repZone(r) {
   if (r <= 15) return "гипертрофия/выносл.";
   return "выносливость";
 }
-// Умный отдых по методике (de Salles 2009; NSCA; Grgic 2018; Schoenfeld 2016):
-// главный фактор — зона повторов (энергосистема/цель), затем размер упражнения
-// (многосуставное дольше изоляции), реальный %1ПМ (вес к историческому потолку —
-// т.е. НЕ e1RM самого сета) и субъективное состояние.
+// изоляция — по id упражнения (остальное считаем многосуставным компаундом)
+const ISO_RE = /curl|raise|delt|pushdown|french|calv|abs|cross|hammer|legext|legcurl|shrug|fly|pec/i;
+// уровень упражнения: 1 — тяжёлая база штанги (макс. перформанс), 2 — вторичный
+// компаунд / гипертрофия, 3 — изоляция/подсобка
+function exTier(ex) {
+  if (ex.id === "squat-vol") return 2;                              // многоповторный присед — гипертрофия
+  if (["squat", "deadlift", "bench", "ohp"].includes(ex.lift)) return 1;
+  if (ISO_RE.test(ex.id)) return 3;
+  return 2;
+}
+// Умный отдых. Тяжёлая база (присед/становая/жим/швунг) требует 4–5 мин, иначе
+// повторы падают между подходами (Willardson & Burkett 2005/2006: при 8ПМ суммарные
+// повторы за 4 сета растут 1→2→5 мин: присед 22→25→29, жим 17→22→26). Подсобка и
+// изоляция — коротко по зоне повторов (de Salles 2009; NSCA; Grgic 2018).
 function smartRest(ex, set, a) {
-  const r = set.r || 10;
-  // база по повторам, с
+  const r = set.r || 8;
+  const tier = exTier(ex);
+  const pct = (a && a.bestCeil) ? set.w / a.bestCeil : null;
+  const warmup = pct != null && pct <= 0.6; // явно лёгкий/разминочный подход
   let rest;
-  if (r <= 3) rest = 200;         // максимальная сила: 3–5 мин
-  else if (r <= 5) rest = 170;
-  else if (r <= 6) rest = 150;
-  else if (r <= 8) rest = 120;    // сила/гипертрофия: ~2 мин
-  else if (r <= 10) rest = 90;    // гипертрофия: ~1.5 мин
-  else if (r <= 12) rest = 75;
-  else if (r <= 15) rest = 60;    // гипертрофия/выносл.
-  else rest = 45;                 // выносливость: ≤45 с
-  // размер упражнения: многосуставное дольше изоляции
-  if (ex.lift === "squat" || ex.lift === "deadlift") rest += 30;   // самые системные
-  else if (ex.lift === "bench" || ex.lift === "ohp") rest += 15;
-  else if (ex.main) rest += 10;                                    // движение дня (обычно компаунд)
-  else rest -= 15;                                                 // подсобка/изоляция
-  // реальная относительная нагрузка = вес / исторический потолок (≈ %1ПМ)
-  if (a && a.bestCeil) {
-    const pct = set.w / a.bestCeil;
-    if (pct >= 0.88) rest += 25;        // тяжёлый грайндовый подход
-    else if (pct <= 0.62) rest -= 20;   // явно лёгкий / бэк-офф / разминка
+  if (tier === 1) {
+    // тяжёлая база: длинный отдых, чтобы держать перформанс
+    if (r <= 3) rest = 300; else if (r <= 5) rest = 270; else if (r <= 6) rest = 255;
+    else if (r <= 8) rest = 240; else if (r <= 10) rest = 210; else if (r <= 12) rest = 180;
+    else if (r <= 15) rest = 150; else rest = 120;
+    if (warmup) rest = Math.min(rest, 120);
+  } else if (tier === 2) {
+    // вторичный компаунд / гипертрофийная база
+    if (r <= 5) rest = 165; else if (r <= 8) rest = 135; else if (r <= 10) rest = 105;
+    else if (r <= 12) rest = 90; else if (r <= 15) rest = 70; else rest = 55;
+    if (pct != null) { if (pct >= 0.9) rest += 20; else if (pct <= 0.6) rest -= 15; }
+  } else {
+    // изоляция
+    if (r <= 8) rest = 90; else if (r <= 12) rest = 70; else if (r <= 15) rest = 55; else rest = 45;
   }
   // состояние
   rest *= (FEEL_FACTOR[restFeel] || 1);
+  // тяжёлая база на рабочих подходах в силовой зоне — гарантируем ≥4 мин
+  if (tier === 1 && r <= 8 && !warmup) rest = Math.max(rest, 240);
   rest = Math.round(rest / 5) * 5;
-  return Math.max(40, Math.min(300, rest));
+  return Math.max(40, Math.min(360, rest));
 }
 
 function ensureRestBar() {
