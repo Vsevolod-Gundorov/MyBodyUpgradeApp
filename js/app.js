@@ -29,31 +29,111 @@ const STAT_GRAD = {
 const STAT_ACCENT = { СИЛА: "#e07a5f", МОЩЬ: "#a98be0", ВЫНОСЛ: "#e0a24a", ОБЪЁМ: "#5fc0b8", ДИСЦИПЛ: "#6fa0dc", СТОЙКОСТЬ: "#9fc46e" };
 
 /* ================= баффы: арсенал натурального атлета ================= */
-// Только легальные, натуральные добавки. dose — доза по умолчанию при активации.
+// Только легальные, натуральные добавки. dose = число, unit = единица, times = слоты приёма.
 const BUFF_CATS = ["Сила и мощь", "Пампинг и выносливость", "Белок и рост", "Восстановление и здоровье"];
+const BUFF_SLOTS = ["Утро", "День", "До трен.", "После трен.", "Вечер", "Перед сном"];
 const BUFFS = [
-  { id: "creatine",  name: "Эликсир Силы",       real: "Креатин моногидрат",   icon: "flask",   dose: "5 г",       effect: "АТФ, сила, объём мышц", cat: "Сила и мощь" },
-  { id: "betaala",   name: "Ярость Карнозина",   real: "Бета-аланин",          icon: "flame",   dose: "4 г",       effect: "буфер кислоты, многоповтор", cat: "Сила и мощь" },
-  { id: "caffeine",  name: "Искра Ярости",       real: "Кофеин",               icon: "bolt",    dose: "150 мг",    effect: "фокус, сила, бодрость (до трен.)", cat: "Сила и мощь" },
-  { id: "arginine",  name: "Дыхание Пампа",      real: "L-Аргинин",            icon: "droplet", dose: "7 г",       effect: "оксид азота, пампинг", cat: "Пампинг и выносливость" },
-  { id: "citrulline",name: "Кровь Титана",       real: "Цитруллин малат",      icon: "heart",   dose: "6 г",       effect: "кровоток, выносливость, пампинг", cat: "Пампинг и выносливость" },
-  { id: "electro",   name: "Соли Странника",     real: "Электролиты (Na/K)",   icon: "potion",  dose: "по нужде",  effect: "гидратация, судороги", cat: "Пампинг и выносливость" },
-  { id: "whey",      name: "Нектар Роста",       real: "Сывороточный протеин", icon: "flask",   dose: "30 г",      effect: "белок, синтез мышц", cat: "Белок и рост" },
-  { id: "omega3",    name: "Масло Левиафана",    real: "Омега-3 (рыбий жир)",  icon: "droplet", dose: "2 г EPA/DHA", effect: "суставы, сердце, восстановление", cat: "Восстановление и здоровье" },
-  { id: "vitd",      name: "Свет Солнца",        real: "Витамин D3",           icon: "sun",     dose: "3000 МЕ",   effect: "гормоны, кости, иммунитет", cat: "Восстановление и здоровье" },
-  { id: "mag",       name: "Камень Покоя",       real: "Магний (глицинат)",    icon: "moon",    dose: "350 мг",    effect: "сон, мышцы, нервы", cat: "Восстановление и здоровье" },
-  { id: "zinc",      name: "Печать Тестостерона",real: "Цинк",                 icon: "gem",     dose: "25 мг",     effect: "гормоны, иммунитет", cat: "Восстановление и здоровье" },
-  { id: "vitc",      name: "Щит Аскорбия",       real: "Витамин C",            icon: "shield",  dose: "1000 мг",   effect: "антиоксидант, иммунитет", cat: "Восстановление и здоровье" },
-  { id: "multi",     name: "Венец Изобилия",     real: "Мультивитамины",       icon: "capsule", dose: "1 порция",  effect: "база микронутриентов", cat: "Восстановление и здоровье" },
-  { id: "ashwa",     name: "Корень Спокойствия", real: "Ашваганда",            icon: "leaf",    dose: "500 мг",    effect: "кортизол, стресс, сон", cat: "Восстановление и здоровье" },
+  { id: "creatine",  name: "Эликсир Силы",        real: "Креатин моногидрат",   icon: "flask",   dose: 5,   unit: "г",  cat: "Сила и мощь", times: ["Утро"], effect: "АТФ, сила, объём мышц", hint: "можно в любое время — важно принимать каждый день" },
+  { id: "betaala",   name: "Ярость Карнозина",    real: "Бета-аланин",          icon: "flame",   dose: 4,   unit: "г",  cat: "Сила и мощь", times: ["До трен."], effect: "буфер кислоты, многоповтор", hint: "лёгкое покалывание кожи — это норма" },
+  { id: "caffeine",  name: "Искра Ярости",        real: "Кофеин",               icon: "bolt",    dose: 150, unit: "мг", cat: "Сила и мощь", times: ["До трен."], effect: "фокус, сила, бодрость", hint: "не позже, чем за 6–8 ч до сна" },
+  { id: "arginine",  name: "Дыхание Пампа",       real: "L-Аргинин",            icon: "droplet", dose: 7,   unit: "г",  cat: "Пампинг и выносливость", times: ["До трен."], effect: "оксид азота, пампинг", hint: "за 40–60 мин до тренировки" },
+  { id: "citrulline",name: "Кровь Титана",        real: "Цитруллин малат",      icon: "heart",   dose: 6,   unit: "г",  cat: "Пампинг и выносливость", times: ["До трен."], effect: "кровоток, выносливость, пампинг", hint: "за 40–60 мин до тренировки" },
+  { id: "electro",   name: "Соли Странника",      real: "Электролиты (Na/K)",   icon: "potion",  dose: 1,   unit: "порция", cat: "Пампинг и выносливость", times: ["До трен.", "После трен."], effect: "гидратация, судороги", hint: "в жару и на дефиците — больше" },
+  { id: "whey",      name: "Нектар Роста",        real: "Сывороточный протеин", icon: "flask",   dose: 30,  unit: "г",  cat: "Белок и рост", times: ["После трен."], effect: "белок, синтез мышц", hint: "" },
+  { id: "omega3",    name: "Масло Левиафана",     real: "Омега-3 (рыбий жир)",  icon: "droplet", dose: 2,   unit: "г",  cat: "Восстановление и здоровье", times: ["Утро"], effect: "суставы, сердце, восстановление", hint: "с едой, содержащей жир" },
+  { id: "vitd",      name: "Свет Солнца",         real: "Витамин D3",           icon: "sun",     dose: 3000,unit: "МЕ", cat: "Восстановление и здоровье", times: ["Утро"], effect: "гормоны, кости, иммунитет", hint: "с жирной едой; хорошо в паре с K2" },
+  { id: "mag",       name: "Камень Покоя",        real: "Магний (глицинат)",    icon: "moon",    dose: 350, unit: "мг", cat: "Восстановление и здоровье", times: ["Перед сном"], effect: "сон, мышцы, нервы", hint: "вечером; отдельно от кальция и цинка" },
+  { id: "zinc",      name: "Печать Тестостерона", real: "Цинк",                 icon: "gem",     dose: 25,  unit: "мг", cat: "Восстановление и здоровье", times: ["Перед сном"], effect: "гормоны, иммунитет", hint: "отдельно от кальция, магния и железа" },
+  { id: "vitc",      name: "Щит Аскорбия",        real: "Витамин C",            icon: "shield",  dose: 1000,unit: "мг", cat: "Восстановление и здоровье", times: ["Утро"], effect: "антиоксидант, иммунитет", hint: "" },
+  { id: "multi",     name: "Венец Изобилия",      real: "Мультивитамины",       icon: "capsule", dose: 1,   unit: "порция", cat: "Восстановление и здоровье", times: ["Утро"], effect: "база микронутриентов", hint: "с едой" },
+  { id: "ashwa",     name: "Корень Спокойствия",  real: "Ашваганда",            icon: "leaf",    dose: 500, unit: "мг", cat: "Восстановление и здоровье", times: ["Вечер"], effect: "кортизол, стресс, сон", hint: "курсами; хорошо перед сном при стрессе" },
 ];
 const BUFF_BY_ID = Object.fromEntries(BUFFS.map((b) => [b.id, b]));
 const BUFF_CHECK_DAYS = 30; // раз в месяц — напоминание «Проверить баффы!»
-// иконки на выбор при создании своего баффа (подходящие по контексту)
-const BUFF_ICONS = ["flask", "potion", "capsule", "pill", "droplet", "gem", "shield", "sun", "moon", "leaf", "flame", "bolt", "heart", "sigil", "wheat", "muscle"];
+const LOW_STOCK_DAYS = 10;  // предупреждать, когда запаса ≤ стольких дней
 // все баффы = встроенные + пользовательские
 const allBuffs = () => [...BUFFS, ...((S.buffs && S.buffs.custom) || [])];
 const buffById = (id) => allBuffs().find((b) => b.id === id);
+
+/* --- авто-подбор фэнтезийного имени/иконки/единиц по реальному названию добавки --- */
+const SUPP_DB = [
+  { k: /креатин|creatine/i, name: "Эликсир Силы", icon: "flask", unit: "г", cat: "Сила и мощь", effect: "АТФ, сила, объём мышц", times: ["Утро"] },
+  { k: /бета.?аланин|beta.?alanine/i, name: "Ярость Карнозина", icon: "flame", unit: "г", cat: "Сила и мощь", effect: "буфер кислоты, многоповтор", times: ["До трен."] },
+  { k: /кофеин|caffeine/i, name: "Искра Ярости", icon: "bolt", unit: "мг", cat: "Сила и мощь", effect: "фокус, бодрость", times: ["До трен."], hint: "не позже, чем за 6–8 ч до сна" },
+  { k: /гуарана|guarana/i, name: "Дикий Огонь", icon: "flame", unit: "мг", cat: "Сила и мощь", effect: "энергия, фокус", times: ["До трен."] },
+  { k: /предтрен|pre.?workout/i, name: "Зелье Берсерка", icon: "potion", unit: "порция", cat: "Сила и мощь", effect: "энергия, пампинг, фокус", times: ["До трен."] },
+  { k: /аргинин|arginine/i, name: "Дыхание Пампа", icon: "droplet", unit: "г", cat: "Пампинг и выносливость", effect: "оксид азота, пампинг", times: ["До трен."] },
+  { k: /цитруллин|citrulline/i, name: "Кровь Титана", icon: "heart", unit: "г", cat: "Пампинг и выносливость", effect: "кровоток, выносливость", times: ["До трен."] },
+  { k: /таурин|taurine/i, name: "Тень Тавра", icon: "bolt", unit: "г", cat: "Пампинг и выносливость", effect: "фокус, выносливость", times: ["До трен."] },
+  { k: /карнитин|carnitine/i, name: "Пламя Жиролома", icon: "flame", unit: "г", cat: "Пампинг и выносливость", effect: "жирообмен, энергия", times: ["Утро"] },
+  { k: /электролит|electrolyte|солев|regidron/i, name: "Соли Странника", icon: "potion", unit: "порция", cat: "Пампинг и выносливость", effect: "гидратация, судороги", times: ["До трен."] },
+  { k: /сыворот|whey|изолят|isolate/i, name: "Нектар Роста", icon: "flask", unit: "г", cat: "Белок и рост", effect: "белок, синтез мышц", times: ["После трен."] },
+  { k: /казеин|casein/i, name: "Ночной Нектар", icon: "moon", unit: "г", cat: "Белок и рост", effect: "медленный белок на ночь", times: ["Перед сном"] },
+  { k: /гейнер|gainer/i, name: "Пир Исполина", icon: "wheat", unit: "порция", cat: "Белок и рост", effect: "калории, масса", times: ["После трен."] },
+  { k: /bcaa|бцаа|eaa|эаа|аминокисл|amino/i, name: "Осколки Силы", icon: "gem", unit: "г", cat: "Белок и рост", effect: "аминокислоты, восстановление", times: ["До трен."] },
+  { k: /глютамин|glutamine/i, name: "Щит Кишечника", icon: "shield", unit: "г", cat: "Белок и рост", effect: "восстановление, ЖКТ", times: ["Перед сном"] },
+  { k: /коллаген|collagen/i, name: "Связь Сухожилий", icon: "gem", unit: "г", cat: "Восстановление и здоровье", effect: "суставы, связки, кожа", times: ["Утро"] },
+  { k: /омега|omega|рыб.?и?й?\s?жир|fish.?oil/i, name: "Масло Левиафана", icon: "droplet", unit: "г", cat: "Восстановление и здоровье", effect: "суставы, сердце, восстановление", times: ["Утро"], hint: "с едой, содержащей жир" },
+  { k: /витамин\s?d|vitamin\s?d|\bd3\b/i, name: "Свет Солнца", icon: "sun", unit: "МЕ", cat: "Восстановление и здоровье", effect: "гормоны, кости, иммунитет", times: ["Утро"], hint: "с жирной едой" },
+  { k: /магни|magnesium/i, name: "Камень Покоя", icon: "moon", unit: "мг", cat: "Восстановление и здоровье", effect: "сон, мышцы, нервы", times: ["Перед сном"], hint: "отдельно от кальция и цинка" },
+  { k: /цинк|zinc/i, name: "Печать Тестостерона", icon: "gem", unit: "мг", cat: "Восстановление и здоровье", effect: "гормоны, иммунитет", times: ["Перед сном"], hint: "отдельно от кальция, магния и железа" },
+  { k: /витамин\s?c|vitamin\s?c|аскорб/i, name: "Щит Аскорбия", icon: "shield", unit: "мг", cat: "Восстановление и здоровье", effect: "антиоксидант, иммунитет", times: ["Утро"] },
+  { k: /мультивитам|multivit|витаминн.?\s?комплекс/i, name: "Венец Изобилия", icon: "capsule", unit: "порция", cat: "Восстановление и здоровье", effect: "база микронутриентов", times: ["Утро"], hint: "с едой" },
+  { k: /ашваганд|ashwagandha/i, name: "Корень Спокойствия", icon: "leaf", unit: "мг", cat: "Восстановление и здоровье", effect: "кортизол, стресс, сон", times: ["Вечер"] },
+  { k: /мелатонин|melatonin/i, name: "Печать Снов", icon: "moon", unit: "мг", cat: "Восстановление и здоровье", effect: "сон, засыпание", times: ["Перед сном"], hint: "за 30–60 мин до сна" },
+  { k: /родиол|rhodiola/i, name: "Хлад Вершин", icon: "leaf", unit: "мг", cat: "Восстановление и здоровье", effect: "стресс, выносливость", times: ["Утро"] },
+  { k: /куркум|curcumin|turmeric/i, name: "Золотой Корень", icon: "leaf", unit: "мг", cat: "Восстановление и здоровье", effect: "противовоспалительное, суставы", times: ["Утро"] },
+  { k: /железо|iron|ferr/i, name: "Кровь Руды", icon: "gem", unit: "мг", cat: "Восстановление и здоровье", effect: "кровь, энергия", times: ["Утро"], hint: "с витамином C; отдельно от кальция" },
+  { k: /витамин\s?b|b12|b6|b.?комплекс/i, name: "Искры Жизни", icon: "bolt", unit: "мг", cat: "Восстановление и здоровье", effect: "энергия, нервы", times: ["Утро"] },
+  { k: /глюкозамин|хондроитин|glucosamine|chondroitin|мсм|msm/i, name: "Смазка Суставов", icon: "shield", unit: "мг", cat: "Восстановление и здоровье", effect: "суставы, хрящи", times: ["Утро"] },
+  { k: /пробиотик|probiotic|лактоба|бифидо/i, name: "Малый Легион", icon: "leaf", unit: "капс.", cat: "Восстановление и здоровье", effect: "микрофлора, ЖКТ", times: ["Утро"] },
+  { k: /клетчатк|fiber|псиллиум|psyllium|отруб/i, name: "Нить Насыщения", icon: "wheat", unit: "г", cat: "Восстановление и здоровье", effect: "клетчатка, пищеварение", times: ["День"] },
+  { k: /кальци|calcium/i, name: "Костяной Оплот", icon: "shield", unit: "мг", cat: "Восстановление и здоровье", effect: "кости, зубы", times: ["День"], hint: "отдельно от цинка, магния и железа" },
+];
+const NAME_POOLS = {
+  "Сила и мощь": ["Гнев Молота", "Клык Зверя", "Молот Титана", "Рёв Берсерка", "Пламя Ярости"],
+  "Пампинг и выносливость": ["Прилив Крови", "Ветер Степей", "Пульс Бури", "Река Силы", "Дыхание Ветра"],
+  "Белок и рост": ["Дар Плоти", "Камень Роста", "Хлеб Исполина", "Зерно Силы", "Плоть Титана"],
+  "Восстановление и здоровье": ["Роса Заката", "Тихий Родник", "Мшистый Оберег", "Печать Покоя", "Лунная Роса", "Оберег Хранителя"],
+};
+const CAT_ICON = { "Сила и мощь": "muscle", "Пампинг и выносливость": "droplet", "Белок и рост": "flask", "Восстановление и здоровье": "leaf" };
+function guessCat(s) {
+  if (/сон|мелатонин|стресс|кортизол|адаптоген|витамин|минерал|магни|цинк|железо|кальци|омега|сустав|иммунит|коллаген|антиоксид|пробиотик|d3|k2/i.test(s)) return "Восстановление и здоровье";
+  if (/белок|протеин|амино|bcaa|eaa|казеин|гейнер|масса|рост|глютамин/i.test(s)) return "Белок и рост";
+  if (/пампинг|оксид|азот|выносл|карнитин|электролит|цитруллин|аргинин|таурин/i.test(s)) return "Пампинг и выносливость";
+  if (/сила|энерг|кофеин|предтрен|креатин|мощ|фокус|гуарана|бета.?аланин/i.test(s)) return "Сила и мощь";
+  return "Восстановление и здоровье";
+}
+function guessUnit(s) {
+  if (/витамин\s?d|vitamin\s?d|\bd3\b|k2/i.test(s)) return "МЕ";
+  if (/мультивитам|multivit|гейнер|gainer|предтрен|pre.?workout|порош|комплекс/i.test(s)) return "порция";
+  if (/капс|caps|таблет|tablet|пробиотик/i.test(s)) return "капс.";
+  if (/\bмл\b|\bml\b|капл|сироп/i.test(s)) return "мл";
+  if (/протеин|protein|креатин|creatine|глютамин|glutamine|bcaa|бцаа|eaa|эаа|цитруллин|аргинин|бета.?аланин|карнитин|carnitine|коллаген|collagen|таурин|taurine|клетчатк|fiber|омега|omega|масло|казеин/i.test(s)) return "г";
+  return "мг";
+}
+// подобрать имя из пула, не занятое другими баффами (offset — для «другого облика»)
+function pickPoolName(cat, offset = 0) {
+  const pool = NAME_POOLS[cat] || NAME_POOLS["Восстановление и здоровье"];
+  const used = new Set(allBuffs().map((b) => b.name));
+  const free = pool.filter((n) => !used.has(n));
+  const arr = free.length ? free : pool;
+  return arr[offset % arr.length];
+}
+// по реальному названию → {name, icon, unit, cat, effect, times, hint}
+function autoBuffFromReal(real, offset = 0) {
+  const s = (real || "").trim();
+  const hit = SUPP_DB.find((d) => d.k.test(s));
+  if (hit) {
+    let name = hit.name;
+    // если такое имя уже есть (встроенный аналог) — берём альтернативу из пула
+    if (allBuffs().some((b) => b.name === name) || offset > 0) name = pickPoolName(hit.cat, offset);
+    return { name, icon: hit.icon, unit: hit.unit, cat: hit.cat, effect: hit.effect || "", times: hit.times || ["Утро"], hint: hit.hint || "" };
+  }
+  const cat = guessCat(s);
+  return { name: pickPoolName(cat, offset), icon: CAT_ICON[cat] || "flask", unit: guessUnit(s), cat, effect: "", times: ["Утро"], hint: "" };
+}
+const doseStr = (b, val) => { const d = (val != null ? val : b.dose); return b.unit ? `${d} ${b.unit}` : `${d}`; };
 
 /* ================= состояние (БД = localStorage + экспорт в JSON-файл) ================= */
 const DB_KEY = "bodyupgrade.v1";
@@ -67,9 +147,11 @@ const defaultState = () => ({
   questStart: {}, // wid -> ts начала квеста (для таймера квеста)
   settings: { sound: true, haptics: true },
   buffs: {
-    active: { creatine: "10 г", arginine: "7 г" }, // id -> доза
-    checkedAt: null,                                // ISO даты последней проверки арсенала
-    custom: [],                                     // свои баффы [{id,name,real,icon,dose,effect,cat}]
+    active: { creatine: 10, arginine: 7 }, // id -> доза (число; единица берётся из баффа)
+    checkedAt: null,                        // ISO даты последней проверки арсенала
+    custom: [],                             // свои баффы [{id,name,real,icon,dose,unit,effect,cat,times,hint}]
+    stock: {},                              // id -> осталось порций (для учёта запаса)
+    log: {},                                // "YYYY-MM-DD" -> { "id@slot": true } — что принято за день
   },
   nutrition: {
     log: {},        // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
@@ -93,6 +175,13 @@ function load() {
       S2.buffs = Object.assign({}, base.buffs, parsed.buffs);
       if (parsed.buffs && parsed.buffs.active) S2.buffs.active = parsed.buffs.active;
       S2.buffs.custom = (parsed.buffs && Array.isArray(parsed.buffs.custom)) ? parsed.buffs.custom : [];
+      S2.buffs.stock = (parsed.buffs && parsed.buffs.stock) || {};
+      S2.buffs.log = (parsed.buffs && parsed.buffs.log) || {};
+      // миграция: старые дозы-строки ("10 г") -> число
+      Object.keys(S2.buffs.active).forEach((k) => {
+        const v = S2.buffs.active[k];
+        if (typeof v === "string") { const n = parseFloat(v.replace(",", ".")); S2.buffs.active[k] = isNaN(n) ? 1 : n; }
+      });
       S2.nutrition = Object.assign({}, base.nutrition, parsed.nutrition);
       S2.nutrition.log = (parsed.nutrition && parsed.nutrition.log) || {};
       S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
@@ -871,43 +960,83 @@ function showStatusDetail(st) {
 }
 
 /* ================= БАФФЫ (арсенал добавок) ================= */
+/* --- хелперы приёма и запасов --- */
+const buffTimes = (b) => (b && b.times && b.times.length ? b.times : ["Утро"]);
+const dosesPerDay = (b) => buffTimes(b).length || 1;
+function currentSlot() { const h = new Date().getHours(); if (h >= 5 && h < 11) return "Утро"; if (h >= 11 && h < 16) return "День"; if (h >= 16 && h < 21) return "Вечер"; return "Перед сном"; }
+function stockDaysLeft(b) { const s = S.buffs.stock ? S.buffs.stock[b.id] : null; return (typeof s === "number") ? Math.floor(s / dosesPerDay(b)) : null; }
+function toggleTaken(id, slot, force) {
+  const date = today();
+  if (!S.buffs.log[date]) S.buffs.log[date] = {};
+  const k = `${id}@${slot}`, cur = !!S.buffs.log[date][k];
+  const next = force == null ? !cur : force;
+  if (next === cur) return;
+  if (next) { S.buffs.log[date][k] = true; if (typeof S.buffs.stock[id] === "number") S.buffs.stock[id] = Math.max(0, S.buffs.stock[id] - 1); }
+  else { delete S.buffs.log[date][k]; if (typeof S.buffs.stock[id] === "number") S.buffs.stock[id] += 1; }
+}
+
 function renderBuffs() {
+  if (!S.buffs.log) S.buffs.log = {}; if (!S.buffs.stock) S.buffs.stock = {};
   const active = S.buffs?.active || {};
-  const activeIds = BUFFS.filter((b) => active[b.id]).map((b) => b.id);
+  const activeBuffs = allBuffs().filter((b) => active[b.id] != null);
   const days = buffsDaysSince();
   const due = buffsDue();
+  const date = today();
+  const dayLog = S.buffs.log[date] || {};
+  const cur = currentSlot();
 
-  const reminder = due
-    ? `<div class="buff-reminder due">
-         <div class="br-ico">${icon("hourglass")}</div>
-         <div class="br-body">
-           <b>Проверить баффы!</b>
-           <span class="dim small">${days === null ? "Арсенал ещё не сверялся." : `Прошло ${days} дн. с последней сверки.`} Что заканчивается, что обновить, что добавить?</span>
-         </div>
-         <button class="br-ok" id="buff-check">Сверено</button>
-       </div>`
-    : `<div class="buff-reminder ok">
-         <div class="br-ico">${icon("shield")}</div>
-         <div class="br-body">
-           <b>Арсенал сверен</b>
-           <span class="dim small">Следующая проверка через ${BUFF_CHECK_DAYS - days} дн.</span>
-         </div>
-       </div>`;
+  // ---- чек-лист приёма по слотам ----
+  const bySlot = {}; BUFF_SLOTS.forEach((sl) => (bySlot[sl] = []));
+  activeBuffs.forEach((b) => buffTimes(b).forEach((sl) => { (bySlot[sl] ||= []).push(b); }));
+  const slotsWith = BUFF_SLOTS.filter((sl) => bySlot[sl] && bySlot[sl].length);
+  let total = 0, taken = 0;
+  slotsWith.forEach((sl) => bySlot[sl].forEach((b) => { total++; if (dayLog[`${b.id}@${sl}`]) taken++; }));
 
-  const activeCards = activeIds.length
-    ? activeIds.map((id) => {
-        const b = buffById(id) || { name: id, real: "", effect: "", icon: "flask" };
-        return `<div class="buff active" data-id="${id}">
-          <span class="medallion">${icon(b.icon)}</span>
-          <span class="buff-body">
-            <span class="buff-top"><b class="buff-name">${b.name}</b><button class="buff-dose edit mono" data-dose="${id}" title="Изменить дозу">${active[id]} ✎</button></span>
-            <span class="buff-real dim small">${b.real}${b.effect ? ` · ${b.effect}` : ""}</span>
-          </span>
-          <button class="buff-toggle off" title="Снять бафф" aria-label="Снять бафф">✕</button>
+  const checklist = slotsWith.length
+    ? slotsWith.map((sl) => {
+        const items = bySlot[sl];
+        const allDone = items.every((b) => dayLog[`${b.id}@${sl}`]);
+        return `<div class="dose-slot ${sl === cur ? "now" : ""}">
+          <div class="ds-head">
+            <span class="ds-name">${sl}${sl === cur ? ' <span class="ds-now">сейчас</span>' : ""}</span>
+            <button class="ds-all" data-slot="${sl}">${allDone ? "снять всё" : "принять всё"}</button>
+          </div>
+          ${items.map((b) => {
+            const on = !!dayLog[`${b.id}@${sl}`];
+            return `<button class="dose-item ${on ? "done" : ""}" data-take="${b.id}@${sl}">
+              <span class="di-check">${on ? "✓" : ""}</span>
+              <span class="di-body">
+                <span class="di-top"><span class="di-name">${b.name}</span><span class="di-dose mono">${doseStr(b, active[b.id])}</span></span>
+                <span class="di-sub dim small">${b.real}${b.hint ? ` · <span class="di-hint">💡 ${b.hint}</span>` : ""}</span>
+              </span>
+            </button>`;
+          }).join("")}
         </div>`;
       }).join("")
-    : `<div class="empty">Ни одного активного баффа. Загляни в Арсенал ниже.</div>`;
+    : `<div class="empty">Активных баффов нет. Добавь их из Арсенала ниже — и здесь появится план приёма на день.</div>`;
 
+  // ---- запасы ----
+  const lowList = activeBuffs.filter((b) => { const d = stockDaysLeft(b); return d != null && d <= LOW_STOCK_DAYS; });
+  const stockCards = activeBuffs.length
+    ? activeBuffs.map((b) => {
+        const serv = S.buffs.stock[b.id];
+        const dleft = stockDaysLeft(b);
+        const low = dleft != null && dleft <= LOW_STOCK_DAYS;
+        const stockLine = (typeof serv === "number")
+          ? `<span class="st-days ${low ? "low" : ""}">осталось ${serv} порц.${dleft != null ? ` · ~${dleft} дн.` : ""}</span>`
+          : `<span class="dim small">запас не задан</span>`;
+        return `<div class="stock-card ${low ? "low" : ""}" data-id="${b.id}">
+          <span class="medallion">${icon(b.icon)}</span>
+          <span class="buff-body">
+            <span class="buff-top"><b class="buff-name">${b.name}</b><button class="buff-dose edit mono" data-dose="${b.id}">${doseStr(b, active[b.id])} ✎</button></span>
+            <span class="st-line">${stockLine} · <button class="st-set" data-stock="${b.id}">${typeof serv === "number" ? "пополнить" : "задать запас"}</button></span>
+          </span>
+          <button class="buff-toggle off" data-remove="${b.id}" title="Снять бафф" aria-label="Снять бафф">✕</button>
+        </div>`;
+      }).join("")
+    : "";
+
+  // ---- арсенал ----
   const cats = [...BUFF_CATS];
   allBuffs().forEach((b) => { if (b.cat && !cats.includes(b.cat)) cats.push(b.cat); });
   const arsenal = cats.map((cat) => {
@@ -916,13 +1045,13 @@ function renderBuffs() {
     return `<div class="buff-cat">
       <div class="week-tag" style="margin:14px 0 4px"><span class="dot"></span> ${cat}</div>
       ${items.map((b) => {
-        const on = !!active[b.id];
+        const on = active[b.id] != null;
         const custom = String(b.id).startsWith("cust");
         return `<div class="buff arsenal ${on ? "on" : ""}" data-id="${b.id}">
           <span class="medallion">${icon(b.icon)}</span>
           <span class="buff-body">
-            <span class="buff-top"><b class="buff-name">${b.name}${custom ? ' <span class="buff-mine">своё</span>' : ""}</b><span class="buff-dose mono dim">${b.dose}</span></span>
-            <span class="buff-real dim small">${b.real}${b.effect ? ` · ${b.effect}` : ""}</span>
+            <span class="buff-top"><b class="buff-name">${b.name}${custom ? ' <span class="buff-mine">своё</span>' : ""}</b><span class="buff-dose mono dim">${doseStr(b)}</span></span>
+            <span class="buff-real dim small">${b.real}${b.effect ? ` · ${b.effect}` : ""} · ${buffTimes(b).join(", ")}</span>
           </span>
           ${custom ? `<button class="buff-edit" data-edit="${b.id}" aria-label="Редактировать">✎</button>` : ""}
           <button class="buff-toggle ${on ? "off" : "add"}" aria-label="${on ? "Снять" : "Активировать"}">${on ? "✓" : "+"}</button>
@@ -931,121 +1060,206 @@ function renderBuffs() {
     </div>`;
   }).join("");
 
-  app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">Баффы к прокачке: только натуральное и легальное. Раз в месяц — сверка арсенала.</p>
+  const reminder = due
+    ? `<div class="buff-reminder due">
+         <div class="br-ico">${icon("hourglass")}</div>
+         <div class="br-body"><b>Проверить баффы!</b><span class="dim small">${days === null ? "Арсенал ещё не сверялся." : `Прошло ${days} дн. с последней сверки.`} Что заканчивается, что обновить.</span></div>
+         <button class="br-ok" id="buff-check">Сверено</button>
+       </div>`
+    : `<div class="buff-reminder ok">
+         <div class="br-ico">${icon("shield")}</div>
+         <div class="br-body"><b>Арсенал сверен</b><span class="dim small">Следующая проверка через ${BUFF_CHECK_DAYS - days} дн.</span></div>
+       </div>`;
 
-    ${reminder}
+  const lowAlert = lowList.length
+    ? `<div class="buff-reminder due" style="margin-top:10px">
+         <div class="br-ico">${icon("flask")}</div>
+         <div class="br-body"><b>Скоро закончится</b><span class="dim small">${lowList.map((b) => `${b.name} (~${stockDaysLeft(b)} дн.)`).join(", ")}</span></div>
+       </div>` : "";
+
+  app.innerHTML = `
+    <p class="dim small" style="margin-top:2px">Приём по расписанию, запасы и арсенал. Только натуральное и легальное.</p>
+    ${reminder}${lowAlert}
 
     <div class="rune-divider">${runeSVG}</div>
-    <div class="eyebrow" style="margin-bottom:6px">Активные баффы · ${activeIds.length}</div>
-    <div id="active-buffs">${activeCards}</div>
+    <div class="ds-toph">
+      <span class="eyebrow">Приём сегодня · ${taken}/${total}</span>
+      ${total ? `<button class="ds-allday" id="ds-allday">${taken >= total ? "снять всё" : "принять всё"}</button>` : ""}
+    </div>
+    <div class="dose-prog"><i style="width:${total ? Math.round(taken / total * 100) : 0}%"></i></div>
+    <div id="checklist">${checklist}</div>
+
+    ${activeBuffs.length ? `<div class="rune-divider">${runeSVG}</div>
+    <div class="eyebrow" style="margin-bottom:6px">Запасы · ${activeBuffs.length}</div>
+    <div id="stock">${stockCards}</div>` : ""}
 
     <div class="rune-divider">${runeSVG}</div>
     <div class="eyebrow" style="margin-bottom:2px">Арсенал</div>
-    <p class="dim small" style="margin-bottom:8px">Тап по «+» — активировать, доза активного правится по ✎.</p>
+    <p class="dim small" style="margin-bottom:8px">«+» — активировать. Доза правится по ✎ в «Запасах».</p>
     ${arsenal}
     <button class="btn-ghost buff-add-btn" id="buff-add" style="margin-top:12px">+ Добавить свой бафф</button>`;
 
   const check = document.getElementById("buff-check");
-  if (check) check.onclick = () => { if (!S.buffs) S.buffs = { active: {}, checkedAt: null, custom: [] }; S.buffs.checkedAt = today(); save(); render(); };
+  if (check) check.onclick = () => { S.buffs.checkedAt = today(); fxTap(); save(); render(); };
 
+  // отметки приёма
+  app.querySelectorAll(".dose-item").forEach((el) => el.onclick = () => {
+    const [id, sl] = el.dataset.take.split("@");
+    toggleTaken(id, sl); fxTap(); save(); render();
+  });
+  app.querySelectorAll(".ds-all").forEach((btn) => btn.onclick = () => {
+    const sl = btn.dataset.slot;
+    const items = bySlot[sl] || [];
+    const allDone = items.every((b) => dayLog[`${b.id}@${sl}`]);
+    items.forEach((b) => toggleTaken(b.id, sl, !allDone));
+    fxTap(); save(); render();
+  });
+  const allday = document.getElementById("ds-allday");
+  if (allday) allday.onclick = () => {
+    const on = taken < total;
+    slotsWith.forEach((sl) => bySlot[sl].forEach((b) => toggleTaken(b.id, sl, on)));
+    if (on) fxChime(); else fxTap();
+    save(); render();
+  };
+
+  // запасы: доза и пополнение
+  app.querySelectorAll(".buff-dose.edit").forEach((b) => b.onclick = (e) => { e.stopPropagation(); editActiveDose(b, b.dataset.dose); });
+  app.querySelectorAll(".st-set").forEach((b) => b.onclick = (e) => { e.stopPropagation(); editStock(b, b.dataset.stock); });
+  app.querySelectorAll("[data-remove]").forEach((b) => b.onclick = (e) => {
+    e.stopPropagation();
+    delete S.buffs.active[b.dataset.remove]; save(); render();
+  });
+
+  // арсенал
   document.getElementById("buff-add").onclick = () => openBuffEditor(null);
-
-  app.querySelectorAll(".buff-edit").forEach((b) => b.onclick = (e) => {
-    e.stopPropagation();
-    openBuffEditor((S.buffs.custom || []).find((x) => x.id === b.dataset.edit));
-  });
-
-  app.querySelectorAll(".buff-dose.edit").forEach((b) => b.onclick = (e) => {
-    e.stopPropagation();
-    editActiveDose(b, b.dataset.dose);
-  });
-
-  app.querySelectorAll(".buff[data-id]").forEach((el) => {
+  app.querySelectorAll(".buff-edit").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openBuffEditor((S.buffs.custom || []).find((x) => x.id === b.dataset.edit)); });
+  app.querySelectorAll(".buff.arsenal[data-id]").forEach((el) => {
     const id = el.dataset.id;
     const toggle = el.querySelector(".buff-toggle");
     if (toggle) toggle.onclick = (e) => {
       e.stopPropagation();
-      if (!S.buffs) S.buffs = { active: {}, checkedAt: null, custom: [] };
-      if (S.buffs.active[id]) delete S.buffs.active[id];
-      else S.buffs.active[id] = (buffById(id) || {}).dose || "1 порция";
+      if (active[id] != null) delete S.buffs.active[id];
+      else S.buffs.active[id] = (buffById(id) || {}).dose ?? 1;
       save(); render();
     };
   });
 }
 
-// инлайновое редактирование дозы активного баффа
+// инлайновое редактирование дозы (число; единица — из баффа)
 function editActiveDose(btn, id) {
-  const cur = S.buffs.active[id] || "";
-  const inp = document.createElement("input");
-  inp.className = "dose-input mono"; inp.value = cur; inp.setAttribute("aria-label", "доза");
-  btn.replaceWith(inp);
+  const b = buffById(id) || { unit: "" };
+  const wrap = document.createElement("span");
+  wrap.className = "dose-edit-wrap";
+  wrap.innerHTML = `<input class="dose-input mono" inputmode="decimal" value="${S.buffs.active[id] ?? ""}" aria-label="доза" /><span class="dose-unit">${b.unit || ""}</span>`;
+  btn.replaceWith(wrap);
+  const inp = wrap.querySelector("input");
   inp.focus(); inp.select();
-  const commit = () => {
-    const v = inp.value.trim();
-    if (v) S.buffs.active[id] = v;
-    save(); render();
-  };
+  const commit = () => { const v = parseFloat((inp.value + "").replace(",", ".")); if (!isNaN(v) && v > 0) S.buffs.active[id] = v; save(); render(); };
   inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") render(); };
   inp.onblur = commit;
 }
 
-// форма создания/правки своего баффа
+// инлайновая правка запаса (порций)
+function editStock(btn, id) {
+  const inp = document.createElement("input");
+  inp.className = "dose-input mono"; inp.inputMode = "numeric";
+  inp.value = (typeof S.buffs.stock[id] === "number") ? S.buffs.stock[id] : "";
+  inp.placeholder = "порц."; inp.setAttribute("aria-label", "осталось порций");
+  btn.replaceWith(inp);
+  inp.focus(); inp.select();
+  const commit = () => { const v = parseInt(inp.value, 10); if (!isNaN(v) && v >= 0) S.buffs.stock[id] = v; save(); render(); };
+  inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") render(); };
+  inp.onblur = commit;
+}
+
+// форма своего баффа: пользователь вводит реальную добавку, система подбирает имя/иконку
 function openBuffEditor(buff) {
   const editing = !!buff;
-  const b = buff || { name: "", real: "", effect: "", dose: "", cat: BUFF_CATS[0], icon: "flask" };
+  const b = buff || {};
+  let offset = 0;
+  let preview = editing
+    ? { name: b.name, icon: b.icon, unit: b.unit || guessUnit(b.real || ""), cat: b.cat, effect: b.effect, times: buffTimes(b), hint: b.hint || "" }
+    : autoBuffFromReal("", 0);
+  let times = new Set(preview.times);
+  let manualCat = false;
+
   const o = document.createElement("div");
   o.className = "overlay portion-overlay";
-  let selIcon = b.icon || "flask";
   o.innerHTML = `
     <div class="portion-card buff-editor">
       <div class="eyebrow">${editing ? "Правка баффа" : "Новый бафф"}</div>
-      <div class="be-field"><label>Название (фэнтезийное)</label><input id="be-name" value="${(b.name || "").replace(/"/g, "&quot;")}" placeholder="Эликсир Силы" /></div>
-      <div class="be-field"><label>Реальное название</label><input id="be-real" value="${(b.real || "").replace(/"/g, "&quot;")}" placeholder="Креатин моногидрат" /></div>
-      <div class="be-field"><label>Эффект</label><input id="be-effect" value="${(b.effect || "").replace(/"/g, "&quot;")}" placeholder="сила, объём мышц" /></div>
-      <div class="be-row">
-        <div class="be-field"><label>Доза</label><input id="be-dose" value="${(b.dose || "").replace(/"/g, "&quot;")}" placeholder="5 г" /></div>
-        <div class="be-field"><label>Категория</label><select id="be-cat">${BUFF_CATS.map((c) => `<option ${c === b.cat ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+      <div class="be-preview"><span class="medallion" id="be-medal">${icon(preview.icon)}</span>
+        <div><div class="be-pname display" id="be-pname">${preview.name || "…"}</div>
+        <button class="be-reroll" id="be-reroll">↻ другой облик</button></div></div>
+      <div class="be-field"><label>Что за добавка</label>
+        <input id="be-real" list="supp-list" value="${(b.real || "").replace(/"/g, "&quot;")}" placeholder="напр. Креатин, Магний, Омега-3…" autocomplete="off" />
+        <datalist id="supp-list">${DATALIST_SUPPS.map((s) => `<option value="${s}"></option>`).join("")}</datalist>
       </div>
-      <div class="be-field"><label>Иконка</label><div class="icon-pick" id="be-icons">${BUFF_ICONS.map((ic) => `<button class="ic-opt ${ic === selIcon ? "on" : ""}" data-ic="${ic}">${icon(ic)}</button>`).join("")}</div></div>
+      <div class="be-row">
+        <div class="be-field"><label>Доза</label><div class="dose-field"><input id="be-dose" inputmode="decimal" value="${b.dose != null ? b.dose : ""}" placeholder="5" /><span class="dose-unit" id="be-unit">${preview.unit}</span></div></div>
+        <div class="be-field"><label>Категория</label><select id="be-cat">${BUFF_CATS.map((c) => `<option ${c === preview.cat ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+      </div>
+      <div class="be-field"><label>Эффект (необязательно)</label><input id="be-effect" value="${(b.effect || "").replace(/"/g, "&quot;")}" placeholder="подставится автоматически" /></div>
+      <div class="be-field"><label>Когда принимать</label><div class="slot-pick" id="be-slots">${BUFF_SLOTS.map((sl) => `<button class="slot-chip ${times.has(sl) ? "on" : ""}" data-sl="${sl}">${sl}</button>`).join("")}</div></div>
+      <div class="be-field"><label>Запас, порций (необязательно)</label><input id="be-stock" inputmode="numeric" value="${(S.buffs.stock && b.id && typeof S.buffs.stock[b.id] === "number") ? S.buffs.stock[b.id] : ""}" placeholder="напр. 60" /></div>
       <div class="portion-actions">
-        ${editing ? `<button class="btn-ghost be-del" id="be-del">Удалить</button>` : `<button class="btn-ghost" id="be-cancel">Отмена</button>`}
+        ${editing ? `<button class="btn-ghost" id="be-del">Удалить</button>` : `<button class="btn-ghost" id="be-cancel">Отмена</button>`}
         <button class="finish-btn" id="be-save" style="margin-top:0">${editing ? "Сохранить" : "Добавить"}</button>
       </div>
       ${editing ? `<button class="btn-ghost" id="be-cancel" style="margin-top:10px">Отмена</button>` : ""}
     </div>`;
   overlayRoot.appendChild(o);
 
-  o.querySelectorAll(".ic-opt").forEach((el) => el.onclick = () => {
-    selIcon = el.dataset.ic;
-    o.querySelectorAll(".ic-opt").forEach((x) => x.classList.toggle("on", x.dataset.ic === selIcon));
-    fxTap();
-  });
+  const realIn = o.querySelector("#be-real");
+  const unitEl = o.querySelector("#be-unit");
+  const catSel = o.querySelector("#be-cat");
+  const effIn = o.querySelector("#be-effect");
+  const applyPreview = () => {
+    o.querySelector("#be-medal").innerHTML = icon(preview.icon);
+    o.querySelector("#be-pname").textContent = preview.name || "…";
+    unitEl.textContent = preview.unit;
+  };
+  const recompute = (fromReal) => {
+    preview = autoBuffFromReal(realIn.value, offset);
+    if (!manualCat) catSel.value = preview.cat;
+    if (fromReal) { // подхватываем тайминг и эффект из подбора
+      times = new Set(preview.times);
+      o.querySelectorAll(".slot-chip").forEach((c) => c.classList.toggle("on", times.has(c.dataset.sl)));
+      if (!effIn.value.trim()) effIn.placeholder = preview.effect || "подставится автоматически";
+    }
+    applyPreview();
+  };
+  realIn.oninput = () => recompute(true);
+  o.querySelector("#be-reroll").onclick = (e) => { e.preventDefault(); offset++; preview = autoBuffFromReal(realIn.value, offset); applyPreview(); fxTap(); };
+  catSel.onchange = () => { manualCat = true; };
+  o.querySelectorAll(".slot-chip").forEach((c) => c.onclick = () => { const sl = c.dataset.sl; if (times.has(sl)) times.delete(sl); else times.add(sl); c.classList.toggle("on"); fxTap(); });
   o.querySelector("#be-cancel").onclick = () => o.remove();
   const delBtn = o.querySelector("#be-del");
-  if (delBtn) delBtn.onclick = () => {
-    S.buffs.custom = (S.buffs.custom || []).filter((x) => x.id !== b.id);
-    delete S.buffs.active[b.id];
-    save(); o.remove(); render();
-  };
+  if (delBtn) delBtn.onclick = () => { S.buffs.custom = (S.buffs.custom || []).filter((x) => x.id !== b.id); delete S.buffs.active[b.id]; delete S.buffs.stock[b.id]; save(); o.remove(); render(); };
+
   o.querySelector("#be-save").onclick = () => {
-    const name = o.querySelector("#be-name").value.trim();
-    const real = o.querySelector("#be-real").value.trim();
-    if (!name && !real) { o.querySelector("#be-name").focus(); return; }
+    const real = realIn.value.trim();
+    if (!real) { realIn.focus(); return; }
+    const auto = autoBuffFromReal(real, offset);
+    const tl = BUFF_SLOTS.filter((sl) => times.has(sl)); if (!tl.length) tl.push("Утро");
+    const dose = parseFloat((o.querySelector("#be-dose").value + "").replace(",", ".")) || auto.dose || 1;
     const rec = {
       id: editing ? b.id : "cust" + Date.now(),
-      name: name || real, real, effect: o.querySelector("#be-effect").value.trim(),
-      dose: o.querySelector("#be-dose").value.trim() || "1 порция",
-      cat: o.querySelector("#be-cat").value, icon: selIcon,
+      name: editing && b.real === real ? b.name : preview.name,
+      icon: editing && b.real === real ? b.icon : preview.icon,
+      real, unit: preview.unit, dose,
+      effect: o.querySelector("#be-effect").value.trim() || auto.effect || "",
+      cat: catSel.value, times: tl, hint: auto.hint || (editing ? b.hint : "") || "",
     };
     if (!S.buffs.custom) S.buffs.custom = [];
-    if (editing) {
-      const i = S.buffs.custom.findIndex((x) => x.id === b.id);
-      if (i >= 0) S.buffs.custom[i] = rec; else S.buffs.custom.push(rec);
-    } else S.buffs.custom.push(rec);
+    const i = (S.buffs.custom || []).findIndex((x) => x.id === rec.id);
+    if (i >= 0) S.buffs.custom[i] = rec; else S.buffs.custom.push(rec);
+    const stk = parseInt(o.querySelector("#be-stock").value, 10);
+    if (!isNaN(stk) && stk >= 0) S.buffs.stock[rec.id] = stk;
     save(); o.remove(); render();
   };
 }
+const DATALIST_SUPPS = ["Креатин моногидрат", "Сывороточный протеин", "Кофеин", "Цитруллин малат", "L-Аргинин", "Бета-аланин", "Омега-3 (рыбий жир)", "Витамин D3", "Магний", "Цинк", "Витамин C", "Мультивитамины", "Ашваганда", "Таурин", "BCAA", "EAA", "Глютамин", "Мелатонин", "Коллаген", "Казеин", "Гейнер", "Родиола", "Куркумин", "Железо", "Витамин B12", "Глюкозамин", "Пробиотик", "Клетчатка", "Электролиты", "Кальций", "L-Карнитин", "Гуарана", "Предтреник"];
 
 /* ================= РЕСУРСЫ (снабжение / питание) ================= */
 const NUT_ICON = { kcal: "flame", protein: "drumstick", carbs: "wheat", fat: "avocado", fiber: "leaf" };
