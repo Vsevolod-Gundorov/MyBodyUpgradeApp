@@ -299,21 +299,45 @@ const timedSets = new WeakSet(); // подходы, для которых отд
 let restFeel = "norm";           // состояние: fresh | norm | tired
 const FEEL_FACTOR = { fresh: 0.85, norm: 1, tired: 1.25 };
 
-// умный отдых: база по типу движения + интенсивность (к потолку) + повторы + состояние
+// зона нагрузки по числу повторов (для подписи отдыха)
+function repZone(r) {
+  if (r <= 5) return "сила";
+  if (r <= 8) return "сила/гипертрофия";
+  if (r <= 12) return "гипертрофия";
+  if (r <= 15) return "гипертрофия/выносл.";
+  return "выносливость";
+}
+// Умный отдых по методике (de Salles 2009; NSCA; Grgic 2018; Schoenfeld 2016):
+// главный фактор — зона повторов (энергосистема/цель), затем размер упражнения
+// (многосуставное дольше изоляции), реальный %1ПМ (вес к историческому потолку —
+// т.е. НЕ e1RM самого сета) и субъективное состояние.
 function smartRest(ex, set, a) {
-  const compound = !!(ex.main || ex.lift);
-  let rest = compound ? 150 : 80;
-  let intensity = 0.8;
-  const e1 = e1rmAvg(set.w, set.r);
-  if (a && a.bestCeil) intensity = e1 / a.bestCeil;
-  else if (ex.w && ex.w[1]) intensity = set.w / ex.w[1];
-  if (intensity >= 0.95) rest += 90;
-  else if (intensity >= 0.9) rest += 60;
-  else if (intensity >= 0.82) rest += 30;
-  if (set.r <= 3) rest += 45; else if (set.r <= 5) rest += 20; else if (set.r >= 12) rest -= 15;
+  const r = set.r || 10;
+  // база по повторам, с
+  let rest;
+  if (r <= 3) rest = 200;         // максимальная сила: 3–5 мин
+  else if (r <= 5) rest = 170;
+  else if (r <= 6) rest = 150;
+  else if (r <= 8) rest = 120;    // сила/гипертрофия: ~2 мин
+  else if (r <= 10) rest = 90;    // гипертрофия: ~1.5 мин
+  else if (r <= 12) rest = 75;
+  else if (r <= 15) rest = 60;    // гипертрофия/выносл.
+  else rest = 45;                 // выносливость: ≤45 с
+  // размер упражнения: многосуставное дольше изоляции
+  if (ex.lift === "squat" || ex.lift === "deadlift") rest += 30;   // самые системные
+  else if (ex.lift === "bench" || ex.lift === "ohp") rest += 15;
+  else if (ex.main) rest += 10;                                    // движение дня (обычно компаунд)
+  else rest -= 15;                                                 // подсобка/изоляция
+  // реальная относительная нагрузка = вес / исторический потолок (≈ %1ПМ)
+  if (a && a.bestCeil) {
+    const pct = set.w / a.bestCeil;
+    if (pct >= 0.88) rest += 25;        // тяжёлый грайндовый подход
+    else if (pct <= 0.62) rest -= 20;   // явно лёгкий / бэк-офф / разминка
+  }
+  // состояние
   rest *= (FEEL_FACTOR[restFeel] || 1);
-  rest = Math.round(rest / 15) * 15;
-  return Math.max(45, Math.min(360, rest));
+  rest = Math.round(rest / 5) * 5;
+  return Math.max(40, Math.min(300, rest));
 }
 
 function ensureRestBar() {
@@ -658,7 +682,7 @@ function renderWorkout(wid) {
           if (s.w > 0 && s.r > 0 && !timedSets.has(s)) {
             timedSets.add(s);
             const a = analyzeLift(movSeries[movementKey(ex)]);
-            startRest(smartRest(ex, s, a), ex.name);
+            startRest(smartRest(ex, s, a), `${ex.name} · ${repZone(s.r)}`);
           }
         };
         ri.onchange = maybeRest;
