@@ -1,4 +1,4 @@
-import { PROGRAM, BASELINES, LIFT_NAMES } from "../data/program.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS } from "../data/program.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 
@@ -202,6 +202,9 @@ const WORKOUTS = {};
 const WEEK_OF = {};
 PROGRAM.weeks.forEach((wk) => wk.workouts.forEach((w) => { WORKOUTS[w.id] = w; WEEK_OF[w.id] = wk; }));
 const ORDER = PROGRAM.weeks.flatMap((wk) => wk.workouts.map((w) => w.id));
+// архив прошлого цикла: нужен, чтобы старые сессии открывались в «Хрониках» и учитывались
+// в аналитике (в текущий цикл и его порядок ORDER они не входят)
+(ARCHIVED_WORKOUTS || []).forEach((w) => { if (!WORKOUTS[w.id]) WORKOUTS[w.id] = w; });
 
 const epley = (w, r) => (r >= 1 ? w * (1 + r / 30) : 0);
 const fmt = (n) => (Math.round(n * 10) / 10).toString().replace(".", ",");
@@ -931,7 +934,7 @@ function showSessionDetail(sessionId) {
     <div class="portion-card sd-card">
       <div class="eyebrow">Прошлый квест · ${fmtDate(s.date)}</div>
       <div class="portion-name display">${w ? w.boss : s.workoutId}</div>
-      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtClock(s.durationSec)}` : ""}${w ? ` · ${w.title}` : ""}</div>
+      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtClock(s.durationSec)}` : ""}${w && w.title ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>
     </div>`;
