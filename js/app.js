@@ -1205,10 +1205,10 @@ function bodyMap(cov) {
   return BODY_VIEWS.map((v) => `
     <div class="bm-wrap">
       <svg viewBox="${BODY_VIEWBOX}" class="bm" role="img" aria-label="Мышцы ${v.title}">
-        <g class="bm-base">${v.base.map(shapeSvg).join("")}</g>
-        ${Object.entries(v.muscles).map(([g, shapes]) => `
+        <g class="bm-base">${shapeSvg(v.base)}</g>
+        ${Object.entries(v.muscles).map(([g, part]) => `
           <g class="bm-m lvl-${coverLevel(cov[g])} ${bodyPick === g ? "pick" : ""}" data-g="${g}"
-             tabindex="0" role="button" aria-label="${MUSCLES[g]}: ${coverLabel(cov[g])}">${shapes.map(shapeSvg).join("")}</g>`).join("")}
+             tabindex="0" role="button" aria-label="${MUSCLES[g]}: ${coverLabel(cov[g])}">${shapeSvg(part)}</g>`).join("")}
       </svg>
       <span class="bm-title">${v.title}</span>
     </div>`).join("");
