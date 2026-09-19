@@ -944,11 +944,12 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 
 /* ---------- карта мышц: фигура атлета с подсветкой по покрытию ---------- */
 .bm-row { display: flex; gap: 14px; justify-content: center; }
-.bm-wrap { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.bm { width: auto; height: 232px; max-width: 100%; display: block; }
+.bm-wrap { flex: 1 1 0; min-width: 0; max-width: 158px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.bm { width: 100%; height: auto; display: block; }
 .bm-title { font-size: .6rem; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
-.bm-base { fill: var(--panel-2); stroke: rgba(216,184,104,.2); stroke-width: .9; }
-.bm-m { stroke: var(--ink-2); stroke-width: .7; cursor: pointer; transition: opacity .15s; }
+/* силуэт — декорация: тапы должны доходить до мышц, а не вязнуть в нём */
+.bm-base { fill: var(--panel-2); stroke: rgba(216,184,104,.2); stroke-width: .9; pointer-events: none; }
+.bm-m { stroke: var(--ink-2); stroke-width: .6; cursor: pointer; transition: opacity .15s; }
 .bm-m:focus-visible { outline: none; }
 .bm-m.lvl-ok { fill: var(--moss); }
 .bm-m.lvl-low { fill: var(--gold); }
