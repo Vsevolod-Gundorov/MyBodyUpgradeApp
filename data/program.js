@@ -103,13 +103,13 @@ export const TEMPLATES = {
   },
   L: {
     key: "L", name: "Низ тела", short: "Низ",
-    why: "День ног: тяжёлая база в начале по заветам Колемана, затем квадрицепс и задняя цепь по отдельности, а закрывает всё высокоповторный добой в стиле Ли Приста.",
+    why: "День ног: одна максимальная база в начале по заветам Колемана, дальше квадрицепс и задняя цепь по отдельности на тренажёрах, закрывает всё высокоповторный добой в стиле Ли Приста. Двух максимальных баз в один день у натурала быть не должно — это цена восстановления, а не стимул.",
     slots: [
       { ex: "squat",         alt: "squat",         role: "main",  method: "pyramid", methodOn: "strength" },
-      { ex: "rdl",           alt: "deadlift",      role: "heavy" },
+      { ex: "rdl",           alt: "hip-thrust",    role: "heavy" },
       { ex: "legpress",      alt: "hack",          role: "acc" },
       { ex: "legcurl-s",     alt: "legcurl-l",     role: "acc" },
-      { ex: "legext",        alt: "bulgarian",     role: "iso",   method: "highrep" },
+      { ex: "legext",        alt: "legext",        role: "iso",   method: "highrep" },
       { ex: "hip-thrust",    alt: "back-ext-45",   role: "iso" },
       { ex: "calf-standing", alt: "calf-seated",   role: "finisher", method: "partials" },
       { ex: "cable-crunch",  alt: "hanging-leg",   role: "iso" },
@@ -117,15 +117,15 @@ export const TEMPLATES = {
   },
   F: {
     key: "F", name: "Фулбоди-добор", short: "Добор",
-    why: "Второй активный день для всех групп: другие движения, другие углы. Здесь закрывается вторая половина недельного объёма и добираются мышцы, которым не хватило работы в специализированные дни.",
+    why: "Второй активный день для всех групп: другие движения, другие углы. Максимальных баз здесь нет намеренно — этот день добирает объём, а не съедает восстановление перед следующей неделей.",
     slots: [
-      { ex: "front-squat",  alt: "lunge",          role: "main" },
-      { ex: "machine-press", alt: "dips",          role: "heavy" },
-      { ex: "pullup",       alt: "lat",            role: "acc" },
+      { ex: "flat-db",      alt: "dips",           role: "main" },
+      { ex: "pullup",       alt: "lat",            role: "heavy" },
+      { ex: "hack",         alt: "bulgarian",      role: "acc" },
       { ex: "db-ohp",       alt: "ohp",            role: "acc" },
-      { ex: "legcurl-l",    alt: "good-morning",   role: "acc" },
+      { ex: "legcurl-l",    alt: "legcurl-s",      role: "acc" },
       { ex: "hammer",       alt: "cable-curl",     role: "iso",   ss: 1 },
-      { ex: "pushdown",     alt: "cg-bench",       role: "iso",   ss: 1, method: "dropset" },
+      { ex: "pushdown",     alt: "french-bb",      role: "iso",   ss: 1, method: "dropset" },
       { ex: "calf-seated",  alt: "calf-standing",  role: "finisher", method: "highrep" },
       { ex: "abs",          alt: "cable-crunch",   role: "iso" },
     ],
@@ -133,7 +133,9 @@ export const TEMPLATES = {
 };
 
 /* ---------- 4 недели ---------- */
-const W = (id, tpl, type, boss, icon, wave, prog = 0) => ({ id, tpl, type, boss, icon, wave, prog });
+// sub — точечная правка состава конкретного квеста: замена движения в слоте или снятие слота (null).
+// Так в цикле появляется ровно один тяжёлый день становой, и в нём нет второй максимальной базы.
+const W = (id, tpl, type, boss, icon, wave, prog = 0, sub = null) => ({ id, tpl, type, boss, icon, wave, prog, sub });
 export const PROGRAM = {
   cycleName: "Цикл V — Арена",
   note: "Сплит Верх / Низ / Фулбоди-добор: каждая группа мышц получает два активных дня в неделю, по 2–3 упражнения за день. Недели 1 и 3 — Верх и Низ силовые, Фулбоди объёмный; недели 2 и 4 — наоборот, так что каждая группа каждую неделю видит и тяжёлую, и объёмную работу. Недели 3–4 идут на второй волне движений: вспомогательные заменяются вариантами, движение дня и прогрессия сохраняются.",
@@ -158,7 +160,9 @@ export const PROGRAM = {
       n: 3, emphasis: "strength", wave: "B", saga: "Сага о Закалке",
       workouts: [
         W("w3u", "U", "strength", "Молот Зари", "anvil", "B", 0.025),
-        W("w3l", "L", "strength", "Бастион Ног", "tower", "B", 0.025),
+        // день становой: максимальная база одна, приседания и работа на поясницу в этот день убраны
+        W("w3l", "L", "strength", "Зов Земли", "weight", "B", 0.025,
+          { squat: "deadlift", "hip-thrust": "legpress", "back-ext-45": null }),
         W("w3f", "F", "volume",   "Расправить Крылья", "wings", "B", 0.025),
       ],
     },
@@ -184,11 +188,17 @@ export function buildExercises(workout, plan = {}) {
   const swap = plan.swap || {};
   const hide = new Set(plan.hide || []);
   const wave = workout.wave || "A";
-  // движение волны: на волне B вспомогательные меняются на родственные варианты
-  const pick = (slot) => (wave === "B" && slot.alt) ? slot.alt : slot.ex;
+  const sub = workout.sub || {};
+  // движение волны: на волне B вспомогательные меняются на родственные варианты,
+  // затем применяется точечная правка квеста (sub), затем правки атлета (swap/hide)
+  const pick = (slot) => {
+    const base = (wave === "B" && slot.alt) ? slot.alt : slot.ex;
+    return Object.prototype.hasOwnProperty.call(sub, base) ? sub[base] : base;
+  };
   const slots = tpl.slots
-    .filter((s) => !hide.has(pick(s)))
-    .map((s) => { const base = pick(s); return { ...s, ex: swap[base] || base, from: swap[base] ? base : null }; });
+    .map((s) => ({ slot: s, base: pick(s) }))
+    .filter(({ base }) => base && !hide.has(base))
+    .map(({ slot, base }) => ({ ...slot, ex: swap[base] || base, from: swap[base] ? base : null }));
   (plan.add || []).forEach((id) => { if (!hide.has(id)) slots.push({ ex: id, role: "iso", added: true }); });
 
   const out = [];
@@ -225,6 +235,23 @@ export function buildExercises(workout, plan = {}) {
     e.ssWith = partner ? partner.short : null;
   });
   return out;
+}
+
+/** Системная цена квеста: сумма cns движений и число максимальных баз.
+ *  Правило для натурала: одна база с cns 3 за сессию; две — это уже вопрос восстановления. */
+export function sessionLoad(list) {
+  let load = 0, maxBase = 0, compound = 0;
+  (list || []).forEach((e) => {
+    const src = EX_BY_ID[e.id];
+    if (!src) return;
+    const cns = src.cns == null ? (src.tier === 3 ? 0.5 : 1) : src.cns;
+    load += cns * (e.sets / 3);            // цена растёт с числом подходов
+    if (cns >= 3) maxBase++;
+    if (src.tier <= 2) compound++;
+  });
+  load = Math.round(load * 10) / 10;
+  const level = maxBase > 1 || load >= 11 ? "high" : (load >= 7 ? "mid" : "low");
+  return { load, maxBase, compound, level, overload: maxBase > 1 };
 }
 
 /** Недельный объём по мышечным группам: сколько сессий и рабочих подходов получает группа. */

@@ -1,5 +1,5 @@
-import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage } from "../data/program.js";
-import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, similarTo } from "../data/exercises.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
+import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
@@ -239,8 +239,11 @@ function withWeights(ex) {
   const src = exById(ex.id);
   const ww = workingWeight(src, { e1rm: athleteE1RM(), baselines: BASELINES, bodyweight: S.hero.bodyweight || 90, reps: ex.reps, rir: ex.rir });
   if (!ww || !ww.est1RM) return { ...ex, w: [0, 0], wSource: "none", wNote: src && src.equip === "bw" ? "свой вес" : "задай вес сам" };
+  // прогрессия недели с округлением по шагу снаряда — в зале не бывает 161,4 кг
   const k = 1 + (ex.prog || 0);
-  const lo = Math.round(ww.lo * k * 10) / 10, hi = Math.round(ww.hi * k * 10) / 10;
+  const step = EQUIP_STEP[src.equip] || 2.5;
+  const round = (v) => Math.round((v * k) / step) * step;
+  const lo = round(ww.lo), hi = Math.max(round(ww.hi), round(ww.lo));
   const note = ww.bw ? "довесок к своему весу" : (ww.perHand ? "на каждую руку" : null);
   return { ...ex, w: [lo, hi], wSource: ww.source, est1RM: ww.est1RM, wNote: note };
 }
@@ -742,6 +745,13 @@ function renderProfile() {
 /* ================= КВЕСТЫ (цикл) ================= */
 const exCount = (wid) => { const w = workoutOf(wid); return w ? w.exercises.length : 0; };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// метка тяжёлого дня в списке квестов
+function loadTag(wid) {
+  const w = workoutOf(wid);
+  if (!w) return "";
+  const sl = sessionLoad(w.exercises);
+  return sl.level === "high" ? ` · <span class="load-mark">тяжёлый</span>` : "";
+}
 // подпись рабочего веса: вилка + откуда она взялась
 function weightLabel(ex) {
   if (!ex.w || !ex.w[1]) {
@@ -786,7 +796,7 @@ function renderCycle() {
                   <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
                   ${last ? `<span class="verdict-chip ${last.cls} clickable" data-sid="${last.id}">${last.score}% ›</span>` : `<span class="dim small">—</span>`}
                 </span>
-                <span class="sub"><span class="wtype ${w.type}">${TYPE_NAMES[w.type]}</span> · ${exCount(w.id)} упр.${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
+                <span class="sub"><span class="wtype ${w.type}">${TYPE_NAMES[w.type]}</span> · ${exCount(w.id)} упр.${loadTag(w.id)}${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
               </span>
             </button>
             <button class="wflag ${isStart ? "on" : ""}" data-i="${idx}" aria-label="Отметить стартом цикла"
@@ -1023,6 +1033,15 @@ function renderWorkout(wid) {
       </div>
       <span class="quest-timer mono" id="quest-timer" title="Время квеста">⏱ 0:00</span>
     </div>
+    ${(() => {
+      const sl = sessionLoad(w.exercises);
+      const LOAD_TXT = { low: "лёгкая", mid: "средняя", high: "тяжёлая" };
+      return `<div class="load-row">
+        <span class="load-chip ${sl.level}">нагрузка: ${LOAD_TXT[sl.level]}</span>
+        <span class="dim small">${plural(sl.compound, "многосуставное", "многосуставных")} · ${sl.maxBase ? plural(sl.maxBase, "максимальная база", "максимальные базы") : "без максимальных баз"}</span>
+      </div>
+      ${sl.overload ? `<div class="load-warn">⚠ В квесте две максимальные базы (присед / становая / фронтальный). Натуралу это стоит дороже, чем даёт: замени одну на движение в тренажёре.</div>` : ""}`;
+    })()}
     ${w.why ? `<p class="dim small quest-why">${w.why}</p>` : ""}
     <div class="feel-row">
       <span class="feel-lbl">Состояние</span>

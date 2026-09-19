@@ -1,7 +1,7 @@
 // Тесты бизнес-логики программы и пула движений: node --test tests/program.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage } from "../data/program.js";
+import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, pctOf1RM, similarTo } from "../data/exercises.js";
 
 // группы, которые обязаны прорабатываться не реже 2 раз в неделю
@@ -131,9 +131,10 @@ test("волны A и B дают разные вспомогательные д�
     assert.equal(b.filter((e) => e.main).length, 1);
   }
   // движение дня в дне ног сохраняется между волнами — прогрессия не рвётся
-  const la = buildExercises(waveA.workouts.find((w) => w.tpl === "L"));
-  const lb = buildExercises(waveB.workouts.find((w) => w.tpl === "L"));
-  assert.equal(la[0].id, lb[0].id, "движение дня ног должно быть одним и тем же на обеих волнах");
+  // (кроме квестов с точечной правкой состава, например дня становой)
+  const legDays = PROGRAM.weeks.map((wk) => wk.workouts.find((w) => w.tpl === "L")).filter((w) => !w.sub);
+  const mains = new Set(legDays.map((w) => buildExercises(w)[0].id));
+  assert.equal(mains.size, 1, `движение дня ног скачет между квестами: ${[...mains].join(", ")}`);
 });
 
 test("приёмы интенсивности: описаны, дозированы и не вешаются на тяжёлую базу", () => {
@@ -342,4 +343,90 @@ test("доказательный минимум покрытия: оба пат�
   assert.ok(ids.has("legext"));
   // средняя дельта: жимы её не закрывают
   assert.ok(ids.has("lat-raise") || ids.has("cable-lat-raise"));
+});
+
+test("системная нагрузка: не больше одной максимальной базы за сессию", () => {
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      const list = buildExercises(w);
+      const sl = sessionLoad(list);
+      const bases = list.filter((e) => (EX_BY_ID[e.id].cns || 0) >= 3).map((e) => e.short);
+      assert.ok(sl.maxBase <= 1, `${w.id} (${w.boss}): две максимальные базы в одном квесте — ${bases.join(" + ")}`);
+      assert.equal(sl.overload, false, `${w.id}: квест помечен как перегруженный`);
+    }
+  }
+});
+
+test("системная нагрузка: приседание и становая никогда не встречаются в одном квесте", () => {
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      const ids = new Set(buildExercises(w).map((e) => e.id));
+      assert.ok(!(ids.has("squat") && ids.has("deadlift")), `${w.id}: присед и становая в один день`);
+      assert.ok(!(ids.has("deadlift") && ids.has("front-squat")), `${w.id}: становая и фронтальный присед в один день`);
+      // после становой не грузим поясницу отдельно
+      if (ids.has("deadlift")) {
+        for (const back of ["back-ext-45", "hyper", "good-morning"]) {
+          assert.ok(!ids.has(back), `${w.id}: работа на поясницу (${back}) в день становой`);
+        }
+      }
+    }
+  }
+});
+
+test("системная нагрузка квеста держится в границах натурала", () => {
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      const list = buildExercises(w);
+      const sl = sessionLoad(list);
+      assert.ok(sl.load <= 12, `${w.id} (${w.boss}): нагрузка ${sl.load} — слишком тяжёлый квест`);
+      assert.ok(sl.load >= 5, `${w.id}: нагрузка ${sl.load} — квест подозрительно лёгкий`);
+      assert.ok(sl.compound <= 5, `${w.id}: ${sl.compound} многосуставных за сессию`);
+      // тяжёлые многосуставные (cns ≥ 2) не идут в многоповторку
+      list.forEach((e) => {
+        const cns = EX_BY_ID[e.id].cns || 0;
+        if (cns >= 3) assert.ok(e.reps[1] <= 10, `${w.id}: ${e.short} на ${e.reps[1]} повторов — максимальная база так не делается`);
+        if (cns >= 2) assert.ok(e.reps[1] <= 15, `${w.id}: ${e.short} на ${e.reps[1]} повторов`);
+      });
+    }
+  }
+});
+
+test("становая есть в цикле ровно один раз и только в силовом квесте", () => {
+  const days = [];
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      if (buildExercises(w).some((e) => e.id === "deadlift")) days.push({ w, wk });
+    }
+  }
+  assert.equal(days.length, 1, `становая встречается ${days.length} раз за цикл`);
+  assert.equal(days[0].w.type, "strength", "становая должна стоять в силовом квесте, а не в объёмном");
+  const list = buildExercises(days[0].w);
+  assert.equal(list[0].id, "deadlift", "в свой день становая — движение дня");
+  assert.ok(list[0].reps[1] <= 6, "становая идёт в силовом диапазоне повторов");
+});
+
+test("точечная правка квеста (sub): заменяет и снимает слоты, не трогая шаблон", () => {
+  const wk = PROGRAM.weeks.find((x) => x.workouts.some((w) => w.sub));
+  const w = wk.workouts.find((x) => x.sub);
+  const list = buildExercises(w);
+  const ids = list.map((e) => e.id);
+  for (const [from, to] of Object.entries(w.sub)) {
+    assert.ok(!ids.includes(from), `${w.id}: ${from} должен быть заменён или снят`);
+    if (to) assert.ok(ids.includes(to), `${w.id}: ${to} не попал в квест`);
+  }
+  assert.equal(list.length, TEMPLATES[w.tpl].slots.length - Object.values(w.sub).filter((v) => v === null).length);
+  // шаблон не изменился: другой квест того же шаблона собирается по умолчанию
+  const plain = PROGRAM.weeks.flatMap((x) => x.workouts).find((x) => x.tpl === w.tpl && !x.sub);
+  assert.ok(!buildExercises(plain).some((e) => e.id === "deadlift"));
+});
+
+test("правки атлета тоже проверяются на перегруз", () => {
+  const legDay = PROGRAM.weeks[0].workouts.find((w) => w.tpl === "L");
+  const ok = sessionLoad(buildExercises(legDay));
+  assert.equal(ok.overload, false);
+  // если атлет сам поставит становую рядом с приседом — движок это видит
+  const bad = sessionLoad(buildExercises(legDay, { swap: { rdl: "deadlift" } }));
+  assert.equal(bad.maxBase, 2);
+  assert.equal(bad.overload, true, "две максимальные базы должны помечаться как перегруз");
+  assert.equal(bad.level, "high");
 });

@@ -993,3 +993,14 @@ button.log-row:active { background: rgba(224,189,102,.05); }
   font-family: var(--font-body); cursor: pointer; }
 .method-chip.ss { color: var(--gold); border-color: var(--line-strong); background: rgba(201,169,97,.08); cursor: default; }
 .method-chip.big { font-size: .72rem; text-transform: none; letter-spacing: .02em; padding: 6px 11px; }
+
+/* системная нагрузка квеста */
+.load-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 2px 10px; }
+.load-chip { font-size: .64rem; letter-spacing: .12em; text-transform: uppercase; border-radius: 999px;
+  padding: 3px 10px; border: 1px solid var(--line); color: var(--dim); }
+.load-chip.low { color: var(--moss); border-color: rgba(143,174,111,.4); }
+.load-chip.mid { color: var(--gold); border-color: var(--line-strong); }
+.load-chip.high { color: var(--ember); border-color: rgba(198,91,60,.45); }
+.load-mark { color: var(--ember); }
+.load-warn { border: 1px solid rgba(198,91,60,.45); background: rgba(198,91,60,.08); border-radius: 10px;
+  padding: 9px 12px; margin: 0 2px 12px; font-size: .82rem; line-height: 1.4; color: var(--bone); }
