@@ -1,2 +1,10 @@
 .DS_Store
 node_modules/
+
+# Секреты: в репозиторий не попадает ничего, кроме образца
+.env
+.env.*
+!.env.example
+*.token
+*.secret
+secrets/

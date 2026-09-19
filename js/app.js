@@ -164,7 +164,7 @@ const defaultState = () => ({
   drafts: {},   // workoutId -> entries (незавершённые)
   cycleStart: 0, // с какого квеста (индекс в ORDER) начинается цикл
   questStart: {}, // wid -> ts начала квеста (для таймера квеста)
-  settings: { sound: true, haptics: true },
+  settings: { sound: true, haptics: true, offSearch: true }, // offSearch — искать ли продукты во внешней базе
   buffs: {
     active: { creatine: 10, arginine: 7 }, // id -> доза (число; единица берётся из баффа)
     checkedAt: null,                        // ISO даты последней проверки арсенала
@@ -777,6 +777,19 @@ function renderProfile() {
       <div class="eyebrow" style="margin-bottom:10px">Настройки</div>
       <button class="toggle-row" id="tg-sound"><span>Звук интерфейса</span><span class="tg ${S.settings?.sound ? "on" : ""}"><i></i></span></button>
       <button class="toggle-row" id="tg-haptics"><span>Вибро-отдача</span><span class="tg ${S.settings?.haptics ? "on" : ""}"><i></i></span></button>
+      <button class="toggle-row" id="tg-off"><span>Поиск продуктов в открытой базе<span class="dim small" style="display:block">запрос уходит в Open Food Facts</span></span><span class="tg ${S.settings?.offSearch ? "on" : ""}"><i></i></span></button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="eyebrow">Приватность</span>
+        <button class="icon-btn" id="privacy-help" aria-label="Подробнее">${icon("help")}</button>
+      </div>
+      <div class="badges">
+        <span class="badge b-vol">журнал только у тебя</span>
+        <span class="badge b-vol">шрифты локальные</span>
+        <span class="badge ${S.settings?.offSearch ? "" : "b-vol"}">${S.settings?.offSearch ? "поиск продуктов: внешний" : "поиск продуктов: свой"}</span>
+      </div>
     </div>
 
     ${inTelegram ? `
@@ -807,6 +820,19 @@ function renderProfile() {
 
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };
+  document.getElementById("tg-off").onclick = () => { S.settings.offSearch = !S.settings.offSearch; fxTap(); save(); render(); };
+  document.getElementById("privacy-help").onclick = () => showInfo({
+    title: "Куда уходят данные", eyebrow: "приватность",
+    body: `<div class="info-legend">
+        <div><span class="badge b-vol">журнал</span> тренировки, веса, питание и баффы лежат в памяти телефона${inTelegram ? " и в твоём облаке Telegram, куда нет доступа ни у кого, кроме тебя" : ""}. Своего сервера у приложения нет</div>
+        <div><span class="badge b-vol">шрифты</span> лежат в самом приложении: Google не видит, кто и когда его открыл</div>
+        <div><span class="badge">Telegram</span> из профиля берутся только имя и id — чтобы отделить твой журнал от чужого</div>
+        <div><span class="badge ${S.settings?.offSearch ? "b-load" : "b-vol"}">продукты</span> ${S.settings?.offSearch
+          ? "при поиске еды введённое слово уходит в открытую базу Open Food Facts. Выключи переключатель выше — останется свой справочник"
+          : "внешний поиск выключен: ничего не уходит, работает свой справочник"}</div>
+      </div>
+      <p class="dim small">Страница может обращаться только к telegram.org и Open Food Facts — это зашито в политику безопасности на сервере, любой другой адрес браузер заблокирует.</p>`,
+  });
   app.querySelectorAll(".status-badge").forEach((b) => b.onclick = () => showAchievementDetail(ACH_BY_ID[b.dataset.ach]));
   document.getElementById("ach-all").onclick = showAllAchievements;
 
@@ -2322,6 +2348,9 @@ function wireFoodSearch(date) {
 
     // мгновенно — локальные совпадения
     const local = FOODS.filter((f) => f.n.toLowerCase().includes(q)).slice(0, 10);
+    // внешний поиск — единственное место, где введённый текст уходит за пределы устройства.
+    // Его можно выключить в профиле: тогда работаем только по своему справочнику.
+    if (!(S.settings && S.settings.offSearch)) { renderList(local, "Только свой справочник"); return; }
     renderList(local, "Из справочника · ищу в базе Open Food Facts…");
 
     // затем — Open Food Facts (с debounce)

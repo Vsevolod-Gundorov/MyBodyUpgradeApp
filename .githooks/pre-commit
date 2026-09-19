@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Не даёт закоммитить секреты. Включить один раз: git config core.hooksPath .githooks
+set -uo pipefail
+# токен бота: цифры, двоеточие, длинный хвост. Берём с запасом, чтобы ловить и нестандартные
+TOKEN_RE='[0-9]{6,12}:[A-Za-z0-9_-]{30,}'
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+for f in $staged; do
+  case "$f" in
+    .env|.env.*) [ "$f" = ".env.example" ] || { echo "pre-commit: $f — файл с секретами, коммит отменён"; exit 1; };;
+  esac
+done
+
+bad=$(git diff --cached --no-color -U0 | grep -E "^\+" | grep -vE "^\+\+\+" | grep -EIn "$TOKEN_RE" | head -3 || true)
+if [ -n "$bad" ]; then
+  echo "pre-commit: в изменениях похоже на токен бота — коммит отменён"
+  echo "$bad"
+  echo "Убери секрет в .env (он в .gitignore). Если токен уже светился — /revoke в BotFather."
+  exit 1
+fi
+exit 0
