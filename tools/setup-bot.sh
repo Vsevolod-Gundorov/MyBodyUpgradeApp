@@ -13,8 +13,8 @@
 
 set -euo pipefail
 
-: "${BOT_TOKEN:?Задай BOT_TOKEN — токен от @BotFather}"
-: "${APP_URL:?Задай APP_URL — адрес приложения, например https://mybodyupgrade.vercel.app}"
+: "${BOT_TOKEN:?8689725866:AAE6pHWDiGbdAv_bzXnjZuNYIWQzo6gHOes}"
+: "${APP_URL:?https://my-body-upgrade-app.vercel.app/}"
 
 API="https://api.telegram.org/bot${BOT_TOKEN}"
 BTN_TEXT="${BTN_TEXT:-Кузница Тела}"
