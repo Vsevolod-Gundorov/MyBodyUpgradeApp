@@ -943,8 +943,8 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .w-src.own { color: var(--moss); }
 
 /* ---------- карта мышц: фигура атлета с подсветкой по покрытию ---------- */
-.bm-row { display: flex; gap: 14px; justify-content: center; }
-.bm-wrap { flex: 1 1 0; min-width: 0; max-width: 158px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.bm-row { display: flex; gap: 8px; justify-content: center; margin: 0 -4px; }
+.bm-wrap { flex: 1 1 0; min-width: 0; max-width: 172px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .bm { width: 100%; height: auto; display: block; }
 .bm-title { font-size: .6rem; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
 /* силуэт — декорация: тапы должны доходить до мышц, а не вязнуть в нём */
