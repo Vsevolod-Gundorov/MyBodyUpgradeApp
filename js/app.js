@@ -745,6 +745,7 @@ function renderProfile() {
 /* ================= КВЕСТЫ (цикл) ================= */
 const exCount = (wid) => { const w = workoutOf(wid); return w ? w.exercises.length : 0; };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+let pickStart = false; // режим выбора стартового квеста цикла
 // метка тяжёлого дня в списке квестов
 function loadTag(wid) {
   const w = workoutOf(wid);
@@ -756,29 +757,34 @@ function loadTag(wid) {
 function weightLabel(ex) {
   if (!ex.w || !ex.w[1]) {
     const src = exById(ex.id);
-    if (src && src.bw) return `<span class="dim">свой вес, без довеска</span>`;
-    return `<span class="dim">${ex.wNote || "вес по ощущениям"}</span>`;
+    return `<span class="badge b-dim">${src && src.bw ? "свой вес" : (ex.wNote || "вес по ощущениям")}</span>`;
   }
   const range = `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`;
   const mark = ex.wSource === "own" ? `<span class="w-src own" title="по твоим замерам">★</span>` : `<span class="w-src" title="оценка от базовых лифтов">◎</span>`;
-  return `${range} ${mark}${ex.wNote ? ` <span class="dim">· ${ex.wNote}</span>` : ""}`;
+  const note = ex.wNote === "на каждую руку" ? "на руку" : ex.wNote;
+  return `<span class="badge b-weight">${range} ${mark}</span>${note ? `<span class="badge b-dim">${note}</span>` : ""}`;
 }
 function renderCycle() {
   const nextId = nextWorkoutId();
   const startId = ORDER[(((S.cycleStart || 0) % ORDER.length) + ORDER.length) % ORDER.length];
+  const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
   app.innerHTML = `
-    <div class="cycle-head">
-      <div class="eyebrow">${PROGRAM.cycleName}</div>
-      <button class="ach-all-btn" id="open-pool">Арсенал движений</button>
+    <div class="bar">
+      <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>Арсенал движений</span></button>
+      <span class="bar-actions">
+        <button class="icon-btn ${pickStart ? "on" : ""}" id="pick-start" aria-label="Выбрать стартовый квест" title="Выбрать стартовый квест">⚑</button>
+        <button class="icon-btn" id="cycle-help" aria-label="О цикле">${icon("help")}</button>
+      </span>
     </div>
-    <p class="dim small cycle-note">${PROGRAM.note}</p>
     ${PROGRAM.weeks.map((wk) => {
-      const strong = wk.workouts.filter((w) => w.type === "strength").length;
-      const vol = wk.workouts.length - strong;
+      const st = wk.workouts.filter((w) => w.type === "strength").length;
+      const vol = wk.workouts.length - st;
       return `
       <div class="week-block">
-        <div class="week-tag ${wk.emphasis === "volume" ? "vol" : ""}">
-          <span class="dot"></span> Неделя ${wk.n} — ${plural(strong, "силовая", "силовых")} · ${plural(vol, "объёмная", "объёмных")}
+        <div class="week-head">
+          <span class="week-n">Неделя ${wk.n}</span>
+          ${st ? `<span class="badge b-str">${plural(st, "силовая", "силовых")}</span>` : ""}
+          ${vol ? `<span class="badge b-vol">${plural(vol, "объёмная", "объёмных")}</span>` : ""}
         </div>
         ${wk.saga ? `<div class="saga display">${wk.saga}</div>` : ""}
         ${wk.workouts.map((w) => {
@@ -787,24 +793,43 @@ function renderCycle() {
           const last = done[done.length - 1];
           const isNext = w.id === nextId;
           const isStart = w.id === startId;
+          const built = workoutOf(w.id);
+          const sl = built ? sessionLoad(built.exercises) : null;
           return `
           <div class="wcard-wrap">
             <button class="wcard ${last ? "done" : ""} ${isNext ? "next" : ""}" data-w="${w.id}">
               <span class="medallion">${icon(w.icon || "anvil")}</span>
               <span class="wcard-body">
                 <span class="row1">
-                  <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
-                  ${last ? `<span class="verdict-chip ${last.cls} clickable" data-sid="${last.id}">${last.score}% ›</span>` : `<span class="dim small">—</span>`}
+                  <span class="boss">${w.boss}</span>
+                  ${last ? `<span class="verdict-chip ${last.cls} clickable" data-sid="${last.id}">${last.score}% ›</span>` : ""}
                 </span>
-                <span class="sub"><span class="wtype ${w.type}">${TYPE_NAMES[w.type]}</span> · ${exCount(w.id)} упр.${loadTag(w.id)}${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
+                <span class="badges">
+                  ${isNext ? `<span class="badge b-next">следующий</span>` : ""}
+                  <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>
+                  <span class="badge">${built ? built.exercises.length : 0} упр</span>
+                  ${sl && sl.level === "high" ? `<span class="badge b-load">${LOAD_TXT.high}</span>` : ""}
+                </span>
               </span>
             </button>
-            <button class="wflag ${isStart ? "on" : ""}" data-i="${idx}" aria-label="Отметить стартом цикла"
-              title="${isStart ? "Старт цикла" : "Сделать стартом цикла"}">⚑</button>
+            ${pickStart || isStart ? `<button class="wflag ${isStart ? "on" : ""}" data-i="${idx}" aria-label="Отметить стартом цикла"
+              title="${isStart ? "Старт цикла" : "Сделать стартом цикла"}">⚑</button>` : ""}
           </div>`;
         }).join("")}
       </div>`; }).join("")}`;
 
+  document.getElementById("pick-start").onclick = () => { pickStart = !pickStart; fxTap(); renderCycle(); };
+  document.getElementById("cycle-help").onclick = () => showInfo({
+    title: PROGRAM.cycleName, eyebrow: "как устроен цикл",
+    body: `<p>${PROGRAM.note}</p>
+      <div class="info-legend">
+        <div><span class="badge b-str">силовая</span> тяжёлые веса, 4–8 повторов, запас в баке</div>
+        <div><span class="badge b-vol">объёмная</span> больше повторов и подходов, ближе к отказу</div>
+        <div><span class="badge b-load">тяжёлый</span> квест с максимальной базой — ставь его на свежие ноги</div>
+        <div><span class="badge b-next">следующий</span> квест, который движок предлагает закрыть</div>
+        <div><span class="badge">⚑</span> кнопка в шапке включает выбор стартового квеста, если круг начинаешь не с первого</div>
+      </div>`,
+  });
   document.getElementById("open-pool").onclick = () => withLoader(() => renderPool());
 
   app.querySelectorAll(".wcard").forEach((c) => c.addEventListener("click", () => withLoader(() => renderWorkout(c.dataset.w))));
@@ -813,6 +838,7 @@ function renderCycle() {
     e.stopPropagation();
     const i = +f.dataset.i;
     S.cycleStart = (S.cycleStart === i) ? 0 : i; // повторное нажатие — сбросить на первый
+    pickStart = false;
     fxTap(); save(); render();
   }));
 }
@@ -847,6 +873,7 @@ const poolRow = (ex) => {
 };
 
 let poolFilter = "";
+const poolOpen = new Set();   // какие группы мышц раскрыты в арсенале
 function renderPool() {
   cycleSub = "pool";
   const q = poolFilter.trim().toLowerCase();
@@ -856,48 +883,69 @@ function renderPool() {
   const cov = weeklyCoverage(PROGRAM.weeks[0], S.plan || {});
   const CORE = new Set(["chest", "back", "delts", "biceps", "triceps", "quads", "hams", "glutes", "calves", "abs"]);
   app.innerHTML = `
-    <div class="topbar">
-      <button class="back-btn" id="back"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
-      <span class="medallion medallion--lg">${icon("anvil")}</span>
-      <div class="topbar-mid">
-        <div class="eyebrow">арсенал · ${EXERCISES.length} движений</div>
-        <h2 class="display">Арсенал движений</h2>
-        <div class="dim small">Рабочие веса под твои замеры</div>
-      </div>
+    <div class="qhead">
+      <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
+      <span class="medallion medallion--sm">${icon("arsenal")}</span>
+      <h2 class="qhead-title display">Арсенал движений</h2>
+      <span class="badge">${EXERCISES.length}</span>
+      <button class="icon-btn" id="pool-help" aria-label="О арсенале">${icon("help")}</button>
     </div>
 
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:8px">Недельное покрытие мышц</div>
+      <div class="panel-head">
+        <span class="eyebrow">Покрытие мышц за неделю</span>
+        <span class="badge b-dim">${PROGRAM.weeks[0].wave ? "волна " + PROGRAM.weeks[0].wave : ""}</span>
+      </div>
       <div class="cov-grid">
         ${MUSCLE_ORDER.filter((g) => cov[g]).map((g) => `
           <span class="cov-chip ${cov[g].days >= 2 ? "ok" : (CORE.has(g) ? "low" : "")}">
             <b>${MUSCLES[g]}</b><span class="mono">${cov[g].days ? `${cov[g].days}×/нед · ${cov[g].sets} сет.` : `косвенно · ${cov[g].sets} сет.`}</span>
           </span>`).join("")}
       </div>
-      <div class="dim small" style="margin-top:8px">Активная работа — это когда движение целит в группу напрямую или грузит её как вторичную в базовом упражнении (ягодицы в приседе, трицепс в жиме). Минимум — 2 раза в неделю; косвенной работы может быть больше. Подходы пересчитываются с учётом твоих замен.</div>
     </div>
 
     <div class="panel">
       <div class="eyebrow" style="margin-bottom:8px">Приёмы интенсивности</div>
-      <div class="cov-grid">
-        ${Object.entries(METHODS).map(([k, m]) => `<button class="method-chip big" data-method="${k}">${m.name}<span class="dim"> · ${m.origin}</span></button>`).join("")}
+      <div class="badges">
+        ${Object.entries(METHODS).map(([k, m]) => `<button class="badge b-method" data-method="${k}">${m.name}</button>`).join("")}
       </div>
-      <div class="dim small" style="margin-top:8px">Взяты из практики про-атлетов и урезаны под натурала: 1–2 приёма за сессию, только на изоляции и тренажёрах.</div>
     </div>
 
     <input class="pool-search" id="pool-q" placeholder="Поиск: название, мышца, паттерн" value="${poolFilter}" />
-    ${groups.map(({ g, list }) => `
-      <div class="panel pool-group">
-        <div class="eyebrow" style="margin-bottom:8px">${MUSCLES[g]} · ${list.length}</div>
-        ${list.map(poolRow).join("")}
-      </div>`).join("") || `<div class="empty">Ничего не найдено. Попробуй другое слово.</div>`}
-    <div class="dim small" style="margin:14px 2px">★ — вес посчитан по твоим замерам этого движения · ◎ — оценка от базовых лифтов</div>`;
+    ${groups.map(({ g, list }) => {
+      const open = !!q || poolOpen.has(g);
+      return `
+      <div class="panel pool-group ${open ? "open" : ""}">
+        <button class="panel-head pool-toggle" data-g="${g}">
+          <span class="eyebrow">${MUSCLES[g]}</span>
+          <span class="ph-right"><span class="badge b-dim">${list.length}</span><span class="chev">›</span></span>
+        </button>
+        <div class="pool-list">${list.map(poolRow).join("")}</div>
+      </div>`; }).join("") || `<div class="empty">Ничего не найдено. Попробуй другое слово.</div>`}`;
 
+  document.getElementById("pool-help").onclick = () => showInfo({
+    title: "Арсенал движений", eyebrow: "как читать",
+    body: `<p>Здесь весь пул движений с рабочими весами под твои замеры. Любое можно поставить в квест заменой или добавить к нему.</p>
+      <div class="info-legend">
+        <div><span class="badge b-weight">вес ★</span> посчитан по твоим замерам этого движения</div>
+        <div><span class="badge b-weight">вес ◎</span> оценка от базовых лифтов — уточнится после первых подходов</div>
+        <div><span class="badge b-ss">растяжение</span> движение грузит мышцу в растянутой позиции, это приоритет по свежим данным</div>
+        <div><span class="cov-chip ok" style="padding:2px 7px"><b>2×/нед</b></span> группа активно работает дважды в неделю: напрямую или как вторичная в базовом движении</div>
+        <div><span class="cov-chip low" style="padding:2px 7px"><b>мало</b></span> группе не хватает активных дней — проверь свои замены</div>
+      </div>
+      <p class="dim small">Приёмы интенсивности взяты у про-атлетов и урезаны под натурала: 1–2 за сессию, только на изоляции и тренажёрах.</p>`,
+  });
   document.getElementById("back").onclick = () => { cycleSub = null; withLoader(() => { view = "cycle"; render(); }); };
   const qi = document.getElementById("pool-q");
   qi.oninput = () => { poolFilter = qi.value; const at = qi.selectionStart; renderPool(); const n = document.getElementById("pool-q"); n.focus(); n.setSelectionRange(at, at); };
   app.querySelectorAll(".pool-row").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.ex));
   app.querySelectorAll("[data-method]").forEach((b) => b.onclick = () => showMethod(b.dataset.method));
+  app.querySelectorAll(".pool-toggle").forEach((b) => b.onclick = () => {
+    const g = b.dataset.g;
+    if (poolOpen.has(g)) poolOpen.delete(g); else poolOpen.add(g);
+    fxTap();
+    const y = window.scrollY; renderPool(); window.scrollTo(0, y);
+  });
 }
 
 /* разбор движения: техника, мышцы, рабочий вес и история атлета */
@@ -954,6 +1002,24 @@ function showExerciseDetail(id, opts = {}) {
   if (opts.onPick) o.querySelector("#ex-pick").onclick = () => { o.remove(); opts.onPick(ex.id); };
   o.querySelector("#ex-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
+/* универсальная модалка-подсказка: весь длинный текст живёт здесь, а не на экране */
+function showInfo({ title, eyebrow = "", body }) {
+  fxTap();
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  o.innerHTML = `
+    <div class="portion-card info-card">
+      ${eyebrow ? `<div class="eyebrow">${eyebrow}</div>` : ""}
+      <div class="portion-name display">${title}</div>
+      <div class="info-body">${body}</div>
+      <button class="btn-ghost" id="info-close">Понятно</button>
+    </div>`;
+  overlayRoot.appendChild(o);
+  o.querySelector("#info-close").onclick = () => o.remove();
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+  o.querySelectorAll("[data-method]").forEach((b) => b.onclick = () => showMethod(b.dataset.method));
 }
 
 /* разбор приёма интенсивности (как у про, но в дозировке натурала) */
@@ -1022,40 +1088,55 @@ function renderWorkout(wid) {
   const nowTs = Date.now();
   if (!S.questStart[wid] || nowTs - S.questStart[wid] > 6 * 3600e3) { S.questStart[wid] = nowTs; save(); }
 
+  const sl = sessionLoad(w.exercises);
+  const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
+  const wk = WEEK_OF[wid];
   app.innerHTML = `
-    <div class="topbar">
-      <button class="back-btn" id="back"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
-      <span class="medallion medallion--lg">${icon(w.icon || "anvil")}</span>
-      <div class="topbar-mid">
-        <div class="eyebrow"><span class="wtype ${w.type}">${TYPE_NAMES[w.type] || ""}</span> · неделя ${WEEK_OF[wid] ? WEEK_OF[wid].n : "—"}${w.wave ? ` · волна ${w.wave}` : ""}${w.prog ? ` · +${Math.round(w.prog * 100)}%` : ""}</div>
-        <h2 class="display">${w.boss}</h2>
-        <div class="dim small">${w.title}</div>
-      </div>
-      <span class="quest-timer mono" id="quest-timer" title="Время квеста">⏱ 0:00</span>
+    <div class="qhead">
+      <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
+      <span class="medallion medallion--sm">${icon(w.icon || "anvil")}</span>
+      <h2 class="qhead-title display">${w.boss}</h2>
+      <span class="qtimer mono" id="quest-timer">${icon("stopwatch")}<b>0:00</b></span>
+      <button class="icon-btn" id="q-help" aria-label="О квесте">${icon("help")}</button>
     </div>
-    ${(() => {
-      const sl = sessionLoad(w.exercises);
-      const LOAD_TXT = { low: "лёгкая", mid: "средняя", high: "тяжёлая" };
-      return `<div class="load-row">
-        <span class="load-chip ${sl.level}">нагрузка: ${LOAD_TXT[sl.level]}</span>
-        <span class="dim small">${plural(sl.compound, "многосуставное", "многосуставных")} · ${sl.maxBase ? plural(sl.maxBase, "максимальная база", "максимальные базы") : "без максимальных баз"}</span>
-      </div>
-      ${sl.overload ? `<div class="load-warn">⚠ В квесте две максимальные базы (присед / становая / фронтальный). Натуралу это стоит дороже, чем даёт: замени одну на движение в тренажёре.</div>` : ""}`;
-    })()}
-    ${w.why ? `<p class="dim small quest-why">${w.why}</p>` : ""}
+    <div class="badges qbadges">
+      <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>
+      ${wk ? `<span class="badge">неделя ${wk.n}</span>` : ""}
+      ${w.wave ? `<span class="badge">волна ${w.wave}</span>` : ""}
+      ${w.prog ? `<span class="badge b-prog">+${Math.round(w.prog * 100)}%</span>` : ""}
+      <span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span>
+      ${sl.overload ? `<span class="badge b-warn" id="q-warn">⚠ перегруз</span>` : ""}
+    </div>
     <div class="feel-row">
       <span class="feel-lbl">Состояние</span>
       ${[["fresh", "Свежий"], ["norm", "Норма"], ["tired", "Устал"]].map(([k, t]) =>
         `<button class="feel ${restFeel === k ? "on" : ""}" data-feel="${k}">${t}</button>`).join("")}
     </div>
     <div id="ex-list"></div>
-    <button class="btn-ghost add-ex-btn" id="add-ex">+ Добавить движение из арсенала</button>
+    <button class="btn-ghost add-ex-btn" id="add-ex">+ движение</button>
     <button class="finish-btn" id="finish">Завершить квест</button>`;
 
   document.getElementById("add-ex").onclick = () => openPoolPicker({ title: "Добавить движение", wid, exclude: w.exercises.map((x) => x.id),
     onPick: (id) => { const pl = planOf(wid); setPlan(wid, { add: [...(pl.add || []), id], hide: (pl.hide || []).filter((h) => h !== id) }); fxTap(); renderWorkout(wid); } });
 
   document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; cycleSub = null; render(); });
+
+  const questInfo = () => showInfo({
+    title: w.boss, eyebrow: `${TYPE_NAMES[w.type]} · ${w.title}`,
+    body: `<p>${w.why || ""}</p>
+      <div class="info-legend">
+        <div><span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span> ${w.type === "volume" ? "многоповторка ближе к отказу — работаем на объём" : "тяжёлые веса с запасом в баке — работаем на силу"}</div>
+        ${w.wave ? `<div><span class="badge">волна ${w.wave}</span> набор вспомогательных движений этой пары недель</div>` : ""}
+        ${w.prog ? `<div><span class="badge b-prog">+${Math.round(w.prog * 100)}%</span> прибавка к рабочим весам относительно первой пары недель</div>` : ""}
+        <div><span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span> ${plural(sl.compound, "многосуставное", "многосуставных")}, ${sl.maxBase ? plural(sl.maxBase, "максимальная база", "максимальные базы") : "без максимальных баз"}</div>
+        ${sl.overload ? `<div><span class="badge b-warn">⚠ перегруз</span> две максимальные базы в одном квесте. Натуралу это стоит дороже, чем даёт: замени одну на движение в тренажёре</div>` : ""}
+        <div><span class="badge b-weight">вес ★</span> посчитан по твоим замерам этого движения; ◎ — оценка от базовых лифтов</div>
+        <div><span class="badge b-ceil">потолок</span> лучший расчётный 1ПМ, <span class="badge b-floor">пол</span> — худший рабочий подход. Растить нужно оба</div>
+      </div>`,
+  });
+  document.getElementById("q-help").onclick = questInfo;
+  const warnBadge = document.getElementById("q-warn");
+  if (warnBadge) warnBadge.onclick = questInfo;
   app.querySelectorAll(".feel").forEach((b) => b.onclick = () => {
     restFeel = b.dataset.feel; fxTap();
     app.querySelectorAll(".feel").forEach((x) => x.classList.toggle("on", x.dataset.feel === restFeel));
@@ -1066,7 +1147,8 @@ function renderWorkout(wid) {
   const upQt = () => {
     const el = document.getElementById("quest-timer");
     if (!el) { clearInterval(questTimerId); return; }
-    el.textContent = "⏱ " + fmtClock((Date.now() - S.questStart[wid]) / 1000);
+    const b = el.querySelector("b");
+    if (b) b.textContent = fmtClock((Date.now() - S.questStart[wid]) / 1000);
   };
   upQt();
   questTimerId = setInterval(upQt, 1000);
@@ -1079,24 +1161,29 @@ function renderWorkout(wid) {
     const saved = entries[ex.id] || [];
     el.innerHTML = `
       <button class="ex-head" aria-expanded="false">
-        <span>
-          <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}${ex.added ? ' <span class="main-badge alt">добавлено</span>' : ""}${ex.swappedFrom ? ' <span class="main-badge alt">замена</span>' : ""}
-          <div class="plan">План: ${ex.scheme} · ${weightLabel(ex)}</div>
-          ${ex.method || ex.ssWith ? `<div class="ex-methods">
-            ${ex.ssWith ? `<span class="method-chip ss">суперсет: ${ex.ssWith}</span>` : ""}
-            ${ex.method && METHODS[ex.method] ? `<span class="method-chip" data-method="${ex.method}">${METHODS[ex.method].name}</span>` : ""}
-          </div>` : ""}
+        <span class="ex-main">
+          <span class="ex-title">
+            <span class="name">${ex.name}</span>
+            ${ex.main ? '<span class="badge b-main">движение дня</span>' : ""}${ex.added ? '<span class="badge b-alt">добавлено</span>' : ""}${ex.swappedFrom ? '<span class="badge b-alt">замена</span>' : ""}
+          </span>
+          <span class="badges">
+            <span class="badge b-plan">${ex.sets} × ${ex.reps[0]}${ex.reps[1] !== ex.reps[0] ? "–" + ex.reps[1] : ""}</span>
+            <span class="badge">${SCHEME[w.type] && SCHEME[w.type][ex.role] ? SCHEME[w.type][ex.role].tag : ""}</span>
+            ${weightLabel(ex)}
+            ${ex.ssWith ? `<span class="badge b-ss">суперсет: ${ex.ssWith}</span>` : ""}
+            ${ex.method && METHODS[ex.method] ? `<span class="badge b-method" data-method="${ex.method}">${METHODS[ex.method].name}</span>` : ""}
+          </span>
           ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]), (movSeries[movementKey(ex)] || []).length)}
         </span>
-        <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length ? saved.length + " подх." : "0 / " + ex.sets}</span>
+        <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length}<i>/${ex.sets}</i></span>
       </button>
       <div class="ex-tools">
-        <button class="ex-tool" data-swap="${ex.id}">⇄ Заменить</button>
-        <button class="ex-tool" data-info="${ex.id}">◎ Разбор</button>
-        <button class="ex-tool danger" data-drop="${ex.id}">✕ Убрать</button>
+        <button class="ex-tool" data-swap="${ex.id}">⇄<span>замена</span></button>
+        <button class="ex-tool" data-info="${ex.id}">◎<span>разбор</span></button>
+        <button class="ex-tool danger" data-drop="${ex.id}">✕<span>убрать</span></button>
       </div>
       <div class="ex-body">
-        <div class="set-labels"><span>#</span><span>Вес, кг</span><span>Повторы</span><span></span></div>
+        <div class="set-labels" hidden><span>#</span><span>Вес, кг</span><span>Повторы</span><span></span></div>
         <div class="sets"></div>
         <button class="add-set">+ подход</button>
       </div>`;
@@ -1113,6 +1200,8 @@ function renderWorkout(wid) {
 
     function ensure(id) { if (!S.drafts[wid]) S.drafts[wid] = {}; if (!S.drafts[wid][id]) S.drafts[wid][id] = []; return S.drafts[wid][id]; }
 
+    const labels = el.querySelector(".set-labels");
+    const syncLabels = () => { if (labels) labels.hidden = !(((S.drafts[wid] || {})[ex.id] || []).length); };
     function drawSets() {
       const arr = ensure(ex.id);
       setsBox.innerHTML = "";
@@ -1137,7 +1226,7 @@ function renderWorkout(wid) {
         };
         ri.onchange = maybeRest;
         wi.onchange = () => { if (s.r > 0) maybeRest(); };
-        row.querySelector(".del").onclick = () => { timedSets.delete(s); arr.splice(si, 1); save(); drawSets(); upd(); };
+        row.querySelector(".del").onclick = () => { timedSets.delete(s); arr.splice(si, 1); save(); drawSets(); upd(); syncLabels(); };
         setsBox.appendChild(row);
       });
     }
@@ -1155,12 +1244,12 @@ function renderWorkout(wid) {
       const arr = ensure(ex.id);
       const prevSet = arr[arr.length - 1];
       arr.push({ w: prevSet ? prevSet.w : 0, r: 0 });
-      save(); drawSets(); upd();
+      save(); drawSets(); upd(); syncLabels();
       const inputs = setsBox.querySelectorAll(".set-row:last-child input");
       if (inputs[1]) inputs[1].focus();
     };
 
-    drawSets(); upd();
+    drawSets(); upd(); syncLabels();
 
     // инструменты: заменить / разбор / убрать
     el.querySelector("[data-swap]").onclick = () => openPoolPicker({
@@ -2281,19 +2370,14 @@ function analyzeLift(pts) {
 // Целевой блок пределов силы для упражнения квеста (считается из завершённых квестов).
 function exTargetHTML(ex, a, count = 0) {
   const loReps = (ex.reps && ex.reps[0]) || 5;
-  if (!a) {
-    const msg = count >= 1
-      ? "◎ Пределы силы: делаем 2-й замер — после него посчитаю потолок и пол"
-      : "◎ Пределы силы: 1-й замер — задаём точку отсчёта";
-    return `<div class="ex-target neu">${msg}</div>`;
-  }
-  // вес топ-сета, который на loReps повторов даёт целевой потолок (обратная формула Эпли)
+  if (!a) return count >= 1 ? `<span class="badges"><span class="badge b-dim">2-й замер</span></span>` : "";
+  // вес топ-сета, который на loReps повторов двигает потолок (обратная формула Эпли)
   const topSet = Math.round((a.targetCeil / (1 + loReps / 30)) / 2.5) * 2.5;
-  return `<div class="ex-target">
-    <span class="et-row"><span class="et-k">потолок</span><b class="mono">${fmt(a.bestCeil)}</b><span class="et-goal mono">цель ≥ ${fmt(a.targetCeil)}</span></span>
-    <span class="et-row"><span class="et-k">пол</span><b class="mono">${fmt(a.bestFloor)}</b><span class="et-goal mono">цель ≥ ${fmt(a.targetFloor)}</span></span>
-    <span class="et-hint">🎯 топ-сет ≈ <b>${fmt(topSet)} кг × ${loReps}</b>, чтобы двигать потолок</span>
-  </div>`;
+  return `<span class="badges">
+    <span class="badge b-ceil" title="цель ${fmt(a.targetCeil)}">потолок ${fmt(a.bestCeil)}</span>
+    <span class="badge b-floor" title="цель ${fmt(a.targetFloor)}">пол ${fmt(a.bestFloor)}</span>
+    <span class="badge b-goal">цель ${fmt(topSet)} × ${loReps}</span>
+  </span>`;
 }
 
 function renderProgress() {

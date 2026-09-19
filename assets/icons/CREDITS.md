@@ -118,6 +118,9 @@
 | save | delapouite/save |
 | archive | delapouite/archive-research |
 | rune-stone | lorc/rune-stone |
+| arsenal | lorc/crossed-swords |
+| stopwatch | lorc/stopwatch |
+| help | sbed/help |
 | thor-hammer | delapouite/thor-hammer |
 | dragon-head | lorc/dragon-head |
 

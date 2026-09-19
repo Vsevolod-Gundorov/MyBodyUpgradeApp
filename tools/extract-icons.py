@@ -32,7 +32,8 @@ ICONS = {
   "cauldron": "lorc/cauldron", "broccoli": "delapouite/broccoli", "cutlery": "delapouite/fork-knife-spoon", "notebook": "delapouite/notebook",
   "checklist": "delapouite/checklist", "vial": "sbed/vial", "herbs": "delapouite/herbs-bundle", "chalice": "lorc/jeweled-chalice",
   "save": "delapouite/save", "archive": "delapouite/archive-research",
-  "rune-stone": "lorc/rune-stone", "thor-hammer": "delapouite/thor-hammer", "dragon-head": "lorc/dragon-head",
+  "rune-stone": "lorc/rune-stone",
+  "arsenal": "lorc/crossed-swords", "stopwatch": "lorc/stopwatch", "help": "sbed/help", "thor-hammer": "delapouite/thor-hammer", "dragon-head": "lorc/dragon-head",
 }
 
 BG = re.compile(r'<path d="M0 0h512v512H0z"/>')
