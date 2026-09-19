@@ -99,7 +99,9 @@ node --test tests/*.mjs
 - Иконки знаков и сеттинга — [game-icons.net](https://game-icons.net), CC BY 3.0.
 - Анатомическая модель тела в «Арсенале движений» — контуры из
   [react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter) (MIT, © 2022 ELABBASSI Hicham).
-  Данные перенесены в `data/bodymap.js`, текст лицензии — `data/bodymap-LICENSE.txt`.
+  `data/bodymap.js` собирается скриптом `tools/build-bodymap.mjs`: он берёт модель, раскачивает её
+  до телосложения атлета (ширина по профилю высоты, руки переносятся отдельно) и раскладывает части
+  модели по нашим группам мышц. Руками файл не правится. Текст лицензии — `data/bodymap-LICENSE.txt`.
   Служебные значки снарядов и приёмов (`data/icons-ui.js`) нарисованы для проекта.
 
 ## Telegram Mini App

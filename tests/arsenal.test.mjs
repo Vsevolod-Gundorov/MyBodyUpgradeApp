@@ -23,7 +23,7 @@ test("на карте нет фигур для несуществующих гр
 test("у обоих видов есть силуэт и хотя бы по одному контуру на группу", () => {
   assert.equal(BODY_VIEWS.length, 2);
   for (const v of BODY_VIEWS) {
-    assert.match(v.viewBox, /^[\d\s.]+$/, `${v.title}: холст не задан`);
+    assert.match(v.viewBox, /^-?[\d.]+( -?[\d.]+){3}$/, `${v.title}: холст не задан`);
     assert.ok(v.base.length > 5, `${v.title}: силуэт пустой`);
     for (const [g, list] of Object.entries(v.muscles)) {
       assert.ok(list.length >= 1, `${v.title}: у ${g} нет контуров`);
