@@ -18,6 +18,10 @@ alias("layers", "weight");
 alias("heart", "endurance");
 alias("drumstick", "meat");
 alias("apple", "meat");
+// флаг «старт цикла» — рисованный: у набора game-icons нет флага той же плотности,
+// а текстовый символ ⚑ мельче соседних иконок и выглядит по-разному на iOS и Android
+ICONS.flag = { vb: "0 0 512 512", inner: '<path d="M132 28h36v456h-36z"/><path d="M168 56h268l-64 88 64 88H168z"/>' };
+
 const icon = (name, cls = "") => {
   const g = ICONS[name];
   return g ? `<svg class="ico ${cls}" viewBox="${g.vb}" aria-hidden="true">${g.inner}</svg>` : "";
@@ -1058,7 +1062,7 @@ function renderCycle() {
     <div class="bar">
       <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>Арсенал движений</span></button>
       <span class="bar-actions">
-        <button class="icon-btn ${pickStart ? "on" : ""}" id="pick-start" aria-label="Выбрать стартовый квест" title="Выбрать стартовый квест">⚑</button>
+        <button class="icon-btn ${pickStart ? "on" : ""}" id="pick-start" aria-label="Выбрать стартовый квест" title="Выбрать стартовый квест">${icon("flag")}</button>
         <button class="icon-btn" id="cycle-help" aria-label="О цикле">${icon("help")}</button>
       </span>
     </div>
@@ -1068,11 +1072,14 @@ function renderCycle() {
       return `
       <div class="week-block">
         <div class="week-head">
-          <span class="week-n">Неделя ${wk.n}</span>
-          ${st ? `<span class="badge b-str">${plural(st, "силовая", "силовых")}</span>` : ""}
-          ${vol ? `<span class="badge b-vol">${plural(vol, "объёмная", "объёмных")}</span>` : ""}
+          <span class="week-title">
+            <span class="week-n">Неделя ${wk.n}</span>${wk.saga ? `<span class="saga display">${wk.saga}</span>` : ""}
+          </span>
+          <span class="week-badges">
+            ${st ? `<span class="badge b-str">${plural(st, "силовая", "силовых")}</span>` : ""}
+            ${vol ? `<span class="badge b-vol">${plural(vol, "объёмная", "объёмных")}</span>` : ""}
+          </span>
         </div>
-        ${wk.saga ? `<div class="saga display">${wk.saga}</div>` : ""}
         ${wk.workouts.map((w) => {
           const idx = ORDER.indexOf(w.id);
           const done = S.sessions.filter((s) => s.workoutId === w.id);
@@ -1099,12 +1106,19 @@ function renderCycle() {
               </span>
             </button>
             ${pickStart || isStart ? `<button class="wflag ${isStart ? "on" : ""}" data-i="${idx}" aria-label="Отметить стартом цикла"
-              title="${isStart ? "Старт цикла" : "Сделать стартом цикла"}">⚑</button>` : ""}
+              title="${isStart ? "Старт цикла" : "Сделать стартом цикла"}">${icon("flag")}</button>` : ""}
           </div>`;
         }).join("")}
       </div>`; }).join("")}`;
 
   document.getElementById("pick-start").onclick = () => { pickStart = !pickStart; fxTap(); renderCycle(); };
+
+  // следующий квест — то, зачем сюда зашли: если он не виден, подводим его к глазам
+  const nextCard = app.querySelector(".wcard.next");
+  if (nextCard && !pickStart) {
+    const r = nextCard.getBoundingClientRect();
+    if (r.bottom > window.innerHeight) nextCard.scrollIntoView({ block: "center", behavior: "auto" });
+  }
   document.getElementById("cycle-help").onclick = () => showInfo({
     title: PROGRAM.cycleName, eyebrow: "как устроен цикл",
     body: `<p>${PROGRAM.note}</p>
