@@ -1,5 +1,5 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend } from "../data/program.js";
-import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo, searchExercises } from "../data/exercises.js";
+import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, similarTo, searchExercises } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
 import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
@@ -7,6 +7,7 @@ import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber 
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
+import { progressionOf, stateOf, moveLabel, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
@@ -339,19 +340,49 @@ function athleteE1RM() {
   });
   return (e1rmCache = out);
 }
-const invalidateE1RM = () => { e1rmCache = null; };
+const invalidateE1RM = () => { e1rmCache = null; histCache = null; };
+
+// История подходов по каждому движению: что было назначено и что реально сделано.
+// Отсюда растёт рабочий вес — из квеста в квест и из цикла в цикл.
+let histCache = null;
+function movementHistory() {
+  if (histCache) return histCache;
+  const out = {};
+  [...S.sessions].sort((a, b) => a.date.localeCompare(b.date)).forEach((sess) => {
+    sessionExercises(sess).forEach((ex) => {
+      const sets = (sess.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
+      if (!sets.length) return;
+      const key = ex.lift || ex.id;
+      (out[key] ||= []).push({ date: sess.date, sets, plan: { sets: ex.sets, reps: ex.reps, rir: ex.rir != null ? ex.rir : 1 } });
+    });
+  });
+  return (histCache = out);
+}
+
+// Стартовая оценка 1ПМ от базовых лифтов: чем двигаться, пока по движению нет подходов.
+function seed1RM(src) {
+  if (!src || !src.k) return 0;
+  const e = athleteE1RM();
+  const refKey = src.ref || "bench";
+  const refVal = e[refKey] || BASELINES[refKey] || 0;
+  return refVal > 0 ? refVal * src.k : 0;
+}
+
+/** Вилка рабочего веса движения: из журнала, а без журнала — от базовых лифтов. */
+function progressOf(src, { reps = [8, 10], rir = 1, prog = 0 } = {}) {
+  if (!src) return null;
+  return progressionOf(movementHistory()[src.lift || src.id] || [], {
+    reps, rir, equip: src.equip, prog, seed: seed1RM(src),
+    bodyweight: S.hero.bodyweight || 90, bw: !!src.bw, perHand: !!src.perHand,
+  });
+}
 // добавить к упражнению рабочую вилку под атлета (с учётом прогрессии недели)
 function withWeights(ex) {
   const src = exById(ex.id);
-  const ww = workingWeight(src, { e1rm: athleteE1RM(), baselines: BASELINES, bodyweight: S.hero.bodyweight || 90, reps: ex.reps, rir: ex.rir });
-  if (!ww || !ww.est1RM) return { ...ex, w: [0, 0], wSource: "none", wNote: src && src.equip === "bw" ? "свой вес" : "задай вес сам" };
-  // прогрессия недели с округлением по шагу снаряда — в зале не бывает 161,4 кг
-  const k = 1 + (ex.prog || 0);
-  const step = EQUIP_STEP[src.equip] || 2.5;
-  const round = (v) => Math.round((v * k) / step) * step;
-  const lo = round(ww.lo), hi = Math.max(round(ww.hi), round(ww.lo));
-  const note = ww.bw ? "довесок к своему весу" : (ww.perHand ? "на каждую руку" : null);
-  return { ...ex, w: [lo, hi], wSource: ww.source, est1RM: ww.est1RM, wNote: note };
+  const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0 });
+  if (!p || !p.hi) return { ...ex, w: [0, 0], wSource: "none", wNote: src && src.equip === "bw" ? "свой вес" : "задай вес сам" };
+  const note = src.bw ? "довесок к своему весу" : (src.perHand ? "на каждую руку" : null);
+  return { ...ex, w: [p.lo, p.hi], wSource: p.source, prog1RM: p.work1RM, wp: p, wNote: note };
 }
 // собранный квест текущего цикла (или архивный — там список зашит)
 function workoutOf(wid) {
@@ -605,7 +636,7 @@ function exTier(ex) {
 function smartRest(ex, set, a) {
   const r = set.r || 8;
   const tier = exTier(ex);
-  const pct = (a && a.bestCeil) ? set.w / a.bestCeil : null;
+  const pct = (a && a.hi > 0) ? set.w / a.hi : null;
   const warmup = pct != null && pct <= 0.6; // явно лёгкий/разминочный подход
   let rest;
   if (tier === 1) {
@@ -1056,7 +1087,7 @@ function weightLabel(ex) {
     return `<span class="badge b-dim">${src && src.bw ? "свой вес" : (ex.wNote || "вес по ощущениям")}</span>`;
   }
   const range = `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`;
-  const mark = ex.wSource === "own" ? `<span class="w-src own" title="по твоим замерам">★</span>` : `<span class="w-src" title="оценка от базовых лифтов">◎</span>`;
+  const mark = ex.wSource === "work" ? `<span class="w-src own" title="посчитано по твоим подходам">★</span>` : `<span class="w-src" title="оценка от базовых лифтов — уточнится после первых подходов">◎</span>`;
   const note = ex.wNote === "на каждую руку" ? "на руку" : ex.wNote;
   return `<span class="badge b-weight">${range} ${mark}</span>${note ? `<span class="badge b-dim">${note}</span>` : ""}`;
 }
@@ -1166,7 +1197,8 @@ function renderCycle() {
 /* ================= АРСЕНАЛ ДВИЖЕНИЙ (подстраница квестов) ================= */
 // Рабочий вес любого движения под атлета: свой замер, иначе оценка от базовых лифтов.
 function poolWeight(ex, reps = [8, 10], rir = 1) {
-  return workingWeight(ex, { e1rm: athleteE1RM(), baselines: BASELINES, bodyweight: S.hero.bodyweight || 90, reps, rir });
+  const p = progressOf(ex, { reps, rir });
+  return p ? { ...p, est1RM: p.hi ? p.work1RM : 0 } : null;
 }
 // в каких квестах цикла встречается движение
 function usedIn(id) {
@@ -1186,7 +1218,7 @@ const poolRow = (ex) => {
     <span class="pool-body">
       <span class="pool-name">${ex.name}</span>
       <span class="badges">
-        ${w ? `<span class="badge b-weight">${w}${ww.source === "own" ? " ★" : " ◎"}</span>` : ""}
+        ${w ? `<span class="badge b-weight">${w}${ww.source === "work" ? " ★" : " ◎"}</span>` : ""}
         ${ex.lift ? `<span class="badge b-main">база</span>` : ""}
         ${ex.stretch ? `<span class="badge b-ss">растяжение</span>` : ""}
       </span>
@@ -1373,10 +1405,10 @@ function showExerciseDetail(id, opts = {}) {
   if (!ex) return;
   fxTap();
   const ww = poolWeight(ex);
-  const own = athleteE1RM()[ex.lift || ex.id] || 0;
   const strength = poolWeight(ex, SCHEME.strength.acc.reps, SCHEME.strength.acc.rir);
   const volume = poolWeight(ex, SCHEME.volume.acc.reps, SCHEME.volume.acc.rir);
   const used = usedIn(ex.id);
+  const alts = similarTo(ex.id, 3);
   const o = document.createElement("div");
   o.className = "overlay portion-overlay";
   o.innerHTML = `
@@ -1409,12 +1441,31 @@ function showExerciseDetail(id, opts = {}) {
       </div>
       <div class="dim small ex-w-note">
         ${ww && ww.est1RM
-          ? `${own ? `★ по твоему замеру: 1ПМ ≈ <b>${fmt(own)}</b> кг` : `◎ оценка от базовых лифтов: 1ПМ ≈ <b>${fmt(ww.est1RM)}</b> кг — уточнится после первых подходов`}${ww.bw ? " · вес указан как довесок к своему" : (ww.perHand ? " · на каждую руку" : "")}`
+          ? `${ww.source === "work"
+              ? `★ вес посчитан по твоим подходам: ${plural3(ww.sessions, "квест", "квеста", "квестов")} в журнале, ${stateOf(ww).text.toLowerCase()}`
+              : `◎ оценка от базовых лифтов — уточнится после первых подходов`}${ex.bw ? " · вес указан как довесок к своему" : (ex.perHand ? " · на каждую руку" : "")}`
           : "Вес не оценивается — работа со своим весом или на время"}
       </div>
+      ${ww && ww.best ? `<div class="ex-1rm">
+        <span class="ex-1rm-l">Личный максимум <i class="dim">расчётный 1ПМ</i></span>
+        <span class="ex-1rm-v mono">${fmt(ww.oneRMBar)} <i>кг</i></span>
+        <span class="dim small">с ${fmt(ww.best.w)} × ${ww.best.r} · ${fmtDate(ww.best.date)}</span>
+      </div>` : ""}
 
       <div class="eyebrow" style="margin:16px 0 6px">Техника</div>
       <ul class="ex-cues">${(ex.cues || []).map((c) => `<li>${c}</li>`).join("")}</ul>
+
+      ${alts.length ? `<div class="eyebrow" style="margin:16px 0 6px">Чем заменить</div>
+        <div class="ex-alts">${alts.map((a) => {
+          const aw = poolWeight(a);
+          return `<button class="ex-alt" data-alt="${a.id}">
+            <span class="ex-alt-ico">${icon(exerciseIcon(a))}</span>
+            <span class="ex-alt-body">
+              <span class="ex-alt-name">${a.name}</span>
+              <span class="ex-alt-meta dim">${EQUIP[a.equip]}${aw && aw.est1RM ? ` · ${fmt(aw.lo)}–${fmt(aw.hi)} кг` : ""}</span>
+            </span>
+            <span class="pool-chev">›</span>
+          </button>`; }).join("")}</div>` : ""}
 
       ${used.length ? `<div class="eyebrow" style="margin:16px 0 6px">В каких квестах</div>
         <div class="ex-used">${used.map((u) => `<span class="ex-used-chip ${u.type}">${u.boss} <span class="dim">· нед. ${u.week}</span></span>`).join("")}</div>` : ""}
@@ -1424,6 +1475,7 @@ function showExerciseDetail(id, opts = {}) {
     </div>`;
   overlayRoot.appendChild(o);
   if (opts.onPick) o.querySelector("#ex-pick").onclick = () => { o.remove(); opts.onPick(ex.id); };
+  o.querySelectorAll("[data-alt]").forEach((b) => b.onclick = () => { o.remove(); showExerciseDetail(b.dataset.alt, opts); });
   o.querySelector("#ex-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
@@ -1558,8 +1610,9 @@ function renderWorkout(wid) {
         ${w.prog ? `<div><span class="badge b-prog">+${Math.round(w.prog * 100)}%</span> прибавка к рабочим весам относительно первой пары недель</div>` : ""}
         <div><span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span> ${plural(sl.compound, "многосуставное", "многосуставных")}, ${sl.maxBase ? plural(sl.maxBase, "максимальная база", "максимальные базы") : "без максимальных баз"}</div>
         ${sl.overload ? `<div><span class="badge b-warn">⚠ перегруз</span> две максимальные базы в одном квесте. Натуралу это стоит дороже, чем даёт: замени одну на движение в тренажёре</div>` : ""}
-        <div><span class="badge b-weight">вес ★</span> посчитан по твоим замерам этого движения; ◎ — оценка от базовых лифтов</div>
-        <div><span class="badge b-ceil">потолок</span> лучший расчётный 1ПМ, <span class="badge b-floor">пол</span> — худший рабочий подход. Растить нужно оба</div>
+        <div><span class="badge b-weight">вес ★</span> посчитан по твоим подходам в этом движении; ◎ — оценка от базовых лифтов, пока журнал пуст</div>
+        <div><span class="ex-prog up"><i class="mono">▲</i>+2,5 кг</span> двойная прогрессия: закрыл все подходы по верхней границе повторов — в следующий раз шаг вверх. Не добрал нижнюю — шаг вниз. Попал в коридор — вес держим и добираем повторы</div>
+        <div><span class="badge b-weight">102,5–105</span> верх вилки — вес, который надо повесить; низ — шаг назад, ниже опускаться незачем</div>
       </div>`,
   });
   document.getElementById("q-help").onclick = questInfo;
@@ -1590,7 +1643,6 @@ function renderWorkout(wid) {
     if (next.length !== prev.length) { S.questTicks[wid] = next; save(); }
   };
 
-  const movSeries = buildMovementSeries(); // история по каждому движению для целей потолка/пола
   const list = document.getElementById("ex-list");
   w.exercises.forEach((ex, i) => {
     const el = document.createElement("div");
@@ -1611,7 +1663,7 @@ function renderWorkout(wid) {
             ${ex.ssWith ? `<span class="badge b-ss">суперсет: ${ex.ssWith}</span>` : ""}
             ${ex.method && METHODS[ex.method] ? `<span class="badge b-method" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))}${METHODS[ex.method].name}</span>` : ""}
           </span>
-          ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]), (movSeries[movementKey(ex)] || []).length)}
+          ${exTargetHTML(ex)}
         </span>
         <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length}<i>/${ex.sets}</i></span>
       </button>
@@ -1659,8 +1711,7 @@ function renderWorkout(wid) {
           if (s.w > 0 && s.r > 0 && !timedSets.has(s)) {
             timedSets.add(s);
             markActivity();
-            const a = analyzeLift(movSeries[movementKey(ex)]);
-            startRest(smartRest(ex, s, a), `${ex.name} · ${repZone(s.r)}`);
+            startRest(smartRest(ex, s, ex.wp), `${ex.name} · ${repZone(s.r)}`);
           }
         };
         ri.onchange = maybeRest;
@@ -1745,7 +1796,8 @@ function renderWorkout(wid) {
     const gapDays = lastDate ? Math.round((new Date(today() + "T00:00:00Z") - new Date(lastDate + "T00:00:00Z")) / 864e5) : 0;
     const now = new Date();
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
-    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role }));
+    // rir нужен прогрессии: по нему схемы разных недель пересчитываются друг в друга
+    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role }));
     S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
     S.xp += res.xp;
     invalidateE1RM();
@@ -2717,110 +2769,26 @@ function openPortion(food, date, editIndex) {
 
 /* ================= ХРОНИКИ (прогресс) ================= */
 /* ================= анализ пределов силы (потолки/полы, тренды) ================= */
-// Методика из лучших практик: 1ПМ = среднее формул Эпли и Бжицки (кап 10 повторов).
-// Потолок сессии = лучший рабочий 1ПМ. Пол = худший из «рабочих» подходов (≥80% топ-веса
-// сессии — отсекаем разминку и нижние ступени лесенки). В тренд идут только «тяжёлые»
-// выходы (потолок ≥90% исторического максимума), чтобы лёгкие/вспомогательные дни не мешали.
-const AN = { REP_CAP: 10, WORKSET: 0.8, PLATEAU: 6, HEAVY: 0.9, GROW: 0.01 };
-function e1rmAvg(w, r) {
-  const reps = Math.min(r, AN.REP_CAP);
-  if (!w || !reps) return 0;
-  const epley = w * (1 + reps / 30);
-  const brzycki = (w * 36) / (37 - reps);
-  return (epley + brzycki) / 2;
-}
-function buildLiftSeries() {
-  const series = { bench: [], squat: [], deadlift: [], ohp: [] };
-  const sorted = [...S.sessions].sort((a, b) => a.date.localeCompare(b.date));
-  for (const s of sorted) {
-    const perLift = {};
-    sessionExercises(s).forEach((ex) => {
-      if (!ex.lift) return;
-      const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
-      if (sets.length) (perLift[ex.lift] ||= []).push(...sets);
-    });
-    for (const [lift, sets] of Object.entries(perLift)) {
-      const topW = Math.max(...sets.map((x) => x.w));
-      const work = sets.filter((x) => x.w >= topW * AN.WORKSET);
-      const ceil = Math.max(...work.map((x) => e1rmAvg(x.w, x.r)));
-      const floor = Math.min(...work.map((x) => e1rmAvg(x.w, x.r)));
-      series[lift] && series[lift].push({ date: s.date, ceil, floor });
-    }
+// Ближайший квест цикла, где встречается движение: оттуда и схема, и вилка.
+function nextSlotFor(key) {
+  const start = Math.max(0, ORDER.indexOf(nextWorkoutId()));
+  for (let i = 0; i < ORDER.length; i++) {
+    const wid = ORDER[(start + i) % ORDER.length];
+    const w = workoutOf(wid);
+    const ex = w && w.exercises.find((x) => (x.lift || x.id) === key);
+    if (ex) return { wid, boss: (WORKOUTS[wid] || {}).boss || "", ex };
   }
-  return series;
+  return null;
 }
-// Ключ движения: базовый лифт (bench/squat/deadlift/ohp) либо id упражнения.
-// Так история потолка/пола копится по ОДНОМУ движению между разными квестами.
-const movementKey = (ex) => ex.lift || ex.id;
-function buildMovementSeries() {
-  const series = {};
-  const sorted = [...S.sessions].sort((a, b) => a.date.localeCompare(b.date));
-  for (const s of sorted) {
-    const perKey = {};
-    sessionExercises(s).forEach((ex) => {
-      const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
-      if (sets.length) (perKey[movementKey(ex)] ||= []).push(...sets);
-    });
-    for (const [key, sets] of Object.entries(perKey)) {
-      const topW = Math.max(...sets.map((x) => x.w));
-      const work = sets.filter((x) => x.w >= topW * AN.WORKSET);
-      const ceil = Math.max(...work.map((x) => e1rmAvg(x.w, x.r)));
-      const floor = Math.min(...work.map((x) => e1rmAvg(x.w, x.r)));
-      (series[key] ||= []).push({ date: s.date, ceil, floor });
-    }
-  }
-  return series;
-}
-function trendPctPerMonth(points, key) {
-  if (points.length < 3) return null;
-  const t0 = new Date(points[0].date + "T00:00:00Z").getTime();
-  const xs = points.map((p) => (new Date(p.date + "T00:00:00Z").getTime() - t0) / 864e5);
-  const ys = points.map((p) => p[key]);
-  const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
-  let num = 0, den = 0;
-  for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); den += (xs[i] - mx) ** 2; }
-  if (!den || !my) return null;
-  return ((num / den) * 30 / my) * 100;
-}
-function analyzeLift(pts) {
-  if (!pts || pts.length < 2) return null; // нужно ≥2 замеров, чтобы считать пределы
-  let running = 0; const heavy = [];
-  for (const p of pts) { running = Math.max(running, p.ceil); if (p.ceil >= running * AN.HEAVY) heavy.push(p); }
-  const src = heavy.length >= 2 ? heavy : pts;
-  const last = src[src.length - 1];
-  const bestCeil = Math.max(...src.map((p) => p.ceil));
-  const bestFloor = Math.max(...src.map((p) => p.floor));
-  let sinceCeil = 0, runCeil = 0, sinceFloor = 0, runFloor = 0;
-  for (const p of src) {
-    if (p.ceil >= runCeil) { runCeil = p.ceil; sinceCeil = 0; } else sinceCeil++;
-    if (p.floor >= runFloor) { runFloor = p.floor; sinceFloor = 0; } else sinceFloor++;
-  }
-  const tCeil = trendPctPerMonth(src, "ceil");
-  const tFloor = trendPctPerMonth(src, "floor");
-  let status, cls;
-  if (src.length < 3) { status = "Замеры идут — копим данные для тренда"; cls = "verdict-mid"; }
-  else if (sinceCeil >= AN.PLATEAU && sinceFloor >= AN.PLATEAU) { status = "Плато — пора делоад и смена стимула"; cls = "verdict-fail"; }
-  else if (tFloor != null && tFloor > 0.3 && (tCeil == null || tCeil >= 0)) { status = "Рост — база крепнет, пол ползёт вверх"; cls = "verdict-gold"; }
-  else if (tCeil != null && tCeil > 0.3 && tFloor != null && tFloor <= 0) { status = "Потолок без базы — добавь объём в рабочей зоне"; cls = "verdict-mid"; }
-  else if (tCeil != null && tCeil < -0.5) { status = "Откат — проверь сон/питание/делоад"; cls = "verdict-fail"; }
-  else { status = "Стабильно — в пределах шума, наблюдаем"; cls = "verdict-mid"; }
-  return {
-    bestCeil, bestFloor, lastCeil: last.ceil, lastFloor: last.floor,
-    tCeil, tFloor, sinceCeil, sinceFloor, heavyCount: heavy.length, sessions: pts.length,
-    targetCeil: bestCeil * (1 + AN.GROW), targetFloor: bestFloor * (1 + AN.GROW), status, cls,
-  };
-}
-// Целевой блок пределов силы для упражнения квеста (считается из завершённых квестов).
-function exTargetHTML(ex, a, count = 0) {
-  const loReps = (ex.reps && ex.reps[0]) || 5;
-  if (!a) return count >= 1 ? `<span class="badges"><span class="badge b-dim">2-й замер</span></span>` : "";
-  // вес топ-сета, который на loReps повторов двигает потолок (обратная формула Эпли)
-  const topSet = Math.round((a.targetCeil / (1 + loReps / 30)) / 2.5) * 2.5;
-  return `<span class="badges">
-    <span class="badge b-ceil" title="цель ${fmt(a.targetCeil)}">потолок ${fmt(a.bestCeil)}</span>
-    <span class="badge b-floor" title="цель ${fmt(a.targetFloor)}">пол ${fmt(a.bestFloor)}</span>
-    <span class="badge b-goal">цель ${fmt(topSet)} × ${loReps}</span>
-  </span>`;
+
+// Откуда взялся вес: одна строка под бейджами движения. Раньше здесь стояли
+// «потолок» и «пол» — два числа, из которых не следовало, что ставить сегодня.
+function exTargetHTML(ex) {
+  const p = ex.wp;
+  const m = moveLabel(p);
+  if (!m) return "";
+  const cls = { "▲": "up", "▼": "down" }[m.icon] || "flat";
+  return `<span class="ex-prog ${cls}"><i class="mono">${m.icon}</i>${m.text}</span>`;
 }
 
 function renderProgress() {
@@ -2835,54 +2803,71 @@ function renderProgress() {
     });
   });
 
-  // анализ пределов силы (потолки/полы)
-  const anSeries = buildLiftSeries();
-  const anCards = Object.keys(anSeries).map((k) => {
-    const a = analyzeLift(anSeries[k]);
-    if (!a) return `
+  // рабочие веса: откуда берётся вилка и куда она едет
+  const histAll = movementHistory();
+  const LIFTS = ["squat", "bench", "deadlift", "ohp"];
+  const keys = [
+    ...LIFTS.filter((k) => histAll[k]),
+    ...Object.keys(histAll).filter((k) => !LIFTS.includes(k)).sort((a, b) => histAll[b].length - histAll[a].length),
+  ];
+  const arrow = (t) => t == null ? "—" : (t > 0.3 ? `▲ +${fmt(t)}%/мес` : (t < -0.3 ? `▼ ${fmt(t)}%/мес` : `≈ ${fmt(t)}%/мес`));
+  const tcls = (t) => t == null ? "flat" : (t > 0.3 ? "up" : (t < -0.3 ? "down" : "flat"));
+  const anCards = keys.map((k) => {
+    const src = exById(k);
+    const slot = nextSlotFor(k);
+    const ex = slot ? slot.ex : null;
+    const p = ex ? ex.wp : progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir });
+    const name = LIFT_NAMES[k] || (src ? src.name : k);
+    if (!p || !p.hi) return `
       <div class="limit-card">
-        <div class="lc-head"><b>${LIFT_NAMES[k]}</b><span class="dim small">мало данных</span></div>
-        <div class="dim small">Нужно ≥2 квеста с этим движением, чтобы считать потолок и пол.</div>
+        <div class="lc-head"><b>${name}</b><span class="dim small">вес не считается</span></div>
+        <div class="dim small">Движение идёт со своим весом или на время.</div>
       </div>`;
-    const arrow = (t) => t == null ? "—" : (t > 0.3 ? `▲ +${fmt(t)}%/мес` : (t < -0.3 ? `▼ ${fmt(t)}%/мес` : `≈ ${fmt(t)}%/мес`));
-    const tcls = (t) => t == null ? "flat" : (t > 0.3 ? "up" : (t < -0.3 ? "down" : "flat"));
+    const st = stateOf(p);
+    const scheme = ex ? `${ex.sets} × ${ex.reps[0]}${ex.reps[1] !== ex.reps[0] ? "–" + ex.reps[1] : ""}` : null;
+    const note = src && src.bw ? " довеском" : (src && src.perHand ? " на руку" : "");
     return `
       <div class="limit-card">
-        <div class="lc-head"><b>${LIFT_NAMES[k]}</b><span class="lc-status ${a.cls}">${a.status}</span></div>
+        <div class="lc-head"><b>${name}</b><span class="lc-status ${st.cls}">${st.text}</span></div>
         <div class="lc-grid">
           <div class="lc-cell">
-            <span class="lc-l">Потолок</span>
-            <span class="lc-v mono">${fmt(a.bestCeil)} <i>кг</i></span>
-            <span class="lc-t ${tcls(a.tCeil)} mono">${arrow(a.tCeil)}</span>
+            <span class="lc-l">Рабочий вес</span>
+            <span class="lc-v mono">${fmt(p.lo)}–${fmt(p.hi)}<i> кг${note}</i></span>
+            <span class="lc-t ${p.trend != null ? tcls(p.trend) : (p.deltaKg > 0 ? "up" : p.deltaKg < 0 ? "down" : "flat")} mono">${
+              p.trend != null ? arrow(p.trend) : (p.deltaKg ? `${p.deltaKg > 0 ? "▲ +" : "▼ "}${fmt(p.deltaKg)} кг` : "—")}</span>
           </div>
           <div class="lc-cell">
-            <span class="lc-l">Пол <b class="dim">(главное)</b></span>
-            <span class="lc-v mono">${fmt(a.bestFloor)} <i>кг</i></span>
-            <span class="lc-t ${tcls(a.tFloor)} mono">${arrow(a.tFloor)}</span>
+            <span class="lc-l">Максимум 1ПМ</span>
+            <span class="lc-v mono">${p.oneRMBar > 0 ? fmt(p.oneRMBar) : "—"}<i> кг${note}</i></span>
+            <span class="lc-t flat mono">${p.best ? `с ${fmt(p.best.w)} × ${p.best.r}` : "—"}</span>
           </div>
         </div>
-        <div class="lc-target mono dim small">Цель месяца: потолок ≥ ${fmt(a.targetCeil)} · пол ≥ ${fmt(a.targetFloor)} кг</div>
-        <div class="lc-meta dim small">Рекорд потолка: ${a.sinceCeil === 0 ? "в последнем квесте" : plural3(a.sinceCeil, "квест", "квеста", "квестов") + " назад"} · пола: ${a.sinceFloor === 0 ? "в последнем квесте" : plural3(a.sinceFloor, "квест", "квеста", "квестов") + " назад"}</div>
+        <div class="lc-target mono dim small">${slot
+          ? `Следующий раз — ${slot.boss}: ${scheme}, ставим ${fmt(p.hi)} кг${note}`
+          : `В текущем цикле движения нет — вилка показана для схемы ${SCHEME.strength.acc.reps[0]}–${SCHEME.strength.acc.reps[1]}`}</div>
+        <div class="lc-meta dim small">${p.last
+          ? `Прошлый квест: ${fmt(p.last.top)} × ${p.last.topReps} в ${plural3(p.last.sets, "подходе", "подходах", "подходах")} · ${plural3(p.sessions, "квест", "квеста", "квестов")} в журнале`
+          : "Журнал пока пуст — вес оценён от базовых лифтов"}</div>
       </div>`;
-  }).join("");
+  }).join("") || `<div class="empty">Пока пусто. Первый квест впишет сюда рабочие веса.</div>`;
 
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">Хроники прокачки: потолки и полы, которые должны расти от квеста к квесту.</p>
+    <p class="dim small" style="margin-top:2px">Хроники прокачки: рабочие веса, которые движок ведёт из квеста в квест.</p>
     <svg width="0" height="0"><defs><linearGradient id="goldfade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#c9a961" stop-opacity=".35"/><stop offset="1" stop-color="#c9a961" stop-opacity="0"/>
     </linearGradient></defs></svg>
 
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:10px">Пределы силы</div>
+      <div class="eyebrow" style="margin-bottom:10px">Рабочие веса</div>
       <div class="limits">${anCards}</div>
       <details class="method">
         <summary>Как это считается</summary>
         <div class="method-body dim small">
-          <p><b>1ПМ</b> каждого подхода — среднее формул <b>Эпли</b> и <b>Бжицки</b>, повторы капаются на 10 (выше формулы врут).</p>
-          <p><b>Потолок</b> квеста — лучший рабочий 1ПМ. Это «удачный день».</p>
-          <p><b>Пол</b> — худший из <b>рабочих</b> подходов (≥80% топ-веса квеста; разминка и низ лесенки отсекаются). Это твоя <b>базовая сила</b> — она важнее потолка: растёт пол → крепнет фундамент.</p>
-          <p>В тренд идут только <b>тяжёлые</b> квесты (потолок ≥90% исторического максимума) — лёгкие и вспомогательные дни не смазывают картину. Тренд — наклон линейной регрессии в <b>%/месяц</b>.</p>
-          <p><b>Плато</b> — если ${AN.PLATEAU}+ квестов подряд нет нового потолка и пола: пора делоад и смена стимула. Целевой рост продвинутого атлета — <b>≥1%/мес</b>.</p>
+          <p><b>Двойная прогрессия.</b> Вес в квесте стоит на месте, пока ты добираешь повторы. Закрыл все подходы по <b>верхней</b> границе повторов — в следующий раз тот же квест даёт <b>+один шаг снаряда</b> (штанга 2,5 кг, гантели 2 кг, тренажёр 5 кг). Не добрал <b>нижнюю</b> границу — шаг назад. Попал в коридор — вес держим.</p>
+          <p><b>Рабочий вес</b> — вилка на следующий раз: верх это цель подхода, низ — шаг назад, ниже опускаться незачем. Её же квест подставляет в подходы, поэтому в зале считать нечего.</p>
+          <p><b>Личный максимум</b> — расчётный 1ПМ лучшего подхода за всю историю (среднее формул <b>Эпли</b> и <b>Бжицки</b>, повторы капаются на 10). Он живёт отдельно и вес в квесте не задаёт: рекорд одного удачного дня не должен задирать рабочую неделю.</p>
+          <p>Схемы цикла чередуются, поэтому рабочий вес хранится как максимум на <b>эффективных повторах</b> (повторы плана + запас RIR). Прибавка, взятая на объёмной неделе, не теряется на силовой.</p>
+          <p><b>Застой</b> — ${PROG.STALL} квеста подряд без прибавки: пора делоад, смена движения или разбор сна и еды. Квест, отработанный заметно легче назначенного, вилку не двигает вовсе.</p>
         </div>
       </details>
     </div>
