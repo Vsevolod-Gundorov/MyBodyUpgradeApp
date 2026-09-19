@@ -1,4 +1,4 @@
-import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId } from "../data/program.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo, searchExercises } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
@@ -1236,6 +1236,10 @@ function renderPool() {
     [m.name, m.origin, m.desc].some((t) => (t || "").toLowerCase().includes(q)));
   const cov = weeklyCoverage(week, S.plan || {});
   const lvlBadge = (g) => ({ ok: "b-vol", low: "b-load", miss: "b-warn", none: "b-dim" })[coverLevel(cov[g], g)];
+  // объём выбранной мышцы по всем неделям: видно, в какой именно она проседает,
+  // без перещёлкивания четырёх кнопок подряд
+  const trend = bodyPick ? muscleTrend(bodyPick, S.plan || {}) : [];
+  const trendTop = Math.max(1, ...trend.map((t) => t.sets));
   // карта остаётся на экране, пока мышца выбрана с фигуры: иначе тап по ней прячет саму фигуру
   const showMap = !q || !!bodyPick;
 
@@ -1273,6 +1277,17 @@ function renderPool() {
              <span class="bm-hint dim">${plural3(found.length, "движение", "движения", "движений")} ниже</span>`
           : `<span class="dim small">${coverSummary(cov)}</span>`}
       </div>
+      ${bodyPick ? `
+      <div class="trend" role="group" aria-label="Объём по неделям">
+        ${trend.map((t) => `
+          <button class="tr ${t.n === bodyWeek ? "on" : ""}" data-wk="${t.n}"
+                  title="Неделя ${t.n}: ${coverLabel(t)}">
+            <b>${t.sets ? Math.round(t.sets) : "—"}</b>
+            <span class="tr-track"><i class="lvl-${coverLevel(t, bodyPick)} vol-${coverVolume(t)}"
+               style="height:${Math.max(7, Math.round((t.sets / trendTop) * 100))}%"></i></span>
+            <span class="tr-n">Н${t.n}</span>
+          </button>`).join("")}
+      </div>` : ""}
       <div class="cov-scale">
         <div class="cs-row">
           <span class="cs-t">частота</span>
@@ -1329,7 +1344,7 @@ function renderPool() {
   setBack(leavePool);
   document.getElementById("back").onclick = leavePool;
 
-  app.querySelectorAll(".wk").forEach((b) => b.onclick = () => {
+  app.querySelectorAll(".wk, .tr").forEach((b) => b.onclick = () => {
     bodyWeek = Number(b.dataset.wk); fxTap();
     const y = window.scrollY; renderPool(); window.scrollTo(0, y);
   });
