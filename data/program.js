@@ -326,3 +326,22 @@ export const ARCHIVED_WORKOUTS = [
   { id: "w4t2", boss: "Второе Пламя", icon: "flame", exercises: [ax("incline-db", "Жим гантелей в наклоне", { main: true }), ax("cross-mid", "Кроссовер на грудь"), ax("lat-raise", "Махи стоя"), ax("db-ohp", "Жим гантели сидя"), ax("lat", "Верхняя тяга"), ax("cable-row", "Тяга к поясу"), ax("rear-delt", "Задняя дельта"), ax("french-bb", "Французский жим лёжа"), ax("pushdown", "Разгибания рук"), ax("abs", "Пресс в тренажёре")] },
   { id: "w4t3", boss: "Вершина Цикла", icon: "peak", exercises: [ax("squat-vol", "Присед многоповторный", { main: true, lift: "squat" }), ax("hack", "Присед в гак-машине"), ax("legext", "Разгибания ног сидя"), ax("legcurl-s", "Сгибания ног сидя"), ax("hyper", "Гиперэкстензия"), ax("calves", "Икры"), ax("abs", "Пресс в тренажёре")] },
 ];
+
+/**
+ * Сколько квестов недели уже пройдено. Считаются разные квесты, а не заходы:
+ * дважды закрытый квест — это один пройденный, а не два.
+ */
+export function weekProgress(week, sessions = []) {
+  const ids = new Set(((week && week.workouts) || []).map((w) => w.id));
+  const done = new Set();
+  for (const s of Array.isArray(sessions) ? sessions : []) {
+    if (s && ids.has(s.workoutId)) done.add(s.workoutId);
+  }
+  return { done: done.size, total: ids.size, complete: ids.size > 0 && done.size === ids.size };
+}
+
+/** Неделя, в которой лежит квест. Нужна, чтобы раскрыть на экране именно её. */
+export function weekOfId(wid, weeks = PROGRAM.weeks) {
+  const wk = (weeks || []).find((w) => (w.workouts || []).some((x) => x.id === wid));
+  return wk ? wk.n : null;
+}

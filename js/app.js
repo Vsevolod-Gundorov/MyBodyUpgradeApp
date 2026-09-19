@@ -1,4 +1,4 @@
-import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
@@ -1036,6 +1036,9 @@ const plural3 = (n, one, few, many) => {
   return `${n} ${d > 10 && d < 20 ? many : u === 1 ? one : u >= 2 && u <= 4 ? few : many}`;
 };
 let pickStart = false; // режим выбора стартового квеста цикла
+// какие недели развёрнуты. По умолчанию — только текущая: остальные 9 квестов
+// на экране не нужны, а листать из-за них весь цикл приходилось каждый раз
+let weekOpen = null;
 // метка тяжёлого дня в списке квестов
 function loadTag(wid) {
   const w = workoutOf(wid);
@@ -1056,6 +1059,8 @@ function weightLabel(ex) {
 }
 function renderCycle() {
   const nextId = nextWorkoutId();
+  // первый заход: раскрыта неделя со следующим квестом
+  if (!weekOpen) weekOpen = new Set([weekOfId(nextId) || PROGRAM.weeks[0].n]);
   const startId = ORDER[(((S.cycleStart || 0) % ORDER.length) + ORDER.length) % ORDER.length];
   const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
   app.innerHTML = `
@@ -1069,17 +1074,23 @@ function renderCycle() {
     ${PROGRAM.weeks.map((wk) => {
       const st = wk.workouts.filter((w) => w.type === "strength").length;
       const vol = wk.workouts.length - st;
+      const pr = weekProgress(wk, S.sessions);
+      const open = pickStart || weekOpen.has(wk.n);   // при выборе старта видны все квесты
       return `
-      <div class="week-block">
-        <div class="week-head">
+      <div class="week-block ${open ? "open" : ""}">
+        <button class="week-head" data-week="${wk.n}" aria-expanded="${open}">
           <span class="week-title">
             <span class="week-n">Неделя ${wk.n}</span>${wk.saga ? `<span class="saga display">${wk.saga}</span>` : ""}
           </span>
           <span class="week-badges">
-            ${st ? `<span class="badge b-str">${plural(st, "силовая", "силовых")}</span>` : ""}
-            ${vol ? `<span class="badge b-vol">${plural(vol, "объёмная", "объёмных")}</span>` : ""}
+            ${open
+              ? `${st ? `<span class="badge b-str">${plural(st, "силовая", "силовых")}</span>` : ""}
+                 ${vol ? `<span class="badge b-vol">${plural(vol, "объёмная", "объёмных")}</span>` : ""}`
+              : `<span class="badge ${pr.complete ? "b-vol" : pr.done ? "b-plan" : "b-dim"}">${pr.done} из ${pr.total}</span>`}
+            <span class="week-chev">${open ? "▾" : "▸"}</span>
           </span>
-        </div>
+        </button>
+        ${!open ? "" : `
         ${wk.workouts.map((w) => {
           const idx = ORDER.indexOf(w.id);
           const done = S.sessions.filter((s) => s.workoutId === w.id);
@@ -1108,10 +1119,15 @@ function renderCycle() {
             ${pickStart || isStart ? `<button class="wflag ${isStart ? "on" : ""}" data-i="${idx}" aria-label="Отметить стартом цикла"
               title="${isStart ? "Старт цикла" : "Сделать стартом цикла"}">${icon("flag")}</button>` : ""}
           </div>`;
-        }).join("")}
+        }).join("")}`}
       </div>`; }).join("")}`;
 
   document.getElementById("pick-start").onclick = () => { pickStart = !pickStart; fxTap(); renderCycle(); };
+  app.querySelectorAll(".week-head").forEach((h) => h.onclick = () => {
+    const n = Number(h.dataset.week);
+    if (weekOpen.has(n)) weekOpen.delete(n); else weekOpen.add(n);
+    fxTap(); renderCycle();
+  });
 
   // следующий квест — то, зачем сюда зашли: если он не виден, подводим его к глазам
   const nextCard = app.querySelector(".wcard.next");

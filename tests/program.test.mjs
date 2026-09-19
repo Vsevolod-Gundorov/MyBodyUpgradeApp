@@ -1,7 +1,7 @@
 // Тесты бизнес-логики программы и пула движений: node --test tests/program.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
+import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, pctOf1RM, similarTo } from "../data/exercises.js";
 
 // группы, которые обязаны прорабатываться не реже 2 раз в неделю
@@ -457,4 +457,32 @@ test("синхронизация: устойчива к пустым и биты
   assert.equal(decideSync({}, { rev: 3 }), "pull");
   // ревизия из облака меньше, чем уже синхронизированная — облако отстало, льём своё
   assert.equal(decideSync({ rev: 10, syncedRev: 10 }, { rev: 4 }), "push");
+});
+
+/* ---------- свёрнутые недели: что показывает полоска-итог ---------- */
+
+test("итог недели считает пройденные квесты, а не заходы", () => {
+  const wk = PROGRAM.weeks[0];
+  const ids = wk.workouts.map((w) => w.id);
+  const s = (id) => ({ id: id + Math.random(), workoutId: id });
+  assert.deepEqual(weekProgress(wk, []), { done: 0, total: 3, complete: false });
+  assert.deepEqual(weekProgress(wk, [s(ids[0]), s(ids[0]), s(ids[0])]),
+    { done: 1, total: 3, complete: false }, "три захода в один квест — это один пройденный");
+  assert.deepEqual(weekProgress(wk, ids.map(s)), { done: 3, total: 3, complete: true });
+});
+
+test("квесты чужих недель и мусор в журнале не попадают в итог", () => {
+  const wk = PROGRAM.weeks[0];
+  const other = PROGRAM.weeks[2].workouts[0].id;
+  const rows = [{ workoutId: other }, { workoutId: "t7" }, null, {}, { workoutId: wk.workouts[1].id }];
+  assert.deepEqual(weekProgress(wk, rows), { done: 1, total: 3, complete: false });
+  assert.deepEqual(weekProgress(null, [{ workoutId: "w1u" }]), { done: 0, total: 0, complete: false });
+  assert.deepEqual(weekProgress(wk, "не массив"), { done: 0, total: 3, complete: false });
+});
+
+test("неделя квеста находится — по ней раскрывается нужный блок", () => {
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) assert.equal(weekOfId(w.id), wk.n, `${w.id} должен лежать в неделе ${wk.n}`);
+  }
+  assert.equal(weekOfId("t7"), null, "архивный квест ни в одной неделе текущего цикла не лежит");
 });
