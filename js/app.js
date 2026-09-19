@@ -1,6 +1,7 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
+import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
@@ -267,6 +268,22 @@ function applyCloudJson(json) {
   localStorage.setItem(DB_KEY, JSON.stringify(S));
   invalidateE1RM();
 }
+/** Принять журнал с другого устройства: слить с текущим, ничего не потеряв. */
+async function applyTransfer(json) {
+  const incoming = JSON.parse(json);
+  if (!incoming || typeof incoming !== "object" || !Array.isArray(incoming.sessions)) {
+    throw new Error("это не журнал приложения");
+  }
+  const { state, stats } = mergeState(S, incoming);
+  localStorage.setItem(DB_KEY, JSON.stringify(state));
+  S = load();
+  invalidateE1RM();
+  checkAchievements({ type: "silent" }, { silent: true });
+  save();                      // save() поднимет ревизию и отправит слитый журнал в облако
+  render();
+  return stats;
+}
+
 /** Старт внутри Телеграма: решаем, чья копия свежее, и подтягиваем облако. */
 async function initCloudSync() {
   if (!cloudAvailable()) { setCloudState("off"); return; }
@@ -816,6 +833,14 @@ function renderProfile() {
         <button class="btn-ghost" id="btn-import">Импорт JSON</button>
       </div>
       <input type="file" id="file-import" accept="application/json" hidden />
+      <div class="bar" style="margin-top:16px">
+        <span class="eyebrow">Перенос между устройствами</span>
+        <button class="icon-btn" id="transfer-help" aria-label="Как переносить">?</button>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn-ghost" id="btn-code-out">Создать код</button>
+        <button class="btn-ghost" id="btn-code-in">Вставить код</button>
+      </div>
     </div>`;
 
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
@@ -899,6 +924,79 @@ function renderProfile() {
     };
   }
 
+  document.getElementById("transfer-help").onclick = () => showInfo({
+    title: "Перенос журнала", eyebrow: "между устройствами",
+    body: `<div class="info-legend">
+        <div><span class="badge b-main">1</span> открой приложение там, где журнал уже есть (браузер), профиль → <b>Создать код</b> → скопировать</div>
+        <div><span class="badge b-main">2</span> отправь код себе в «Избранное» в Telegram — он переживает любой мессенджер</div>
+        <div><span class="badge b-main">3</span> открой приложение в Telegram, профиль → <b>Вставить код</b> → журнал сольётся</div>
+      </div>
+      <p class="dim small">Память браузера привязана к конкретному браузеру, а мини-приложение Telegram открывается в своём — само ничего не увидит. Слияние не затирает: квесты опознаются по номеру, повторный перенос того же кода ничего не задвоит.</p>`,
+  });
+
+  document.getElementById("btn-code-out").onclick = async () => {
+    fxTap();
+    try {
+      const code = await encodeTransfer(JSON.stringify(S));
+      const o = showInfo({
+        title: "Код переноса", eyebrow: `${plural3(S.sessions.length, "квест", "квеста", "квестов")} · ${Math.round(code.length / 1024)} КБ`,
+        body: `<textarea class="code-box" id="code-out" readonly rows="5">${code}</textarea>
+          <div class="grid2" style="margin-top:10px">
+            <button class="btn-ghost" id="code-copy">Скопировать</button>
+            <button class="btn-ghost" id="code-file">Файлом</button>
+          </div>
+          <p class="dim small">Отправь код себе в «Избранное», открой приложение в Telegram и вставь его там.</p>`,
+      });
+      const box = o.querySelector("#code-out");
+      o.querySelector("#code-copy").onclick = async () => {
+        box.select(); box.setSelectionRange(0, code.length);
+        try { await navigator.clipboard.writeText(code); } catch (e) { document.execCommand("copy"); }
+        o.querySelector("#code-copy").textContent = "Скопировано";
+        fxChime();
+      };
+      o.querySelector("#code-file").onclick = () => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
+        a.download = `bodyupgrade-code-${today()}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      };
+      S.meta = S.meta || { exports: 0, imports: 0 };
+      S.meta.exports = (S.meta.exports || 0) + 1;
+      save();
+      checkAchievements({ type: "chronicle" });
+    } catch (e) { alert("Не вышло собрать код: " + e.message); }
+  };
+
+  document.getElementById("btn-code-in").onclick = () => {
+    fxTap();
+    const o = showInfo({
+      title: "Вставить код", eyebrow: "перенос",
+      body: `<textarea class="code-box" id="code-in" rows="5" placeholder="BU1..." spellcheck="false"></textarea>
+        <button class="btn-ghost" id="code-apply" style="margin-top:10px">Перенести</button>
+        <p class="dim small" id="code-msg">Журналы сольются: свои квесты останутся, чужие добавятся по датам.</p>`,
+    });
+    const box = o.querySelector("#code-in");
+    const msg = o.querySelector("#code-msg");
+    box.focus();
+    o.querySelector("#code-apply").onclick = async () => {
+      const code = box.value.trim();
+      if (!code) { msg.textContent = "Вставь код — он начинается с BU1."; return; }
+      msg.textContent = "разбираю…";
+      try {
+        const stats = await applyTransfer(await decodeTransfer(code));
+        o.remove();
+        fxChime();
+        const parts = [
+          stats.sessions ? plural3(stats.sessions, "квест", "квеста", "квестов") : "",
+          stats.achievements ? plural3(stats.achievements, "знак", "знака", "знаков") : "",
+          stats.nutritionDays ? `${plural3(stats.nutritionDays, "день", "дня", "дней")} питания` : "",
+        ].filter(Boolean);
+        alert(parts.length ? `Перенесено: ${parts.join(", ")}.` : "Всё это уже было в журнале — ничего не задвоилось.");
+      } catch (e) { msg.textContent = "Не вышло: " + e.message; }
+    };
+  };
+
   const fileInput = document.getElementById("file-import");
   document.getElementById("btn-import").onclick = () => fileInput.click();
   fileInput.onchange = (e) => {
@@ -925,6 +1023,11 @@ function renderProfile() {
 /* ================= КВЕСТЫ (цикл) ================= */
 const exCount = (wid) => { const w = workoutOf(wid); return w ? w.exercises.length : 0; };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// русский счёт: 1 квест, 2 квеста, 5 квестов
+const plural3 = (n, one, few, many) => {
+  const d = Math.abs(n) % 100, u = d % 10;
+  return `${n} ${d > 10 && d < 20 ? many : u === 1 ? one : u >= 2 && u <= 4 ? few : many}`;
+};
 let pickStart = false; // режим выбора стартового квеста цикла
 // метка тяжёлого дня в списке квестов
 function loadTag(wid) {
@@ -1202,6 +1305,7 @@ function showInfo({ title, eyebrow = "", body }) {
   o.querySelector("#info-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
   o.querySelectorAll("[data-method]").forEach((b) => b.onclick = () => showMethod(b.dataset.method));
+  return o;
 }
 
 /* разбор приёма интенсивности (как у про, но в дозировке натурала) */
