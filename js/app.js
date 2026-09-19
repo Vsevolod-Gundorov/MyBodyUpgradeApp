@@ -2,6 +2,7 @@ import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, M
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
+import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
@@ -164,7 +165,8 @@ const defaultState = () => ({
   sessions: [], // { id, workoutId, date, verdict, score, xp, entries: { exId: [{w, r}] } }
   drafts: {},   // workoutId -> entries (незавершённые)
   cycleStart: 0, // с какого квеста (индекс в ORDER) начинается цикл
-  questStart: {}, // wid -> ts начала квеста (для таймера квеста)
+  questStart: {}, // wid -> ts открытия квеста (справочно; длительность считается не по нему)
+  questTicks: {}, // wid -> [ts] отметки активности: по ним и меряется длительность тренировки
   settings: { sound: true, haptics: true, offSearch: true }, // offSearch — искать ли продукты во внешней базе
   buffs: {
     active: { creatine: 10, arginine: 7 }, // id -> доза (число; единица берётся из баффа)
@@ -223,6 +225,7 @@ function load() {
       S2.settings = Object.assign({}, base.settings, parsed.settings);
       S2.cycleStart = Number.isInteger(parsed.cycleStart) ? parsed.cycleStart : 0;
       S2.questStart = (parsed.questStart && typeof parsed.questStart === "object") ? parsed.questStart : {};
+      S2.questTicks = (parsed.questTicks && typeof parsed.questTicks === "object") ? parsed.questTicks : {};
       return S2;
     }
   } catch (e) { /* повреждённые данные — начинаем заново */ }
@@ -1369,10 +1372,11 @@ function renderWorkout(wid) {
   // предзаполнение из последней сессии этого workout
   const lastSession = [...S.sessions].reverse().find((s) => s.workoutId === wid);
 
-  // таймер квеста: старт при открытии; сброс, если запись «протухла» (>6 ч)
+  // таймер квеста идёт по отметкам активности, а не с момента открытия экрана:
+  // заглянуть в состав днём и потренироваться вечером — это не шестичасовая тренировка
+  if (!S.questTicks) S.questTicks = {};
   if (!S.questStart) S.questStart = {};
-  const nowTs = Date.now();
-  if (!S.questStart[wid] || nowTs - S.questStart[wid] > 6 * 3600e3) { S.questStart[wid] = nowTs; save(); }
+  S.questStart[wid] = S.questStart[wid] || Date.now();   // справочно: когда квест открыли впервые
 
   const sl = sessionLoad(w.exercises);
   const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
@@ -1436,10 +1440,19 @@ function renderWorkout(wid) {
     const el = document.getElementById("quest-timer");
     if (!el) { clearInterval(questTimerId); return; }
     const b = el.querySelector("b");
-    if (b) b.textContent = fmtClock((Date.now() - S.questStart[wid]) / 1000);
+    const ticks = (S.questTicks && S.questTicks[wid]) || [];
+    // до первого подхода показываем прочерк: тренировка ещё не началась
+    if (b) b.textContent = ticks.length ? fmtDuration(activeSeconds(ticks, { now: Date.now() })) : "—";
   };
   upQt();
   questTimerId = setInterval(upQt, 1000);
+
+  // отметка работы: ставится при заполнении подходов, из них и складывается длительность
+  const markActivity = () => {
+    const prev = (S.questTicks && S.questTicks[wid]) || [];
+    const next = pushTick(prev);
+    if (next.length !== prev.length) { S.questTicks[wid] = next; save(); }
+  };
 
   const movSeries = buildMovementSeries(); // история по каждому движению для целей потолка/пола
   const list = document.getElementById("ex-list");
@@ -1502,12 +1515,13 @@ function renderWorkout(wid) {
           <input inputmode="numeric" placeholder="${ex.reps[0]}–${ex.reps[1]}" value="${s.r || ""}" aria-label="повторы" />
           <button class="del" aria-label="удалить">✕</button>`;
         const [wi, ri] = row.querySelectorAll("input");
-        wi.oninput = () => { s.w = parseFloat(wi.value.replace(",", ".")) || 0; save(); upd(); };
-        ri.oninput = () => { s.r = parseInt(ri.value) || 0; save(); upd(); };
+        wi.oninput = () => { s.w = parseFloat(wi.value.replace(",", ".")) || 0; markActivity(); save(); upd(); };
+        ri.oninput = () => { s.r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
         // умный отдых: запись подхода завершена (ушёл фокус с повторов, вес и повторы заданы)
         const maybeRest = () => {
           if (s.w > 0 && s.r > 0 && !timedSets.has(s)) {
             timedSets.add(s);
+            markActivity();
             const a = analyzeLift(movSeries[movementKey(ex)]);
             startRest(smartRest(ex, s, a), `${ex.name} · ${repZone(s.r)}`);
           }
@@ -1532,7 +1546,7 @@ function renderWorkout(wid) {
       const arr = ensure(ex.id);
       const prevSet = arr[arr.length - 1];
       arr.push({ w: prevSet ? prevSet.w : 0, r: 0 });
-      save(); drawSets(); upd(); syncLabels();
+      markActivity(); save(); drawSets(); upd(); syncLabels();
       const inputs = setsBox.querySelectorAll(".set-row:last-child input");
       if (inputs[1]) inputs[1].focus();
     };
@@ -1588,18 +1602,19 @@ function renderWorkout(wid) {
     w.exercises.forEach((ex) => { if (ex.lift) prBefore[ex.lift] = Math.max(prBefore[ex.lift] || 0, bestE1RM(ex.lift)); });
     const firstClear = S.sessions.filter((s) => s.workoutId === wid).length === 0;
     let tonn = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => (tonn += (wt || 0) * (r || 0))));
-    const durationSec = S.questStart && S.questStart[wid] ? Math.round((Date.now() - S.questStart[wid]) / 1000) : 0;
+    const durationSec = activeSeconds((S.questTicks && S.questTicks[wid]) || [], { now: Date.now() });
     // пауза перед этим квестом (для «Возвращения») — по дате последней сессии
     const lastDate = S.sessions.length ? [...S.sessions].sort((a, b) => a.date.localeCompare(b.date)).slice(-1)[0].date : null;
     const gapDays = lastDate ? Math.round((new Date(today() + "T00:00:00Z") - new Date(lastDate + "T00:00:00Z")) / 864e5) : 0;
     const now = new Date();
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
     const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role }));
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, exercises: snapshot, entries: e });
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
     S.xp += res.xp;
     invalidateE1RM();
     delete S.drafts[wid];
     if (S.questStart) delete S.questStart[wid];
+    if (S.questTicks) delete S.questTicks[wid];
     clearInterval(questTimerId); stopRestSilent();
     const prAfter = {}; Object.keys(prBefore).forEach((l) => (prAfter[l] = bestE1RM(l)));
     const prLifts = Object.keys(prAfter).filter((l) => prAfter[l] > (prBefore[l] || 0) + 0.4);
@@ -1612,7 +1627,7 @@ function renderWorkout(wid) {
         prLifts, prDetails, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
         hour: now.getHours(), feel: restFeel, totalReps, gapDays, workoutId: wid,
         quest: w.boss, timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-        durationStr: durationSec ? fmtClock(durationSec) : "" },
+        durationStr: durationSec ? fmtDuration(durationSec) : "" },
     }, { silent: true });
     save();
     showVerdict(res, awarded, durationSec);
@@ -1741,7 +1756,7 @@ function showVerdict(res, awarded, durationSec) {
       </svg></div>
       <div class="v-title ${res.cls}">${res.verdict}</div>
       <div class="v-sub">${res.flavor}</div>
-      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP${durationSec ? ` · ⏱ ${fmtClock(durationSec)}` : ""}</div>
+      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP${durationSec ? ` · ⏱ ${fmtDuration(durationSec)}` : ""}</div>
       ${badges}
       <button class="v-close">Вернуться к квестам</button>
     </div>`;
@@ -1772,7 +1787,7 @@ function showSessionDetail(sessionId) {
     <div class="portion-card sd-card">
       <div class="eyebrow">Прошлый квест · ${fmtDate(s.date)}</div>
       <div class="portion-name display">${w ? w.boss : s.workoutId}</div>
-      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtClock(s.durationSec)}` : ""}${w && w.title ? ` · ${w.title}` : ""}</div>
+      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>
     </div>`;
