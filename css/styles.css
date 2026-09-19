@@ -721,14 +721,15 @@ h2.display { font-size: 1.4rem; }
 .limit-card { background: #0b1417; border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; }
 .lc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .lc-head b { font-family: var(--font-display); font-size: 1.12rem; }
-.lc-status { font-size: .72rem; text-align: right; max-width: 62%; }
+.lc-status { font-size: .68rem; text-align: right; max-width: 60%; line-height: 1.3; }
 .lc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.lc-cell { background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
-.lc-l { display: block; font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.lc-cell { background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; min-width: 0; }
+.lc-l { display: block; font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .lc-l b { text-transform: none; letter-spacing: 0; font-weight: 400; }
-.lc-v { display: block; font-size: 1.35rem; font-weight: 600; color: var(--gold-bright); margin: 2px 0; }
-.lc-v i { font-size: .8rem; font-style: normal; color: var(--dim); }
-.lc-t { font-size: .76rem; }
+/* вилка — это два числа и единица: строка не должна переноситься по частям */
+.lc-v { display: block; font-size: 1.08rem; font-weight: 600; color: var(--gold-bright); margin: 3px 0 1px; white-space: nowrap; }
+.lc-v i { font-size: .72rem; font-style: normal; color: var(--dim); }
+.lc-t { display: block; font-size: .72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lc-t.up { color: var(--moss); }
 .lc-t.down { color: var(--ember); }
 .lc-t.flat { color: var(--dim); }
@@ -1222,6 +1223,25 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .ex-tool span { font-size: .72rem; }
 .add-ex-btn { margin-top: 12px; max-width: 200px; margin-left: auto; margin-right: auto; }
 .reset-plan { max-width: 260px; margin-left: auto; margin-right: auto; font-size: .78rem; }
+
+/* откуда взялся вес: одна строка под бейджами движения */
+.ex-prog { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px;
+  font-size: .72rem; color: var(--dim); letter-spacing: .01em; }
+.ex-prog i { font-style: normal; font-size: .78rem; }
+.ex-prog.up { color: var(--moss, #8fb15e); }
+.ex-prog.up i { color: var(--moss, #8fb15e); }
+.ex-prog.down { color: #c76a5a; }
+.ex-prog.down i { color: #c76a5a; }
+
+/* личный максимум в карточке движения: отдельный счётчик, вес в подходах он не задаёт */
+.ex-1rm { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px;
+  margin-top: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(0,0,0,.2); text-align: left; }
+.ex-1rm-l { font-size: .78rem; color: var(--bone); }
+.ex-1rm-l i { font-style: normal; font-size: .68rem; }
+.ex-1rm-v { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; font-size: 1.25rem; color: var(--gold-bright); }
+.ex-1rm-v i { font-size: .7rem; color: var(--dim); }
+.ex-1rm .small { font-size: .7rem; }
 
 /* чем заменить: родственные движения прямо в карточке — скамья занята, а квест идёт */
 .ex-alts { display: flex; flex-direction: column; gap: 6px; text-align: left; }
