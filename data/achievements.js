@@ -84,8 +84,8 @@ export const ACHIEVEMENTS = [
   A("cycle1",    "Круг Замкнут",      "gold",     "path", "cycle",          "Пройти все квесты цикла хотя бы по разу",    (c) => totals(c).cycles >= 1, cyclesNote),
   A("cycle3",    "Три Круга",         "diamond",  "path", "trophy-cup",     "Пройти полный цикл трижды",                  (c) => totals(c).cycles >= 3, cyclesNote),
   A("cycle6",    "Вечное Колесо",     "emerald",  "path", "star-cycle",     "Пройти полный цикл шесть раз",               (c) => totals(c).cycles >= 6, cyclesNote),
-  A("saga_str",  "Сага Стали",        "silver",   "path", "anvil",          "Закрыть все квесты силовых недель",          (c) => totals(c).sagaStrength, sessionsNote),
-  A("saga_vol",  "Сага Полноты",      "silver",   "path", "hourglass",      "Закрыть все квесты объёмных недель",         (c) => totals(c).sagaVolume, sessionsNote),
+  A("saga_str",  "Сага Стали",        "silver",   "path", "anvil",          "Пройти все силовые квесты цикла",          (c) => totals(c).sagaStrength, sessionsNote),
+  A("saga_vol",  "Сага Полноты",      "silver",   "path", "hourglass",      "Пройти все объёмные квесты цикла",         (c) => totals(c).sagaVolume, sessionsNote),
 
   /* ---------- Квесты: повторяемые, за конкретную тренировку ---------- */
   R("firstblood","Первопроходец",     "bronze",   "quest", "sword",         "Пройти квест впервые",                       (c) => s(c).firstClear, (c) => `первое прохождение${quest(c)}`),

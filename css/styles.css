@@ -913,3 +913,75 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .ach-log-n { color: var(--dim); font-size: .72rem; }
 .ach-log-date { color: var(--gold); font-size: .8rem; }
 .ach-log-note { color: var(--bone); line-height: 1.3; overflow-wrap: anywhere; }
+
+/* ---------- цикл IV: тип сессии, арсенал движений ---------- */
+.cycle-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0 8px; }
+.cycle-note { margin-bottom: 16px; line-height: 1.45; }
+.cycle-head .ach-all-btn { flex: 0 0 auto; }
+.wtype { font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold);
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.wtype.volume { color: var(--moss); border-color: rgba(143,174,111,.4); }
+.main-badge.alt { color: var(--teal); border-color: rgba(79,154,168,.45); }
+
+/* инструменты упражнения в квесте */
+.ex-tools { display: none; gap: 6px; padding: 2px 14px 12px; flex-wrap: wrap; }
+.ex.open .ex-tools { display: flex; }
+.ex-tool { flex: 1 1 auto; background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--dim);
+  font: inherit; font-size: .74rem; padding: 6px 8px; cursor: pointer; white-space: nowrap; }
+.ex-tool:active { transform: scale(.97); }
+.ex-tool.danger { color: var(--ember); border-color: rgba(198,91,60,.35); }
+.add-ex-btn { margin-top: 14px; }
+.reset-plan { margin-top: 10px; }
+.w-src { color: var(--gold); font-size: .85em; }
+.w-src.own { color: var(--moss); }
+
+/* покрытие мышц за неделю */
+.cov-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.cov-chip { display: inline-flex; flex-direction: column; gap: 1px; border: 1px solid var(--line); border-radius: 8px;
+  padding: 5px 9px; background: rgba(0,0,0,.2); font-size: .72rem; }
+.cov-chip b { font-weight: 600; color: var(--bone); }
+.cov-chip span { font-size: .66rem; color: var(--dim); }
+.cov-chip.ok { border-color: rgba(143,174,111,.4); }
+.cov-chip.ok b { color: var(--moss); }
+.cov-chip.low { border-color: rgba(198,91,60,.4); }
+.cov-chip.low b { color: var(--ember); }
+
+/* список пула */
+.pool-search { width: 100%; background: #0c0b09; border: 1px solid var(--line); border-radius: 10px;
+  color: var(--bone); padding: 11px 13px; margin: 14px 0 4px; font-family: var(--font-body); }
+.pool-search::placeholder { color: var(--dim); }
+.pool-group { padding-bottom: 8px; }
+.pool-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: 0; border-top: 1px solid rgba(216,184,104,.12); padding: 9px 0; color: inherit; font: inherit; }
+.pool-row:first-of-type { border-top: 0; }
+.pool-row:active { background: rgba(255,255,255,.03); }
+.pool-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pool-name { font-size: .93rem; font-weight: 500; }
+.pool-flag { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--teal);
+  border: 1px solid rgba(79,154,168,.4); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+.pool-w { flex: 0 0 auto; color: var(--gold); font-size: .82rem; white-space: nowrap; }
+
+/* разбор движения */
+.ex-card { max-height: 88vh; overflow-y: auto; }
+.ex-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 10px; }
+.ex-tag { font-size: .66rem; letter-spacing: .06em; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+.ex-tag.main { color: var(--gold-bright); border-color: var(--line-strong); }
+.ex-tag.stretch { color: var(--teal); border-color: rgba(79,154,168,.4); }
+.ex-desc { color: var(--bone); font-size: .9rem; line-height: 1.45; }
+.ex-w-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.ex-w-cell { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; display: flex; flex-direction: column; gap: 2px;
+  background: rgba(0,0,0,.22); }
+.ex-w-l { font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.ex-w-v { font-size: 1.15rem; color: var(--gold-bright); }
+.ex-w-note { margin-top: 8px; line-height: 1.35; }
+.ex-cues { margin: 0; padding-left: 18px; color: var(--bone); font-size: .87rem; line-height: 1.45; }
+.ex-cues li { margin-top: 5px; }
+.ex-used { display: flex; flex-wrap: wrap; gap: 6px; }
+.ex-used-chip { font-size: .72rem; border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; color: var(--gold); }
+.ex-used-chip.volume { color: var(--moss); border-color: rgba(143,174,111,.35); }
+.ex-card { text-align: left; }
+.ex-card .eyebrow, .ex-card .portion-name { text-align: center; }
+.ex-card .ex-w-note { text-align: center; }
+.ex-card .ex-tags, .ex-card .ex-used { justify-content: center; }
+.ex-card .ex-desc { text-align: center; }
+.quest-why { margin: 0 2px 12px; line-height: 1.45; }

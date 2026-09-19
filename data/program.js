@@ -1,180 +1,203 @@
-// Цикл III — Сила/Объём (v3). 3 квеста/нед · Недели 1,3 силовые · 2,4 объёмные.
-// Чередование Верх/Низ без сбоев. Прогрессия: неделя 3 = прогрессия 1, неделя 4 = 2.
-// main: движение дня (единственное на пределе). lift: базовый лифт для аналитики.
+// Цикл IV — Волна (v4). 3 квеста/нед · 4 недели.
+//
+// Периодизация: дневная волна (DUP). Три фулбоди-шаблона A/B/C, каждый выходит раз в неделю,
+// но с разным акцентом. Внутри недели акценты всегда 2 + 1:
+//   нечётная неделя → 2 СИЛОВЫХ + 1 объёмная
+//   чётная неделя   → 2 ОБЪЁМНЫХ + 1 силовая
+// За две недели каждое движение получает и тяжёлую, и объёмную работу.
+//
+// Частота: каждая мышечная группа нагружается 2–3 раза в неделю (проверяется тестами) —
+// при равном недельном объёме это удобнее распределяет сеты и держит их качество.
+// Недели 3–4 повторяют волну с прогрессией по весу.
+//
+// Веса в квесте НЕ зашиты: считаются под атлета из его замеров 1ПМ и коэффициентов пула
+// (data/exercises.js → workingWeight). Пул также позволяет заменить или добавить упражнение.
+import { EX_BY_ID } from "./exercises.js";
+
+/* ---------- схемы подходов: роль упражнения × тип сессии ---------- */
+// rir — запас повторов (0 = до отказа). Для базы держим 1–2: близость к отказу
+// почти не добавляет гипертрофии, но сильно бьёт по восстановлению.
+export const SCHEME = {
+  strength: {
+    main:  { sets: 4, reps: [3, 5],   rir: 1, tag: "RPE 8–9" },
+    heavy: { sets: 4, reps: [5, 6],   rir: 2, tag: "RPE 8" },
+    acc:   { sets: 3, reps: [6, 8],   rir: 2, tag: "RIR 2" },
+    iso:   { sets: 3, reps: [10, 12], rir: 1, tag: "RIR 1" },
+  },
+  volume: {
+    main:  { sets: 4, reps: [8, 10],  rir: 2, tag: "RIR 1–2" },
+    heavy: { sets: 4, reps: [10, 12], rir: 2, tag: "RIR 1–2" },
+    acc:   { sets: 3, reps: [12, 15], rir: 1, tag: "RIR 1" },
+    iso:   { sets: 3, reps: [15, 20], rir: 1, tag: "RIR 0–1" },
+  },
+};
+export const ROLE_NAMES = { main: "движение дня", heavy: "вторая база", acc: "вспомогательное", iso: "изоляция" };
+export const TYPE_NAMES = { strength: "силовая", volume: "объёмная" };
+
+/* ---------- три фулбоди-шаблона ---------- */
+// Каждый закрывает: приседание, тазовое доминирование, жим, тягу, изоляцию и кор.
+export const TEMPLATES = {
+  A: {
+    key: "A", name: "Присед + горизонтальный жим",
+    why: "Тяжёлое приседание и жим лёжа в начале, дальше тяга и тазовое доминирование. Средняя дельта и икры — изоляцией, их жимы не закрывают.",
+    slots: [
+      { ex: "squat",         role: "main" },
+      { ex: "bench",         role: "heavy" },
+      { ex: "row",           role: "acc" },
+      { ex: "rdl",           role: "acc" },
+      { ex: "lat-raise",     role: "iso" },
+      { ex: "calf-standing", role: "iso" },
+      { ex: "abs",           role: "iso" },
+    ],
+  },
+  B: {
+    key: "B", name: "Становая + вертикальный жим",
+    why: "Становая как главный hinge, швунг как вертикальный жим. Подтягивания дают вторую линию тяги, наклонные сгибания грузят бицепс в растяжении.",
+    slots: [
+      { ex: "deadlift",   role: "main" },
+      { ex: "push-press", role: "heavy" },
+      { ex: "pullup",     role: "acc" },
+      { ex: "legpress",   role: "acc" },
+      { ex: "incline-db", role: "acc" },
+      { ex: "incline-curl", role: "iso" },
+      { ex: "calf-seated", role: "iso" },
+      { ex: "hanging-leg", role: "iso" },
+    ],
+  },
+  C: {
+    key: "C", name: "Наклонный жим + тяга",
+    why: "Верх груди (наклон 30–45°) и горизонтальная тяга. Разгибания сидя — под прямую мышцу бедра, из-за головы — под длинную головку трицепса (Maeo 2023).",
+    slots: [
+      { ex: "incline-bb", role: "main" },
+      { ex: "cable-row",  role: "heavy" },
+      { ex: "hack",       role: "acc" },
+      { ex: "legcurl-s",  role: "acc" },
+      { ex: "legext",     role: "iso" },
+      { ex: "face-pull",  role: "iso" },
+      { ex: "french-db",  role: "iso" },
+      { ex: "cable-crunch", role: "iso" },
+    ],
+  },
+};
+
+/* ---------- 4 недели волны ---------- */
+const W = (id, tpl, type, boss, icon, prog = 0) => ({ id, tpl, type, boss, icon, prog });
 export const PROGRAM = {
-  cycleName: "Цикл III — Сила/Объём",
+  cycleName: "Цикл IV — Волна",
+  note: "Недели 1 и 3 — две силовых и одна объёмная, недели 2 и 4 — наоборот. Каждая группа мышц работает 2–3 раза в неделю. Прогрессия двойная: сначала добираешь повторы в вилке, потом вес. Разгрузка не обязательна — делай её по состоянию раз в 6–10 недель, срезая объём на 40–50% при той же интенсивности.",
   weeks: [
     {
-      n: 1, type: "силовая", pattern: "Верх · Низ · Верх", saga: "Сага о Пробуждении",
+      n: 1, emphasis: "strength", saga: "Сага о Пробуждении",
       workouts: [
-        {
-          id: "t1", title: "Верх тяжёлый А", boss: "Пробуждение Стали", icon: "anvil",
-          exercises: [
-            { id: "bench", name: "Жим штанги лёжа", scheme: "Лесенка / 5×5 · RPE 8–9", sets: 5, reps: [5, 5], w: [100, 140], main: true, lift: "bench" },
-            { id: "row", name: "Тяга штанги в наклоне", scheme: "4 × 6–8 · RPE 7–8", sets: 4, reps: [6, 8], w: [100, 120] },
-            { id: "push-press", name: "Швунг / армейский жим стоя", scheme: "3 × 5–8 · 2-й жим дня", sets: 3, reps: [5, 8], w: [60, 90], lift: "ohp" },
-            { id: "pullup", name: "Подтягивания с весом", scheme: "3 × 6–8 · RIR 2–3", sets: 3, reps: [6, 8], w: [10, 20], wNote: "довесок к своему" },
-            { id: "dips", name: "Брусья с поясом / жим узким", scheme: "3 × 6–8 · 3-й жим дня", sets: 3, reps: [6, 8], w: [30, 50], wNote: "+30–50 к поясу · или жим узким 70–85" },
-            { id: "curl-ez", name: "Сгибания стоя EZ-гриф", scheme: "3 × 6–8 · RIR 2", sets: 3, reps: [6, 8], w: [50, 65] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t2", title: "Низ тяжёлый — присед", boss: "Столпы Земли", icon: "pillars",
-          exercises: [
-            { id: "squat", name: "Приседания свободный вес", scheme: "Лесенка / 5×5 · RPE 8–9", sets: 5, reps: [5, 5], w: [100, 150], main: true, lift: "squat" },
-            { id: "rdl", name: "Мёртвая тяга", scheme: "3 × 6–8 · RPE 7", sets: 3, reps: [6, 8], w: [90, 110] },
-            { id: "legpress", name: "Жим ногами", scheme: "3 × 8–10 · RIR 2–3", sets: 3, reps: [8, 10], w: [150, 200] },
-            { id: "legcurl-s", name: "Сгибания ног сидя", scheme: "3 × 10–12 · RIR 2", sets: 3, reps: [10, 12], w: [60, 70] },
-            { id: "calves", name: "Икры (любое)", scheme: "4 × 10–15 · RIR 1–2", sets: 4, reps: [10, 15], w: [120, 160] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t3", title: "Верх тяжёлый Б", boss: "Восхождение по Склону", icon: "mountain",
-          exercises: [
-            { id: "incline-bb", name: "Жим штанги в наклоне", scheme: "5 × 5–8 · RPE 8", sets: 5, reps: [5, 8], w: [80, 100], main: true },
-            { id: "db-row", name: "Тяга гантели в наклоне", scheme: "4 × 6–8 · RPE 7–8", sets: 4, reps: [6, 8], w: [42, 42] },
-            { id: "lat", name: "Верхняя тяга в тренажёре", scheme: "3 × 8–10 · RIR 2–3", sets: 3, reps: [8, 10], w: [70, 100] },
-            { id: "db-ohp", name: "Армейский жим гантели сидя", scheme: "3 × 8–10 · 2-й жим дня −15%", sets: 3, reps: [8, 10], w: [30, 36] },
-            { id: "upright", name: "Тяга к подбородку", scheme: "3 × 8–10 · RIR 2–3", sets: 3, reps: [8, 10], w: [50, 70] },
-            { id: "french-bb", name: "Французский жим лёжа", scheme: "3 × 8–10 · RIR 2", sets: 3, reps: [8, 10], w: [40, 50] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
+        W("w1a", "A", "strength", "Столпы Земли", "pillars"),
+        W("w1b", "B", "volume",   "Песнь Выдержки", "hourglass"),
+        W("w1c", "C", "strength", "Восхождение по Склону", "mountain"),
       ],
     },
     {
-      n: 2, type: "объёмная", pattern: "Низ · Верх · Низ", saga: "Сага о Полноте",
+      n: 2, emphasis: "volume", saga: "Сага о Полноте",
       workouts: [
-        {
-          id: "t4", title: "Низ объёмный А — многоповторка", boss: "Песнь Выдержки", icon: "hourglass",
-          exercises: [
-            { id: "squat-vol", name: "Присед многоповторный", scheme: "3–4 × 12–15 · RIR 1–2 · кап 4", sets: 4, reps: [12, 15], w: [90, 100], main: true, lift: "squat" },
-            { id: "legext", name: "Разгибания ног сидя", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [90, 120] },
-            { id: "legcurl-s", name: "Сгибания ног сидя", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [60, 70] },
-            { id: "hyper", name: "Гиперэкстензия", scheme: "3 × 10–12 · RIR 2", sets: 3, reps: [10, 12], w: [40, 40] },
-            { id: "calves", name: "Икры (любое)", scheme: "4 × 12–20 · RIR 1", sets: 4, reps: [12, 20], w: [120, 160] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t5", title: "Верх объёмный А — грудь + плечи", boss: "Пламя Полноты", icon: "sun",
-          exercises: [
-            { id: "incline-db", name: "Жим гантелей в наклоне", scheme: "4 × 8–12 · RIR 1–2 · тяжёлый жим дня", sets: 4, reps: [8, 12], w: [34, 42], main: true },
-            { id: "cross-mid", name: "Кроссовер сведение на грудь", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [15, 20] },
-            { id: "lat-raise", name: "Махи стоя", scheme: "4 × 10–15 · RIR 1", sets: 4, reps: [10, 15], w: [20, 24] },
-            { id: "cross-delt", name: "Разводка плечи в кроссовере / махи сидя", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [5, 7.5], wNote: "5–7,5 кроссовер · или махи сидя 16–20" },
-            { id: "lat", name: "Верхняя тяга в тренажёре", scheme: "4 × 10–12 · RIR 1–2", sets: 4, reps: [10, 12], w: [70, 100] },
-            { id: "cable-row", name: "Тяга к поясу в тренажёре", scheme: "3 × 10–12 · RIR 1–2", sets: 3, reps: [10, 12], w: [80, 115] },
-            { id: "rear-delt", name: "Задняя дельта сидя", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [16, 22] },
-            { id: "french-db", name: "Французский жим стоя / разгибания в кроссовере", scheme: "3 × 10–15 · RIR 1", sets: 3, reps: [10, 15], w: [38, 42], wNote: "гантель 38–42 · или кроссовер 35–45" },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t6", title: "Низ объёмный Б — мёртвая + гак", boss: "Корни Титана", icon: "tree",
-          exercises: [
-            { id: "rdl", name: "Мёртвая тяга", scheme: "3–4 × 8–10 · RIR 1–2", sets: 4, reps: [8, 10], w: [100, 120], main: true },
-            { id: "hack", name: "Присед в гак-машине", scheme: "3 × 10–12 · RIR 2 · после мёртвой", sets: 3, reps: [10, 12], w: [70, 80] },
-            { id: "legpress", name: "Жим ногами", scheme: "3 × 10–12 · RIR 1–2", sets: 3, reps: [10, 12], w: [150, 200] },
-            { id: "legcurl-l", name: "Сгибания ног лёжа", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [50, 65] },
-            { id: "calves", name: "Икры (любое)", scheme: "4 × 12–20 · RIR 1", sets: 4, reps: [12, 20], w: [120, 160] },
-            { id: "curl-ez", name: "Сгибания EZ-гриф / молотки", scheme: "3 × 8–12 · RIR 1–2 · прямой бицепс дня", sets: 3, reps: [8, 12], w: [50, 60], wNote: "EZ 50–60 · или молотки 18–22" },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
+        W("w2a", "A", "volume",   "Корни Титана", "tree"),
+        W("w2b", "B", "strength", "Гнев Хребта", "spine"),
+        W("w2c", "C", "volume",   "Пламя Полноты", "sun"),
       ],
     },
     {
-      n: 3, type: "силовая", pattern: "Верх · Низ · Верх", saga: "Сага о Закалке",
+      n: 3, emphasis: "strength", saga: "Сага о Закалке",
       workouts: [
-        {
-          id: "t7", title: "Верх тяжёлый А · прогрессия", boss: "Клинок Закалённый", icon: "dagger",
-          exercises: [
-            { id: "bench", name: "Жим штанги лёжа", scheme: "Лесенка / 5×5 · +2,5", sets: 5, reps: [5, 5], w: [100, 142.5], main: true, lift: "bench" },
-            { id: "row", name: "Тяга штанги в наклоне", scheme: "4 × 6–8 · +2,5", sets: 4, reps: [6, 8], w: [100, 122.5] },
-            { id: "push-press", name: "Швунг / армейский жим стоя", scheme: "3 × 5–8 · 2-й жим дня", sets: 3, reps: [5, 8], w: [60, 90], lift: "ohp" },
-            { id: "pullup", name: "Подтягивания с весом", scheme: "3 × 6–8 · RIR 2–3", sets: 3, reps: [6, 8], w: [10, 20], wNote: "довесок к своему" },
-            { id: "dips", name: "Брусья с поясом / жим узким", scheme: "3 × 6–8 · 3-й жим дня", sets: 3, reps: [6, 8], w: [30, 50], wNote: "+30–50 к поясу · или жим узким 70–85" },
-            { id: "curl-bb", name: "Сгибания стоя прямой гриф", scheme: "3 × 6–8 · RIR 2", sets: 3, reps: [6, 8], w: [50, 65] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t8", title: "Низ тяжёлый — становая", boss: "Гнев Хребта", icon: "spine",
-          exercises: [
-            { id: "deadlift", name: "Становая тяга", scheme: "Лесенка до топ-сета 3–5 · RPE 8–9", sets: 5, reps: [3, 5], w: [130, 180], main: true, lift: "deadlift" },
-            { id: "squat", name: "Приседания (вспомогат.)", scheme: "3 × 6–8 · RPE 7", sets: 3, reps: [6, 8], w: [100, 120], lift: "squat" },
-            { id: "legext", name: "Разгибания ног сидя", scheme: "3 × 10–12 · RIR 2", sets: 3, reps: [10, 12], w: [90, 120] },
-            { id: "legcurl-l", name: "Сгибания ног лёжа", scheme: "3 × 10–12 · RIR 2", sets: 3, reps: [10, 12], w: [50, 65] },
-            { id: "calves", name: "Икры (любое)", scheme: "4 × 10–15 · RIR 1–2", sets: 4, reps: [10, 15], w: [120, 160] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t9", title: "Верх тяжёлый Б · прогрессия", boss: "Стальные Крылья", icon: "peak",
-          exercises: [
-            { id: "incline-bb", name: "Жим штанги в наклоне", scheme: "5 × 5–8 · +2,5", sets: 5, reps: [5, 8], w: [80, 102.5], main: true },
-            { id: "db-row", name: "Тяга гантели в наклоне", scheme: "4 × 6–8 · RPE 7–8", sets: 4, reps: [6, 8], w: [42, 42] },
-            { id: "lat", name: "Верхняя тяга в тренажёре", scheme: "3 × 8–10 · RIR 2–3", sets: 3, reps: [8, 10], w: [70, 100] },
-            { id: "db-ohp", name: "Армейский жим гантели сидя", scheme: "3 × 8–10 · 2-й жим дня −15%", sets: 3, reps: [8, 10], w: [30, 36] },
-            { id: "upright", name: "Тяга к подбородку", scheme: "3 × 8–10 · RIR 2–3", sets: 3, reps: [8, 10], w: [50, 70] },
-            { id: "french-bb", name: "Французский жим лёжа", scheme: "3 × 8–10 · RIR 2", sets: 3, reps: [8, 10], w: [40, 50] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
+        W("w3a", "A", "strength", "Пробуждение Стали", "anvil", 0.025),
+        W("w3b", "B", "volume",   "Расправить Крылья", "wings", 0.025),
+        W("w3c", "C", "strength", "Клинок Закалённый", "dagger", 0.025),
       ],
     },
     {
-      n: 4, type: "объёмная", pattern: "Низ · Верх · Низ", saga: "Сага о Мощи",
+      n: 4, emphasis: "volume", saga: "Сага о Вершине",
       workouts: [
-        {
-          id: "t10", title: "Низ объёмный А · прогрессия", boss: "Второе Пламя", icon: "flame",
-          exercises: [
-            { id: "squat-vol", name: "Присед многоповторный", scheme: "3–4 × 12–15 · +2,5 · кап 4", sets: 4, reps: [12, 15], w: [90, 102.5], main: true, lift: "squat" },
-            { id: "legext", name: "Разгибания ног сидя", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [90, 120] },
-            { id: "legcurl-s", name: "Сгибания ног сидя", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [60, 70] },
-            { id: "hyper", name: "Гиперэкстензия", scheme: "3 × 10–12 · RIR 2", sets: 3, reps: [10, 12], w: [40, 40] },
-            { id: "calves", name: "Икры (любое)", scheme: "4 × 12–20 · RIR 1", sets: 4, reps: [12, 20], w: [120, 160] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t11", title: "Верх объёмный Б — спина + руки", boss: "Расправить Крылья", icon: "wings",
-          exercises: [
-            { id: "db-row", name: "Тяга гантели в наклоне", scheme: "4 × 8–12 · RIR 1–2 · тяжёлая тяга дня", sets: 4, reps: [8, 12], w: [42, 42], main: true },
-            { id: "lat", name: "Верхняя тяга в тренажёре", scheme: "4 × 10–12 · RIR 1–2", sets: 4, reps: [10, 12], w: [70, 100] },
-            { id: "bench-row", name: "Тяга штанги к поясу на лавке", scheme: "3 × 10–12 · RIR 1–2", sets: 3, reps: [10, 12], w: [40, 50] },
-            { id: "cross-low", name: "Кроссовер подъёмы снизу", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [15, 22.5] },
-            { id: "flat-db", name: "Жим гантелей прямая скамья", scheme: "3 × 10–12 · жим в конце дня −10%", sets: 3, reps: [10, 12], w: [30, 38] },
-            { id: "hammer", name: "Молотки с гантелями", scheme: "3 × 10–12 · RIR 1", sets: 3, reps: [10, 12], w: [18, 22] },
-            { id: "cable-curl", name: "Сгибания в кроссовере / обратным хватом", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [13, 20], wNote: "кроссовер 13–20 · или обратный хват 20–24" },
-            { id: "pushdown", name: "Кроссовер разгибания рук", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [35, 45] },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
-        {
-          id: "t12", title: "Низ объёмный Б · прогрессия", boss: "Вершина Цикла", icon: "tower",
-          exercises: [
-            { id: "rdl", name: "Мёртвая тяга", scheme: "3–4 × 8–10 · +2,5", sets: 4, reps: [8, 10], w: [100, 122.5], main: true },
-            { id: "hack", name: "Присед в гак-машине", scheme: "3 × 10–12 · RIR 2 · после мёртвой", sets: 3, reps: [10, 12], w: [70, 80] },
-            { id: "legpress", name: "Жим ногами", scheme: "3 × 10–12 · RIR 1–2", sets: 3, reps: [10, 12], w: [150, 200] },
-            { id: "legcurl-l", name: "Сгибания ног лёжа", scheme: "3 × 12–15 · RIR 1", sets: 3, reps: [12, 15], w: [50, 65] },
-            { id: "calves", name: "Икры (любое)", scheme: "4 × 12–20 · RIR 1", sets: 4, reps: [12, 20], w: [120, 160] },
-            { id: "hammer", name: "Молотки / EZ-гриф", scheme: "3 × 8–12 · RIR 1–2 · прямой бицепс дня", sets: 3, reps: [8, 12], w: [18, 22], wNote: "молотки 18–22 · или EZ 50–60" },
-            { id: "abs", name: "Пресс в тренажёре", scheme: "3 × 12–15 · RIR 1–2", sets: 3, reps: [12, 15], w: [50, 55] },
-          ],
-        },
+        W("w4a", "A", "volume",   "Бастион Ног", "tower", 0.025),
+        W("w4b", "B", "strength", "Второе Пламя", "flame", 0.05),
+        W("w4c", "C", "volume",   "Вершина Цикла", "peak", 0.025),
       ],
     },
   ],
 };
 
-// Архив прошлого цикла (Цикл I/II) — чтобы старые сессии в «Хрониках» открывались и
-// их движения по-прежнему учитывались в аналитике потолка/пола (id движений совпадают).
-const ax = (id, name, extra = {}) => ({ id, name, ...extra });
+/* ---------- сборка квеста: шаблон + правки атлета → список упражнений ---------- */
+// plan (необязательный) — правки пользователя для конкретного квеста:
+//   { swap: { исходныйId: новыйId }, add: [id, ...], hide: [id, ...] }
+// Чистая функция: веса здесь не считаются (их добавляет приложение по замерам атлета).
+export function buildExercises(workout, plan = {}) {
+  const tpl = TEMPLATES[workout.tpl];
+  if (!tpl) return [];
+  const scheme = SCHEME[workout.type] || SCHEME.strength;
+  const swap = plan.swap || {};
+  const hide = new Set(plan.hide || []);
+  const slots = tpl.slots
+    .filter((s) => !hide.has(s.ex))
+    .map((s) => ({ ...s, ex: swap[s.ex] || s.ex, from: swap[s.ex] ? s.ex : null }));
+  (plan.add || []).forEach((id) => { if (!hide.has(id)) slots.push({ ex: id, role: "iso", added: true }); });
+
+  const out = [];
+  const seen = new Set();
+  slots.forEach((slot) => {
+    const ex = EX_BY_ID[slot.ex];
+    if (!ex || seen.has(ex.id)) return;   // неизвестное или дублирующее движение пропускаем
+    seen.add(ex.id);
+    const sc = scheme[slot.role] || scheme.iso;
+    out.push({
+      id: ex.id, name: ex.name, short: ex.short || ex.name,
+      role: slot.role, main: slot.role === "main",
+      lift: ex.lift, tier: ex.tier, equip: ex.equip, group: ex.group, pattern: ex.pattern,
+      sets: sc.sets, reps: sc.reps, rir: sc.rir,
+      scheme: `${sc.sets} × ${sc.reps[0]}${sc.reps[1] !== sc.reps[0] ? "–" + sc.reps[1] : ""} · ${sc.tag}`,
+      prog: workout.prog || 0,
+      swappedFrom: slot.from || null, added: !!slot.added,
+    });
+  });
+  return out;
+}
+
+/** Недельный объём по мышечным группам: сколько сессий и рабочих подходов получает группа. */
+export function weeklyCoverage(week, plans = {}) {
+  const cover = {};
+  const touch = (g, sets, wid) => {
+    if (!g) return;
+    const c = (cover[g] ||= { sets: 0, sessions: new Set() });
+    c.sets += sets; c.sessions.add(wid);
+  };
+  week.workouts.forEach((w) => {
+    buildExercises(w, plans[w.id]).forEach((ex) => {
+      const src = EX_BY_ID[ex.id];
+      if (!src) return;
+      touch(src.group, ex.sets, w.id);
+      (src.also || []).forEach((g) => touch(g, ex.sets / 2, w.id)); // вторичные считаем за половину
+    });
+  });
+  return Object.fromEntries(Object.entries(cover).map(([g, c]) => [g, { sets: Math.round(c.sets), days: c.sessions.size }]));
+}
+
+// Базовые расчётные максимумы (старт персонажа)
+export const BASELINES = { bench: 147, squat: 170, deadlift: 195, ohp: 100 };
+export const LIFT_NAMES = { bench: "Жим лёжа", squat: "Присед", deadlift: "Становая", ohp: "Швунг" };
+
+/* ---------- архив прошлых циклов ----------
+   Нужен, чтобы старые сессии в «Хрониках» открывались и их движения по-прежнему
+   учитывались в аналитике потолка/пола (id движений совпадают с пулом). */
+const ax = (id, name, extra = {}) => ({ id, name, sets: 3, reps: [6, 10], ...extra });
 export const ARCHIVED_WORKOUTS = [
+  // Цикл III (Сила/Объём)
+  { id: "t1", boss: "Пробуждение Стали", icon: "anvil", title: "Верх тяжёлый А", exercises: [ax("bench", "Жим штанги лёжа", { main: true, lift: "bench", sets: 5 }), ax("row", "Тяга штанги в наклоне", { sets: 4 }), ax("push-press", "Швунг / армейский жим стоя", { lift: "ohp" }), ax("pullup", "Подтягивания с весом"), ax("dips", "Брусья / жим узким"), ax("curl-ez", "Сгибания EZ-гриф"), ax("abs", "Пресс в тренажёре")] },
+  { id: "t2", boss: "Столпы Земли", icon: "pillars", title: "Низ тяжёлый — присед", exercises: [ax("squat", "Приседания", { main: true, lift: "squat", sets: 5 }), ax("rdl", "Мёртвая тяга"), ax("legpress", "Жим ногами"), ax("legcurl-s", "Сгибания ног сидя"), ax("calves", "Икры", { sets: 4 }), ax("abs", "Пресс в тренажёре")] },
+  { id: "t3", boss: "Восхождение по Склону", icon: "mountain", title: "Верх тяжёлый Б", exercises: [ax("incline-bb", "Жим штанги в наклоне", { main: true, sets: 5 }), ax("db-row", "Тяга гантели в наклоне", { sets: 4 }), ax("lat", "Верхняя тяга"), ax("db-ohp", "Жим гантели сидя"), ax("upright", "Тяга к подбородку"), ax("french-bb", "Французский жим лёжа"), ax("abs", "Пресс в тренажёре")] },
+  { id: "t4", boss: "Песнь Выдержки", icon: "hourglass", title: "Низ объёмный А", exercises: [ax("squat-vol", "Присед многоповторный", { main: true, lift: "squat", sets: 4 }), ax("legext", "Разгибания ног сидя"), ax("legcurl-s", "Сгибания ног сидя"), ax("hyper", "Гиперэкстензия"), ax("calves", "Икры", { sets: 4 }), ax("abs", "Пресс в тренажёре")] },
+  { id: "t5", boss: "Пламя Полноты", icon: "sun", title: "Верх объёмный А", exercises: [ax("incline-db", "Жим гантелей в наклоне", { main: true, sets: 4 }), ax("cross-mid", "Кроссовер на грудь"), ax("lat-raise", "Махи стоя", { sets: 4 }), ax("cross-delt", "Разводка плечи"), ax("lat", "Верхняя тяга", { sets: 4 }), ax("cable-row", "Тяга к поясу"), ax("rear-delt", "Задняя дельта"), ax("french-db", "Французский жим стоя"), ax("abs", "Пресс в тренажёре")] },
+  { id: "t6", boss: "Корни Титана", icon: "tree", title: "Низ объёмный Б", exercises: [ax("rdl", "Мёртвая тяга", { main: true, sets: 4 }), ax("hack", "Присед в гак-машине"), ax("legpress", "Жим ногами"), ax("legcurl-l", "Сгибания ног лёжа"), ax("calves", "Икры", { sets: 4 }), ax("abs", "Пресс в тренажёре")] },
+  { id: "t7", boss: "Гнев Хребта", icon: "spine", title: "Низ тяжёлый — становая", exercises: [ax("deadlift", "Становая тяга", { main: true, lift: "deadlift", sets: 5 }), ax("squat", "Приседания (вспом.)", { lift: "squat" }), ax("legext", "Разгибания ног сидя"), ax("legcurl-l", "Сгибания ног лёжа"), ax("calves", "Икры", { sets: 4 }), ax("abs", "Пресс в тренажёре")] },
+  { id: "t8", boss: "Клинок Закалённый", icon: "dagger", title: "Верх тяжёлый · прогрессия", exercises: [ax("bench", "Жим штанги лёжа", { main: true, lift: "bench", sets: 5 }), ax("row", "Тяга штанги в наклоне", { sets: 4 }), ax("push-press", "Швунг", { lift: "ohp" }), ax("pullup", "Подтягивания с весом"), ax("dips", "Брусья / жим узким"), ax("curl-bb", "Сгибания прямой гриф"), ax("abs", "Пресс в тренажёре")] },
+  { id: "t9", boss: "Бастион Ног", icon: "tower", title: "Низ тяжёлый · прогрессия", exercises: [ax("squat", "Приседания", { main: true, lift: "squat", sets: 5 }), ax("rdl", "Мёртвая тяга"), ax("legpress", "Жим ногами"), ax("legcurl-s", "Сгибания ног сидя"), ax("calves", "Икры", { sets: 4 }), ax("abs", "Пресс в тренажёре")] },
+  { id: "t10", boss: "Расправить Крылья", icon: "wings", title: "Верх объёмный — спина", exercises: [ax("db-row", "Тяга гантели в наклоне", { main: true, sets: 4 }), ax("lat", "Верхняя тяга", { sets: 4 }), ax("cable-row", "Тяга к поясу"), ax("cross-mid", "Кроссовер снизу"), ax("flat-db", "Жим гантелей"), ax("hammer", "Молотки"), ax("cable-curl", "Сгибания в кроссовере"), ax("pushdown", "Разгибания рук"), ax("abs", "Пресс в тренажёре")] },
+  { id: "t11", boss: "Второе Пламя", icon: "flame", title: "Верх объёмный · прогрессия", exercises: [ax("incline-db", "Жим гантелей в наклоне", { main: true, sets: 4 }), ax("cross-mid", "Кроссовер на грудь"), ax("lat-raise", "Махи стоя", { sets: 4 }), ax("db-ohp", "Жим гантели сидя"), ax("lat", "Верхняя тяга", { sets: 4 }), ax("cable-row", "Тяга к поясу"), ax("rear-delt", "Задняя дельта"), ax("french-bb", "Французский жим лёжа"), ax("pushdown", "Разгибания рук"), ax("abs", "Пресс в тренажёре")] },
+  { id: "t12", boss: "Вершина Цикла", icon: "peak", title: "Низ объёмный Б · прогрессия", exercises: [ax("rdl", "Мёртвая тяга", { main: true, sets: 4 }), ax("hack", "Присед в гак-машине"), ax("legpress", "Жим ногами"), ax("legcurl-l", "Сгибания ног лёжа"), ax("calves", "Икры", { sets: 4 }), ax("hammer", "Молотки / EZ-гриф"), ax("abs", "Пресс в тренажёре")] },
+  // Циклы I–II
   { id: "w1t1", boss: "Пробуждение Стали", icon: "anvil", exercises: [ax("bench", "Жим штанги лёжа", { main: true, lift: "bench" }), ax("row", "Тяга штанги в наклоне"), ax("push-press", "Швунг / армейский жим стоя", { lift: "ohp" }), ax("pullup", "Подтягивания с весом"), ax("dips", "Брусья / жим узким"), ax("curl-ez", "Сгибания EZ-гриф"), ax("abs", "Пресс в тренажёре")] },
   { id: "w1t2", boss: "Столпы Земли", icon: "pillars", exercises: [ax("squat", "Приседания", { main: true, lift: "squat" }), ax("rdl", "Мёртвая тяга"), ax("legpress", "Жим ногами"), ax("legcurl-s", "Сгибания ног сидя"), ax("calves", "Икры"), ax("abs", "Пресс в тренажёре")] },
   { id: "w1t3", boss: "Восхождение по Склону", icon: "mountain", exercises: [ax("incline-bb", "Жим штанги в наклоне", { main: true }), ax("db-row", "Тяга гантели в наклоне"), ax("lat", "Верхняя тяга"), ax("db-ohp", "Жим гантели сидя"), ax("upright", "Тяга к подбородку"), ax("french-bb", "Французский жим лёжа"), ax("abs", "Пресс в тренажёре")] },
@@ -188,7 +211,3 @@ export const ARCHIVED_WORKOUTS = [
   { id: "w4t2", boss: "Второе Пламя", icon: "flame", exercises: [ax("incline-db", "Жим гантелей в наклоне", { main: true }), ax("cross-mid", "Кроссовер на грудь"), ax("lat-raise", "Махи стоя"), ax("db-ohp", "Жим гантели сидя"), ax("lat", "Верхняя тяга"), ax("cable-row", "Тяга к поясу"), ax("rear-delt", "Задняя дельта"), ax("french-bb", "Французский жим лёжа"), ax("pushdown", "Разгибания рук"), ax("abs", "Пресс в тренажёре")] },
   { id: "w4t3", boss: "Вершина Цикла", icon: "peak", exercises: [ax("squat-vol", "Присед многоповторный", { main: true, lift: "squat" }), ax("hack", "Присед в гак-машине"), ax("legext", "Разгибания ног сидя"), ax("legcurl-s", "Сгибания ног сидя"), ax("hyper", "Гиперэкстензия"), ax("calves", "Икры"), ax("abs", "Пресс в тренажёре")] },
 ];
-
-// Базовые расчётные максимумы (старт персонажа)
-export const BASELINES = { bench: 147, squat: 170, deadlift: 195, ohp: 100 };
-export const LIFT_NAMES = { bench: "Жим лёжа", squat: "Присед", deadlift: "Становая", ohp: "Швунг" };

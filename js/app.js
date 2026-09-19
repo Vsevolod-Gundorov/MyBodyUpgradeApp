@@ -1,4 +1,5 @@
-import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS } from "../data/program.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage } from "../data/program.js";
+import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, similarTo } from "../data/exercises.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
@@ -162,6 +163,7 @@ const defaultState = () => ({
   },
   statuses: [],  // устарело: старые ситуационные статусы (переносятся в achievements при загрузке)
   achievements: {}, // id -> { count, first, last } — знаки отличия (см. data/achievements.js)
+  plan: {},      // wid -> { swap: {origId:newId}, add: [id], hide: [id] } — правки состава квеста
   meta: { exports: 0, imports: 0 }, // счётчики служебных действий (для достижений «Хроники»)
 });
 
@@ -195,6 +197,7 @@ function load() {
       S2.achievements = (parsed.achievements && typeof parsed.achievements === "object")
         ? parsed.achievements : migrateLegacyStatuses(S2.statuses);
       S2.meta = Object.assign({}, base.meta, parsed.meta);
+      S2.plan = (parsed.plan && typeof parsed.plan === "object") ? parsed.plan : {};
       S2.settings = Object.assign({}, base.settings, parsed.settings);
       S2.cycleStart = Number.isInteger(parsed.cycleStart) ? parsed.cycleStart : 0;
       S2.questStart = (parsed.questStart && typeof parsed.questStart === "object") ? parsed.questStart : {};
@@ -210,9 +213,65 @@ const WORKOUTS = {};
 const WEEK_OF = {};
 PROGRAM.weeks.forEach((wk) => wk.workouts.forEach((w) => { WORKOUTS[w.id] = w; WEEK_OF[w.id] = wk; }));
 const ORDER = PROGRAM.weeks.flatMap((wk) => wk.workouts.map((w) => w.id));
-// архив прошлого цикла: нужен, чтобы старые сессии открывались в «Хрониках» и учитывались
+// архив прошлых циклов: нужен, чтобы старые сессии открывались в «Хрониках» и учитывались
 // в аналитике (в текущий цикл и его порядок ORDER они не входят)
 (ARCHIVED_WORKOUTS || []).forEach((w) => { if (!WORKOUTS[w.id]) WORKOUTS[w.id] = w; });
+
+/* ---- квест = шаблон недели + правки атлета + его рабочие веса ---- */
+// Лучший расчётный 1ПМ атлета по каждому движению (ключ = базовый лифт или id упражнения).
+let e1rmCache = null;
+function athleteE1RM() {
+  if (e1rmCache) return e1rmCache;
+  const out = {};
+  S.sessions.forEach((sess) => {
+    sessionExercises(sess).forEach((ex) => {
+      const key = ex.lift || ex.id;
+      (sess.entries[ex.id] || []).forEach(({ w, r }) => {
+        if (w > 0 && r > 0) out[key] = Math.max(out[key] || 0, e1rmAvg(w, r));
+      });
+    });
+  });
+  return (e1rmCache = out);
+}
+const invalidateE1RM = () => { e1rmCache = null; };
+// добавить к упражнению рабочую вилку под атлета (с учётом прогрессии недели)
+function withWeights(ex) {
+  const src = exById(ex.id);
+  const ww = workingWeight(src, { e1rm: athleteE1RM(), baselines: BASELINES, bodyweight: S.hero.bodyweight || 90, reps: ex.reps, rir: ex.rir });
+  if (!ww || !ww.est1RM) return { ...ex, w: [0, 0], wSource: "none", wNote: src && src.equip === "bw" ? "свой вес" : "задай вес сам" };
+  const k = 1 + (ex.prog || 0);
+  const lo = Math.round(ww.lo * k * 10) / 10, hi = Math.round(ww.hi * k * 10) / 10;
+  const note = ww.bw ? "довесок к своему весу" : (ww.perHand ? "на каждую руку" : null);
+  return { ...ex, w: [lo, hi], wSource: ww.source, est1RM: ww.est1RM, wNote: note };
+}
+// собранный квест текущего цикла (или архивный — там список зашит)
+function workoutOf(wid) {
+  const meta = WORKOUTS[wid];
+  if (!meta) return null;
+  if (meta.exercises) return meta;                    // архив
+  const tpl = TEMPLATES[meta.tpl];
+  return {
+    ...meta,
+    title: tpl ? tpl.name : "",
+    why: tpl ? tpl.why : "",
+    exercises: buildExercises(meta, (S.plan || {})[meta.id]).map(withWeights),
+  };
+}
+// упражнения прошедшей сессии: снимок на момент прохождения, иначе текущий состав
+function sessionExercises(sess) {
+  if (Array.isArray(sess.exercises) && sess.exercises.length) return sess.exercises;
+  const meta = WORKOUTS[sess.workoutId];
+  if (!meta) return [];
+  return meta.exercises || buildExercises(meta);
+}
+// правки атлета для квеста
+const planOf = (wid) => ((S.plan || {})[wid] || {});
+function setPlan(wid, patch) {
+  if (!S.plan) S.plan = {};
+  const cur = { swap: {}, add: [], hide: [], ...(S.plan[wid] || {}) };
+  S.plan[wid] = { ...cur, ...patch };
+  save();
+}
 
 const epley = (w, r) => (r >= 1 ? w * (1 + r / 30) : 0);
 const fmt = (n) => (Math.round(n * 10) / 10).toString().replace(".", ",");
@@ -253,8 +312,7 @@ function bestE1RM(lift, upto = Infinity) {
   let best = 0;
   S.sessions.forEach((s, i) => {
     if (i > upto) return;
-    const w = WORKOUTS[s.workoutId]; if (!w) return;
-    w.exercises.forEach((ex) => {
+    sessionExercises(s).forEach((ex) => {
       if (ex.lift !== lift) return;
       (s.entries[ex.id] || []).forEach(({ w: wt, r }) => { if (wt && r) best = Math.max(best, epley(wt, Math.min(r, 10))); });
     });
@@ -344,8 +402,8 @@ document.querySelectorAll(".tab").forEach((t) => {
   const holder = t.querySelector(".tab-ico");
   if (holder && t.dataset.icon) holder.innerHTML = icon(t.dataset.icon);
   t.addEventListener("click", () => {
-    if (t.dataset.view === view) return;
-    withLoader(() => { view = t.dataset.view; render(); });
+    if (t.dataset.view === view && !cycleSub) return;
+    withLoader(() => { view = t.dataset.view; cycleSub = null; render(); });
   });
 });
 
@@ -419,6 +477,9 @@ const ISO_RE = /curl|raise|delt|pushdown|french|calv|abs|cross|hammer|legext|leg
 // уровень упражнения: 1 — тяжёлая база штанги (макс. перформанс), 2 — вторичный
 // компаунд / гипертрофия, 3 — изоляция/подсобка
 function exTier(ex) {
+  if (ex.tier) return ex.tier;                                      // из пула движений
+  const src = exById(ex.id);
+  if (src && src.tier) return src.tier;
   if (ex.id === "squat-vol") return 2;                              // многоповторный присед — гипертрофия
   if (["squat", "deadlift", "bench", "ohp"].includes(ex.lift)) return 1;
   if (ISO_RE.test(ex.id)) return 3;
@@ -518,12 +579,13 @@ function stopRestSilent() {
   const b = document.getElementById("rest-bar"); if (b) b.remove();
 }
 
+let cycleSub = null; // подстраница раздела квестов: null | "pool"
 function render() {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
   updateBuffBadge();
   window.scrollTo(0, 0);
   if (view === "profile") renderProfile();
-  else if (view === "cycle") renderCycle();
+  else if (view === "cycle") { if (cycleSub === "pool") renderPool(); else renderCycle(); }
   else if (view === "buffs") renderBuffs();
   else if (view === "resources") renderResources();
   else if (view === "progress") renderProgress();
@@ -678,15 +740,35 @@ function renderProfile() {
 }
 
 /* ================= КВЕСТЫ (цикл) ================= */
+const exCount = (wid) => { const w = workoutOf(wid); return w ? w.exercises.length : 0; };
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// подпись рабочего веса: вилка + откуда она взялась
+function weightLabel(ex) {
+  if (!ex.w || !ex.w[1]) {
+    const src = exById(ex.id);
+    if (src && src.bw) return `<span class="dim">свой вес, без довеска</span>`;
+    return `<span class="dim">${ex.wNote || "вес по ощущениям"}</span>`;
+  }
+  const range = `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`;
+  const mark = ex.wSource === "own" ? `<span class="w-src own" title="по твоим замерам">★</span>` : `<span class="w-src" title="оценка от базовых лифтов">◎</span>`;
+  return `${range} ${mark}${ex.wNote ? ` <span class="dim">· ${ex.wNote}</span>` : ""}`;
+}
 function renderCycle() {
   const nextId = nextWorkoutId();
   const startId = ORDER[(((S.cycleStart || 0) % ORDER.length) + ORDER.length) % ORDER.length];
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">Гринд характеристик: 3 квеста в неделю, порядок 1→12. Отметь ⚑, если начинаешь цикл не с первого квеста.</p>
-    ${PROGRAM.weeks.map((wk) => `
+    <div class="cycle-head">
+      <div class="eyebrow">${PROGRAM.cycleName}</div>
+      <button class="ach-all-btn" id="open-pool">Арсенал движений</button>
+    </div>
+    <p class="dim small cycle-note">${PROGRAM.note}</p>
+    ${PROGRAM.weeks.map((wk) => {
+      const strong = wk.workouts.filter((w) => w.type === "strength").length;
+      const vol = wk.workouts.length - strong;
+      return `
       <div class="week-block">
-        <div class="week-tag ${wk.type === "объёмная" ? "vol" : ""}">
-          <span class="dot"></span> Неделя ${wk.n} — ${wk.type} · ${wk.pattern}
+        <div class="week-tag ${wk.emphasis === "volume" ? "vol" : ""}">
+          <span class="dot"></span> Неделя ${wk.n} — ${plural(strong, "силовая", "силовых")} · ${plural(vol, "объёмная", "объёмных")}
         </div>
         ${wk.saga ? `<div class="saga display">${wk.saga}</div>` : ""}
         ${wk.workouts.map((w) => {
@@ -704,14 +786,16 @@ function renderCycle() {
                   <span class="boss">${w.boss}${isNext ? ' <span class="verdict-gold small">◈ след.</span>' : ""}</span>
                   ${last ? `<span class="verdict-chip ${last.cls} clickable" data-sid="${last.id}">${last.score}% ›</span>` : `<span class="dim small">—</span>`}
                 </span>
-                <span class="sub">${w.title} · ${w.exercises.length} упр.${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
+                <span class="sub"><span class="wtype ${w.type}">${TYPE_NAMES[w.type]}</span> · ${exCount(w.id)} упр.${last ? ` · был ${fmtDate(last.date)}` : ""}</span>
               </span>
             </button>
             <button class="wflag ${isStart ? "on" : ""}" data-i="${idx}" aria-label="Отметить стартом цикла"
               title="${isStart ? "Старт цикла" : "Сделать стартом цикла"}">⚑</button>
           </div>`;
         }).join("")}
-      </div>`).join("")}`;
+      </div>`; }).join("")}`;
+
+  document.getElementById("open-pool").onclick = () => withLoader(() => renderPool());
 
   app.querySelectorAll(".wcard").forEach((c) => c.addEventListener("click", () => withLoader(() => renderWorkout(c.dataset.w))));
   app.querySelectorAll(".verdict-chip.clickable").forEach((ch) => ch.addEventListener("click", (e) => { e.stopPropagation(); showSessionDetail(ch.dataset.sid); }));
@@ -723,9 +807,171 @@ function renderCycle() {
   }));
 }
 
+
+/* ================= АРСЕНАЛ ДВИЖЕНИЙ (подстраница квестов) ================= */
+// Рабочий вес любого движения под атлета: свой замер, иначе оценка от базовых лифтов.
+function poolWeight(ex, reps = [8, 10], rir = 1) {
+  return workingWeight(ex, { e1rm: athleteE1RM(), baselines: BASELINES, bodyweight: S.hero.bodyweight || 90, reps, rir });
+}
+// в каких квестах цикла встречается движение
+function usedIn(id) {
+  const out = [];
+  PROGRAM.weeks.forEach((wk) => wk.workouts.forEach((w) => {
+    const has = buildExercises(w, planOf(w.id)).some((e) => e.id === id);
+    if (has) out.push({ wid: w.id, boss: w.boss, week: wk.n, type: w.type });
+  }));
+  return out;
+}
+const poolRow = (ex) => {
+  const ww = poolWeight(ex);
+  const w = ww && ww.est1RM
+    ? `${fmt(ww.lo)}–${fmt(ww.hi)} кг${ww.source === "own" ? " ★" : " ◎"}`
+    : "—";
+  return `<button class="pool-row" data-ex="${ex.id}">
+    <span class="pool-body">
+      <span class="pool-name">${ex.name}${ex.stretch ? ' <span class="pool-flag" title="грузит мышцу в растянутой позиции">растяжение</span>' : ""}</span>
+      <span class="pool-meta dim small">${PATTERNS[ex.pattern] || ""} · ${EQUIP[ex.equip] || ""}${ex.lift ? " · базовый лифт" : ""}</span>
+    </span>
+    <span class="pool-w mono">${w}</span>
+  </button>`;
+};
+
+let poolFilter = "";
+function renderPool() {
+  cycleSub = "pool";
+  const q = poolFilter.trim().toLowerCase();
+  const match = (ex) => !q || ex.name.toLowerCase().includes(q) || (ex.short || "").toLowerCase().includes(q) ||
+    (MUSCLES[ex.group] || "").toLowerCase().includes(q) || (PATTERNS[ex.pattern] || "").toLowerCase().includes(q);
+  const groups = MUSCLE_ORDER.map((g) => ({ g, list: EXERCISES.filter((e) => e.group === g && match(e)) })).filter((x) => x.list.length);
+  const cov = weeklyCoverage(PROGRAM.weeks[0], S.plan || {});
+  const CORE = new Set(["chest", "back", "delts", "biceps", "triceps", "quads", "hams", "glutes", "calves", "abs"]);
+  app.innerHTML = `
+    <div class="topbar">
+      <button class="back-btn" id="back"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
+      <span class="medallion medallion--lg">${icon("anvil")}</span>
+      <div class="topbar-mid">
+        <div class="eyebrow">арсенал · ${EXERCISES.length} движений</div>
+        <h2 class="display">Арсенал движений</h2>
+        <div class="dim small">Рабочие веса под твои замеры</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow" style="margin-bottom:8px">Недельное покрытие мышц</div>
+      <div class="cov-grid">
+        ${MUSCLE_ORDER.filter((g) => cov[g]).map((g) => `
+          <span class="cov-chip ${cov[g].days >= 2 ? "ok" : (CORE.has(g) ? "low" : "")}">
+            <b>${MUSCLES[g]}</b><span class="mono">${cov[g].days}×/нед · ${cov[g].sets} сет.</span>
+          </span>`).join("")}
+      </div>
+      <div class="dim small" style="margin-top:8px">Минимум — 2 раза в неделю на группу. Подходы считаются с учётом твоих замен: вторичная работа идёт за половину.</div>
+    </div>
+
+    <input class="pool-search" id="pool-q" placeholder="Поиск: название, мышца, паттерн" value="${poolFilter}" />
+    ${groups.map(({ g, list }) => `
+      <div class="panel pool-group">
+        <div class="eyebrow" style="margin-bottom:8px">${MUSCLES[g]} · ${list.length}</div>
+        ${list.map(poolRow).join("")}
+      </div>`).join("") || `<div class="empty">Ничего не найдено. Попробуй другое слово.</div>`}
+    <div class="dim small" style="margin:14px 2px">★ — вес посчитан по твоим замерам этого движения · ◎ — оценка от базовых лифтов</div>`;
+
+  document.getElementById("back").onclick = () => { cycleSub = null; withLoader(() => { view = "cycle"; render(); }); };
+  const qi = document.getElementById("pool-q");
+  qi.oninput = () => { poolFilter = qi.value; const at = qi.selectionStart; renderPool(); const n = document.getElementById("pool-q"); n.focus(); n.setSelectionRange(at, at); };
+  app.querySelectorAll(".pool-row").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.ex));
+}
+
+/* разбор движения: техника, мышцы, рабочий вес и история атлета */
+function showExerciseDetail(id, opts = {}) {
+  const ex = exById(id);
+  if (!ex) return;
+  fxTap();
+  const ww = poolWeight(ex);
+  const own = athleteE1RM()[ex.lift || ex.id] || 0;
+  const strength = poolWeight(ex, SCHEME.strength.acc.reps, SCHEME.strength.acc.rir);
+  const volume = poolWeight(ex, SCHEME.volume.acc.reps, SCHEME.volume.acc.rir);
+  const used = usedIn(ex.id);
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  o.innerHTML = `
+    <div class="portion-card ex-card">
+      <div class="eyebrow">${MUSCLES[ex.group]} · ${PATTERNS[ex.pattern]} · ${EQUIP[ex.equip]}</div>
+      <div class="portion-name display">${ex.name}</div>
+      <div class="ex-tags">
+        ${[ex.group, ...(ex.also || [])].map((g) => `<span class="ex-tag${g === ex.group ? " main" : ""}">${MUSCLES[g] || g}</span>`).join("")}
+        ${ex.stretch ? `<span class="ex-tag stretch">растянутая позиция</span>` : ""}
+        ${ex.tier === 1 ? `<span class="ex-tag">тяжёлая база</span>` : ""}
+      </div>
+      <p class="ex-desc">${ex.desc || ""}</p>
+
+      <div class="ex-w-grid">
+        <div class="ex-w-cell">
+          <span class="ex-w-l">Силовой режим</span>
+          <span class="ex-w-v mono">${strength && strength.est1RM ? `${fmt(strength.lo)}–${fmt(strength.hi)}` : "—"}</span>
+          <span class="dim small">${SCHEME.strength.acc.reps[0]}–${SCHEME.strength.acc.reps[1]} повт.</span>
+        </div>
+        <div class="ex-w-cell">
+          <span class="ex-w-l">Объёмный режим</span>
+          <span class="ex-w-v mono">${volume && volume.est1RM ? `${fmt(volume.lo)}–${fmt(volume.hi)}` : "—"}</span>
+          <span class="dim small">${SCHEME.volume.acc.reps[0]}–${SCHEME.volume.acc.reps[1]} повт.</span>
+        </div>
+      </div>
+      <div class="dim small ex-w-note">
+        ${ww && ww.est1RM
+          ? `${own ? `★ по твоему замеру: 1ПМ ≈ <b>${fmt(own)}</b> кг` : `◎ оценка от базовых лифтов: 1ПМ ≈ <b>${fmt(ww.est1RM)}</b> кг — уточнится после первых подходов`}${ww.bw ? " · вес указан как довесок к своему" : (ww.perHand ? " · на каждую руку" : "")}`
+          : "Вес не оценивается — работа со своим весом или на время"}
+      </div>
+
+      <div class="eyebrow" style="margin:16px 0 6px">Техника</div>
+      <ul class="ex-cues">${(ex.cues || []).map((c) => `<li>${c}</li>`).join("")}</ul>
+
+      ${used.length ? `<div class="eyebrow" style="margin:16px 0 6px">В каких квестах</div>
+        <div class="ex-used">${used.map((u) => `<span class="ex-used-chip ${u.type}">${u.boss} <span class="dim">· нед. ${u.week}</span></span>`).join("")}</div>` : ""}
+
+      ${opts.onPick ? `<button class="finish-btn" id="ex-pick">Выбрать это движение</button>` : ""}
+      <button class="btn-ghost" id="ex-close">Закрыть</button>
+    </div>`;
+  overlayRoot.appendChild(o);
+  if (opts.onPick) o.querySelector("#ex-pick").onclick = () => { o.remove(); opts.onPick(ex.id); };
+  o.querySelector("#ex-close").onclick = () => o.remove();
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
+/* выбор движения из пула: замена или добавление в квест */
+function openPoolPicker({ title, suggest = [], exclude = [], onPick }) {
+  fxTap();
+  const ban = new Set(exclude);
+  let q = "";
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  const draw = () => {
+    const qq = q.trim().toLowerCase();
+    const match = (ex) => !ban.has(ex.id) && (!qq || ex.name.toLowerCase().includes(qq) ||
+      (MUSCLES[ex.group] || "").toLowerCase().includes(qq) || (PATTERNS[ex.pattern] || "").toLowerCase().includes(qq));
+    const sug = suggest.filter(match);
+    const rest = MUSCLE_ORDER.map((g) => ({ g, list: EXERCISES.filter((e) => e.group === g && match(e) && !sug.includes(e)) })).filter((x) => x.list.length);
+    o.innerHTML = `
+      <div class="portion-card ex-card">
+        <div class="eyebrow">${title}</div>
+        <input class="pool-search" id="pk-q" placeholder="Поиск движения" value="${q}" />
+        ${sug.length ? `<div class="eyebrow" style="margin:12px 0 6px">Похожие по задаче</div>${sug.map(poolRow).join("")}` : ""}
+        ${rest.map(({ g, list }) => `<div class="eyebrow" style="margin:14px 0 6px">${MUSCLES[g]}</div>${list.map(poolRow).join("")}`).join("")}
+        <button class="btn-ghost" id="pk-close" style="margin-top:14px">Отмена</button>
+      </div>`;
+    const qi = o.querySelector("#pk-q");
+    qi.oninput = () => { q = qi.value; const at = qi.selectionStart; draw(); const n = o.querySelector("#pk-q"); n.focus(); n.setSelectionRange(at, at); };
+    o.querySelectorAll(".pool-row").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.ex, { onPick: (id) => { o.remove(); onPick(id); } }));
+    o.querySelector("#pk-close").onclick = () => o.remove();
+  };
+  draw();
+  overlayRoot.appendChild(o);
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
 /* ================= ЭКРАН ТРЕНИРОВКИ ================= */
 function renderWorkout(wid) {
-  const w = WORKOUTS[wid];
+  const w = workoutOf(wid);
+  if (!w) { view = "cycle"; render(); return; }
   const entries = S.drafts[wid] || {};
   // предзаполнение из последней сессии этого workout
   const lastSession = [...S.sessions].reverse().find((s) => s.workoutId === wid);
@@ -740,21 +986,26 @@ function renderWorkout(wid) {
       <button class="back-btn" id="back"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
       <span class="medallion medallion--lg">${icon(w.icon || "anvil")}</span>
       <div class="topbar-mid">
-        <div class="eyebrow">${WEEK_OF[wid].type === "объёмная" ? "объёмная" : "силовая"} · неделя ${WEEK_OF[wid].n}</div>
+        <div class="eyebrow"><span class="wtype ${w.type}">${TYPE_NAMES[w.type] || ""}</span> · неделя ${WEEK_OF[wid] ? WEEK_OF[wid].n : "—"}${w.prog ? ` · +${Math.round(w.prog * 100)}%` : ""}</div>
         <h2 class="display">${w.boss}</h2>
         <div class="dim small">${w.title}</div>
       </div>
       <span class="quest-timer mono" id="quest-timer" title="Время квеста">⏱ 0:00</span>
     </div>
+    ${w.why ? `<p class="dim small quest-why">${w.why}</p>` : ""}
     <div class="feel-row">
       <span class="feel-lbl">Состояние</span>
       ${[["fresh", "Свежий"], ["norm", "Норма"], ["tired", "Устал"]].map(([k, t]) =>
         `<button class="feel ${restFeel === k ? "on" : ""}" data-feel="${k}">${t}</button>`).join("")}
     </div>
     <div id="ex-list"></div>
+    <button class="btn-ghost add-ex-btn" id="add-ex">+ Добавить движение из арсенала</button>
     <button class="finish-btn" id="finish">Завершить квест</button>`;
 
-  document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; render(); });
+  document.getElementById("add-ex").onclick = () => openPoolPicker({ title: "Добавить движение", wid, exclude: w.exercises.map((x) => x.id),
+    onPick: (id) => { const pl = planOf(wid); setPlan(wid, { add: [...(pl.add || []), id], hide: (pl.hide || []).filter((h) => h !== id) }); fxTap(); renderWorkout(wid); } });
+
+  document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; cycleSub = null; render(); });
   app.querySelectorAll(".feel").forEach((b) => b.onclick = () => {
     restFeel = b.dataset.feel; fxTap();
     app.querySelectorAll(".feel").forEach((x) => x.classList.toggle("on", x.dataset.feel === restFeel));
@@ -779,12 +1030,17 @@ function renderWorkout(wid) {
     el.innerHTML = `
       <button class="ex-head" aria-expanded="false">
         <span>
-          <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}
-          <div class="plan">План: ${ex.scheme} · ${ex.wNote || `${fmt(ex.w[0])}${ex.w[1] !== ex.w[0] ? "–" + fmt(ex.w[1]) : ""} кг`}</div>
+          <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}${ex.added ? ' <span class="main-badge alt">добавлено</span>' : ""}${ex.swappedFrom ? ' <span class="main-badge alt">замена</span>' : ""}
+          <div class="plan">План: ${ex.scheme} · ${weightLabel(ex)}</div>
           ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]), (movSeries[movementKey(ex)] || []).length)}
         </span>
         <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length ? saved.length + " подх." : "0 / " + ex.sets}</span>
       </button>
+      <div class="ex-tools">
+        <button class="ex-tool" data-swap="${ex.id}">⇄ Заменить</button>
+        <button class="ex-tool" data-info="${ex.id}">◎ Разбор</button>
+        <button class="ex-tool danger" data-drop="${ex.id}">✕ Убрать</button>
+      </div>
       <div class="ex-body">
         <div class="set-labels"><span>#</span><span>Вес, кг</span><span>Повторы</span><span></span></div>
         <div class="sets"></div>
@@ -851,8 +1107,44 @@ function renderWorkout(wid) {
     };
 
     drawSets(); upd();
+
+    // инструменты: заменить / разбор / убрать
+    el.querySelector("[data-swap]").onclick = () => openPoolPicker({
+      title: `Замена: ${ex.name}`, wid, suggest: similarTo(ex.id), exclude: w.exercises.map((x) => x.id),
+      onPick: (id) => {
+        const pl = planOf(wid);
+        const orig = ex.swappedFrom || ex.id;
+        const swap = { ...(pl.swap || {}) };
+        if (ex.added) {                              // добавленное движение меняем прямо в списке add
+          setPlan(wid, { add: (pl.add || []).map((a) => (a === ex.id ? id : a)) });
+        } else {
+          if (id === orig) delete swap[orig]; else swap[orig] = id;
+          setPlan(wid, { swap });
+        }
+        fxTap(); renderWorkout(wid);
+      },
+    });
+    el.querySelector("[data-info]").onclick = () => showExerciseDetail(ex.id);
+    el.querySelector("[data-drop]").onclick = () => {
+      const pl = planOf(wid);
+      if (ex.added) setPlan(wid, { add: (pl.add || []).filter((a) => a !== ex.id) });
+      else setPlan(wid, { hide: [...(pl.hide || []), ex.swappedFrom || ex.id] });
+      if (S.drafts[wid]) delete S.drafts[wid][ex.id];
+      fxTap(); save(); renderWorkout(wid);
+    };
+
     if (i === 0 && !saved.length) { el.classList.add("open"); head.setAttribute("aria-expanded", "true"); }
   });
+
+  // вернуть состав по умолчанию, если атлет что-то менял
+  const pl = planOf(wid);
+  if ((pl.hide || []).length || Object.keys(pl.swap || {}).length || (pl.add || []).length) {
+    const reset = document.createElement("button");
+    reset.className = "btn-ghost reset-plan";
+    reset.textContent = "↺ Вернуть состав по умолчанию";
+    reset.onclick = () => { delete S.plan[wid]; save(); fxTap(); renderWorkout(wid); };
+    list.appendChild(reset);
+  }
 
   document.getElementById("finish").onclick = () => {
     const e = S.drafts[wid] || {};
@@ -869,8 +1161,11 @@ function renderWorkout(wid) {
     const lastDate = S.sessions.length ? [...S.sessions].sort((a, b) => a.date.localeCompare(b.date)).slice(-1)[0].date : null;
     const gapDays = lastDate ? Math.round((new Date(today() + "T00:00:00Z") - new Date(lastDate + "T00:00:00Z")) / 864e5) : 0;
     const now = new Date();
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, entries: e });
+    // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
+    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role }));
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, exercises: snapshot, entries: e });
     S.xp += res.xp;
+    invalidateE1RM();
     delete S.drafts[wid];
     if (S.questStart) delete S.questStart[wid];
     clearInterval(questTimerId); stopRestSilent();
@@ -944,7 +1239,8 @@ function buildAchievementCtx(event) {
   const h = heroStats();
   const cur = S.sessions.filter((x) => ORDER.includes(x.workoutId));
   const perQuest = Object.fromEntries(ORDER.map((id) => [id, cur.filter((x) => x.workoutId === id).length]));
-  const weekIds = (type) => PROGRAM.weeks.filter((wk) => wk.type === type).flatMap((wk) => wk.workouts.map((w) => w.id));
+  // квесты по типу сессии: «сага» закрывается, когда пройдены все силовые (или все объёмные) квесты цикла
+  const typeIds = (type) => PROGRAM.weeks.flatMap((wk) => wk.workouts.filter((w) => w.type === type).map((w) => w.id));
   let lifetime = 0; S.sessions.forEach((x) => (lifetime += sessionTonnage(x)));
   let goldStreak = 0; for (let i = S.sessions.length - 1; i >= 0 && S.sessions[i].score >= 85; i--) goldStreak++;
   const ws = weekStreak(S.sessions, 3);
@@ -956,8 +1252,8 @@ function buildAchievementCtx(event) {
     totals: {
       sessions: S.sessions.length,
       cycles: ORDER.length ? Math.min(...ORDER.map((id) => perQuest[id])) : 0,
-      sagaStrength: weekIds("силовая").every((id) => perQuest[id] > 0),
-      sagaVolume: weekIds("объёмная").every((id) => perQuest[id] > 0),
+      sagaStrength: typeIds("strength").length > 0 && typeIds("strength").every((id) => perQuest[id] > 0),
+      sagaVolume: typeIds("volume").length > 0 && typeIds("volume").every((id) => perQuest[id] > 0),
       lifetimeT: lifetime / 1000,
       big3: h.lifts.bench.cur + h.lifts.squat.cur + h.lifts.deadlift.cur,
       avgGain: gains.reduce((a, v) => a + v, 0) / gains.length,
@@ -1028,7 +1324,7 @@ function showSessionDetail(sessionId) {
   if (!s) return;
   const w = WORKOUTS[s.workoutId];
   fxTap();
-  const rows = (w ? w.exercises : []).map((ex) => {
+  const rows = sessionExercises(s).map((ex) => {
     const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
     if (!sets.length) return "";
     const ceil = Math.max(...sets.map((x) => e1rmAvg(x.w, x.r)));
@@ -1850,9 +2146,8 @@ function buildLiftSeries() {
   const series = { bench: [], squat: [], deadlift: [], ohp: [] };
   const sorted = [...S.sessions].sort((a, b) => a.date.localeCompare(b.date));
   for (const s of sorted) {
-    const w = WORKOUTS[s.workoutId]; if (!w) continue;
     const perLift = {};
-    w.exercises.forEach((ex) => {
+    sessionExercises(s).forEach((ex) => {
       if (!ex.lift) return;
       const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
       if (sets.length) (perLift[ex.lift] ||= []).push(...sets);
@@ -1874,9 +2169,8 @@ function buildMovementSeries() {
   const series = {};
   const sorted = [...S.sessions].sort((a, b) => a.date.localeCompare(b.date));
   for (const s of sorted) {
-    const w = WORKOUTS[s.workoutId]; if (!w) continue;
     const perKey = {};
-    w.exercises.forEach((ex) => {
+    sessionExercises(s).forEach((ex) => {
       const sets = (s.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
       if (sets.length) (perKey[movementKey(ex)] ||= []).push(...sets);
     });
@@ -1951,8 +2245,7 @@ function renderProgress() {
   const liftSeries = {};
   Object.keys(BASELINES).forEach((k) => (liftSeries[k] = []));
   S.sessions.forEach((s) => {
-    const w = WORKOUTS[s.workoutId]; if (!w) return;
-    w.exercises.forEach((ex) => {
+    sessionExercises(s).forEach((ex) => {
       if (!ex.lift) return;
       let best = 0;
       (s.entries[ex.id] || []).forEach(({ w: wt, r }) => { if (wt && r) best = Math.max(best, epley(wt, Math.min(r, 10))); });
