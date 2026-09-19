@@ -6,7 +6,7 @@ import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
-import { BODY_VIEWS, BODY_VIEWBOX, shapeSvg, coverLevel, coverLabel } from "../data/bodymap.js";
+import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
 
@@ -1200,15 +1200,16 @@ let bodyPick = null;          // мышца, выбранная на карте 
 // группы, которым цикл обязан давать два активных дня в неделю
 const CORE_MUSCLES = new Set(["chest", "back", "delts", "biceps", "triceps", "quads", "hams", "glutes", "calves", "abs"]);
 
-/** Карта мышц: две фигуры, подсветка по недельному покрытию, тап — подробности. */
+/** Карта мышц: две фигуры, цвет — частота, насыщенность — объём, тап — подробности. */
 function bodyMap(cov) {
   return BODY_VIEWS.map((v) => `
     <div class="bm-wrap">
-      <svg viewBox="${BODY_VIEWBOX}" class="bm" role="img" aria-label="Мышцы ${v.title}">
+      <svg viewBox="${v.viewBox}" class="bm" role="img" aria-label="Мышцы ${v.title}">
         <g class="bm-base">${shapeSvg(v.base)}</g>
-        ${Object.entries(v.muscles).map(([g, part]) => `
-          <g class="bm-m lvl-${coverLevel(cov[g])} ${bodyPick === g ? "pick" : ""}" data-g="${g}"
-             tabindex="0" role="button" aria-label="${MUSCLES[g]}: ${coverLabel(cov[g])}">${shapeSvg(part)}</g>`).join("")}
+        ${Object.entries(v.muscles).map(([g, list]) => `
+          <g class="bm-m lvl-${coverLevel(cov[g])} vol-${coverVolume(cov[g])} ${bodyPick === g ? "pick" : ""}"
+             data-g="${g}" tabindex="0" role="button"
+             aria-label="${MUSCLES[g]}: ${coverLabel(cov[g])}">${shapeSvg(list)}</g>`).join("")}
       </svg>
       <span class="bm-title">${v.title}</span>
     </div>`).join("");
@@ -1266,9 +1267,15 @@ function renderPool() {
           : `<span class="dim small">${coverSummary(cov)}</span>`}
       </div>
       <div class="bm-legend dim small">
-        <span><i class="dot lvl-ok"></i>2×/нед и больше</span>
-        <span><i class="dot lvl-low"></i>один день</span>
+        <span><i class="dot lvl-ok vol-hi"></i>2×/нед и больше</span>
+        <span><i class="dot lvl-low vol-hi"></i>один день</span>
         <span><i class="dot lvl-none"></i>не в плане</span>
+      </div>
+      <div class="bm-legend dim small">
+        <span>объём:</span>
+        <span><i class="dot lvl-ok vol-lo"></i>до 8 сетов</span>
+        <span><i class="dot lvl-ok vol-mid"></i>8–14</span>
+        <span><i class="dot lvl-ok vol-hi"></i>15 и больше</span>
       </div>
     </div>`}
 

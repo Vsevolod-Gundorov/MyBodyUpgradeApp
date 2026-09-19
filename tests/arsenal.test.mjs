@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MUSCLE_ORDER, MUSCLES, EQUIP, EXERCISES, searchExercises } from "../data/exercises.js";
 import { METHODS } from "../data/program.js";
-import { BODY_VIEWS, MAPPED_GROUPS, shapeSvg, coverLevel, coverLabel } from "../data/bodymap.js";
+import { BODY_VIEWS, MAPPED_GROUPS, shapeSvg, coverLevel, coverVolume, coverLabel } from "../data/bodymap.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 
 /* ---------- карта тела ---------- */
@@ -23,51 +23,56 @@ test("на карте нет фигур для несуществующих гр
 test("у обоих видов есть силуэт и хотя бы по одному контуру на группу", () => {
   assert.equal(BODY_VIEWS.length, 2);
   for (const v of BODY_VIEWS) {
-    assert.ok(v.base.half.length + v.base.center.length > 5, `${v.title}: силуэт пустой`);
-    for (const [g, part] of Object.entries(v.muscles)) {
-      assert.ok((part.half || []).length + (part.center || []).length >= 1, `${v.title}: у ${g} нет контуров`);
+    assert.match(v.viewBox, /^[\d\s.]+$/, `${v.title}: холст не задан`);
+    assert.ok(v.base.length > 5, `${v.title}: силуэт пустой`);
+    for (const [g, list] of Object.entries(v.muscles)) {
+      assert.ok(list.length >= 1, `${v.title}: у ${g} нет контуров`);
     }
   }
 });
 
-test("контуры превращаются в корректный SVG, симметрия — зеркалом", () => {
+test("контуры модели валидны и лежат внутри своего холста", () => {
   for (const v of BODY_VIEWS) {
-    for (const part of [v.base, ...Object.values(v.muscles)]) {
-      const svg = shapeSvg(part);
-      assert.ok(!/NaN|undefined/.test(svg), `дырка в координатах: ${svg.slice(0, 80)}`);
-      const paths = svg.match(/<path /g) || [];
-      // каждая половина рисуется дважды: сама и зеркально
-      assert.equal(paths.length, (part.half || []).length * 2 + (part.center || []).length);
-      if ((part.half || []).length) assert.match(svg, /transform="translate\(170,0\) scale\(-1,1\)"/);
+    const [vx, vy, vw, vh] = v.viewBox.split(/\s+/).map(Number);
+    for (const d of [...v.base, ...Object.values(v.muscles).flat()]) {
+      assert.match(d, /^M/, `путь должен начинаться с M: ${d.slice(0, 30)}`);
+      assert.ok(!/NaN|undefined/.test(d), `дырка в координатах: ${d.slice(0, 40)}`);
+      const [x, y] = (d.match(/-?\d*\.?\d+/g) || []).slice(0, 2).map(Number);
+      assert.ok(x >= vx - 5 && x <= vx + vw + 5, `${v.title}: старт по горизонтали вне холста: ${x}`);
+      assert.ok(y >= vy - 5 && y <= vy + vh + 5, `${v.title}: старт по вертикали вне холста: ${y}`);
     }
   }
 });
 
-test("ни один контур не выходит за холст 170×380", () => {
+test("контуры превращаются в SVG без потерь и без исполняемого содержимого", () => {
   for (const v of BODY_VIEWS) {
-    for (const part of [v.base, ...Object.values(v.muscles)]) {
-      for (const d of [...(part.half || []), ...(part.center || [])]) {
-        assert.match(d, /^M/, `путь должен начинаться с M: ${d.slice(0, 30)}`);
-        assert.match(d, /[zZ]$/, `путь должен быть замкнут: ${d.slice(-20)}`);
-        // абсолютные координаты в начале пути — самая частая причина уехавшей мышцы
-        const [x, y] = (d.match(/-?\d*\.?\d+/g) || []).slice(0, 2).map(Number);
-        assert.ok(x >= 0 && x <= 170, `старт по горизонтали за холстом: ${x}`);
-        assert.ok(y >= 0 && y <= 380, `старт по вертикали за холстом: ${y}`);
-      }
+    for (const list of [v.base, ...Object.values(v.muscles)]) {
+      const svg = shapeSvg(list);
+      assert.equal((svg.match(/<path /g) || []).length, list.length);
+      assert.ok(!/<script|onload=|https?:/.test(svg), "в контурах не должно быть ничего исполняемого");
     }
   }
+  assert.equal(shapeSvg(null), "");
+  assert.equal(shapeSvg([]), "");
 });
 
-test("левая половина не переползает через среднюю линию", () => {
-  // иначе зеркальная копия наложится сама на себя и по центру появится шов
-  for (const v of BODY_VIEWS) {
-    for (const part of [v.base, ...Object.values(v.muscles)]) {
-      for (const d of (part.half || [])) {
-        const x = Number((d.match(/-?\d*\.?\d+/g) || [])[0]);
-        assert.ok(x <= 86, `контур половины начинается правее центра: ${x}`);
-      }
-    }
-  }
+test("объём задаёт насыщенность: до 8 сетов бледно, 15 и больше — в полную силу", () => {
+  assert.equal(coverVolume({ days: 2, sets: 20 }), "hi");
+  assert.equal(coverVolume({ days: 2, sets: 15 }), "hi");
+  assert.equal(coverVolume({ days: 2, sets: 14.5 }), "mid");
+  assert.equal(coverVolume({ days: 2, sets: 8 }), "mid");
+  assert.equal(coverVolume({ days: 1, sets: 7.5 }), "lo");
+  assert.equal(coverVolume({ days: 0, sets: 0 }), "lo");
+  assert.equal(coverVolume(null), "lo");
+});
+
+test("частота и объём — независимые оси", () => {
+  // редко, но помногу: цвет «мало дней», насыщенность полная
+  assert.equal(coverLevel({ days: 1, sets: 18 }), "low");
+  assert.equal(coverVolume({ days: 1, sets: 18 }), "hi");
+  // часто, но по чуть-чуть: цвет «норма», насыщенность бледная
+  assert.equal(coverLevel({ days: 3, sets: 6 }), "ok");
+  assert.equal(coverVolume({ days: 3, sets: 6 }), "lo");
 });
 
 test("уровень покрытия: два активных дня — норма, один — мало, ноль сетов — вне плана", () => {

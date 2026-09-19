@@ -95,6 +95,13 @@ node --test tests/*.mjs
 (`buildAchievementCtx` в `js/app.js`), список и оценка — `data/achievements.js`.
 Иконки — game-icons.net (CC BY 3.0); новые вытаскиваются скриптом `tools/extract-icons.py` из локального клона библиотеки.
 
+## Сторонние материалы
+- Иконки знаков и сеттинга — [game-icons.net](https://game-icons.net), CC BY 3.0.
+- Анатомическая модель тела в «Арсенале движений» — контуры из
+  [react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter) (MIT, © 2022 ELABBASSI Hicham).
+  Данные перенесены в `data/bodymap.js`, текст лицензии — `data/bodymap-LICENSE.txt`.
+  Служебные значки снарядов и приёмов (`data/icons-ui.js`) нарисованы для проекта.
+
 ## Telegram Mini App
 Приложение работает и как обычная веб-страница, и как мини-приложение Telegram: внутри Телеграма
 подхватываются системная кнопка «Назад», тактильная отдача, безопасные зоны, цвет шапки и облако.

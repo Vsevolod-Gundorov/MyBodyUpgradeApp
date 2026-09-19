@@ -948,13 +948,20 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .bm { width: 100%; height: auto; display: block; }
 .bm-title { font-size: .6rem; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
 /* силуэт — декорация: тапы должны доходить до мышц, а не вязнуть в нём */
-.bm-base { fill: var(--panel-2); stroke: rgba(216,184,104,.2); stroke-width: .9; pointer-events: none; }
-.bm-m { stroke: var(--ink-2); stroke-width: .6; cursor: pointer; transition: opacity .15s; }
+.bm-base { fill: var(--panel-2); stroke: rgba(216,184,104,.2); stroke-width: 2.5; pointer-events: none; }
+.bm-m { stroke: var(--ink-2); stroke-width: 2.5; cursor: pointer; transition: opacity .15s; }
 .bm-m:focus-visible { outline: none; }
-.bm-m.lvl-ok { fill: var(--moss); }
-.bm-m.lvl-low { fill: var(--gold); }
-.bm-m.lvl-none { fill: #2b3c42; }
-.bm-m.pick { stroke: var(--gold-bright); stroke-width: 1.8; filter: drop-shadow(0 0 6px rgba(224,189,102,.55)); }
+/* цвет — частота работы, насыщенность — недельный объём.
+   Оттенки заданы явно, а не прозрачностью: полупрозрачная мышца смешивается
+   с фоном панели и уходит в бурый. */
+.bm-m.lvl-ok.vol-lo   { fill: #56704a; }
+.bm-m.lvl-ok.vol-mid  { fill: #78a05e; }
+.bm-m.lvl-ok.vol-hi   { fill: #a3d27e; }
+.bm-m.lvl-low.vol-lo  { fill: #93793c; }
+.bm-m.lvl-low.vol-mid { fill: #c09a43; }
+.bm-m.lvl-low.vol-hi  { fill: #f0cb70; }
+.bm-m.lvl-none        { fill: #2b3c42; }
+.bm-m.pick { stroke: var(--gold-bright); stroke-width: 6; filter: drop-shadow(0 0 6px rgba(224,189,102,.55)); }
 .bm-row:has(.pick) .bm-m:not(.pick) { opacity: .45; }
 
 .bm-info { display: flex; align-items: center; gap: 8px; min-height: 26px; margin-top: 8px;
@@ -964,9 +971,12 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .bm-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: .68rem; }
 .bm-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .bm-legend .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
-.bm-legend .dot.lvl-ok { background: var(--moss); }
-.bm-legend .dot.lvl-low { background: var(--gold); }
+.bm-legend .dot.lvl-ok.vol-lo { background: #56704a; }
+.bm-legend .dot.lvl-ok.vol-mid { background: #78a05e; }
+.bm-legend .dot.lvl-ok.vol-hi { background: #a3d27e; }
+.bm-legend .dot.lvl-low.vol-hi { background: #f0cb70; }
 .bm-legend .dot.lvl-none { background: #2b3c42; }
+.bm-legend + .bm-legend { margin-top: 4px; }
 
 /* ---------- приёмы интенсивности ---------- */
 .meth-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); grid-auto-rows: 1fr; gap: 8px; }
