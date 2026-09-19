@@ -106,16 +106,16 @@ const bulkArmGroup = (list, cx, { anchorY = 400, thick = 1.32, close = 0.95 } = 
 
 const CX = { front: 362, back: 1086 };   // центр тела: модель хранит спину сдвинутой вправо
 const ARM_SLUGS = new Set(["biceps", "triceps", "forearm", "hands"]);
-const BASE_SLUGS = ["head", "hair", "neck", "hands", "ankles", "feet", "knees", "adductors"];
+const BASE_SLUGS = ["head", "hair", "neck", "hands", "ankles", "feet", "knees"];
 const MAP_FRONT = {
   traps: ["trapezius"], delts: ["deltoids"], chest: ["chest"], biceps: ["biceps"],
   triceps: ["triceps"], forearms: ["forearm"], abs: ["abs", "obliques"],
-  quads: ["quadriceps"], calves: ["tibialis", "calves"],
+  quads: ["quadriceps"], calves: ["tibialis", "calves"], adductors: ["adductors"],
 };
 const MAP_BACK = {
   traps: ["trapezius"], rear: ["deltoids"], back: ["upper-back"], triceps: ["triceps"],
   forearms: ["forearm"], lowback: ["lower-back"], glutes: ["gluteal"],
-  hams: ["hamstring"], calves: ["calves"],
+  hams: ["hamstring"], calves: ["calves"], adductors: ["adductors"],
 };
 
 const paths = (g, cx) => {

@@ -1232,8 +1232,6 @@ function renderPool() {
   // поиск идёт по всей странице: и по движениям, и по приёмам интенсивности
   const found = bodyPick ? EXERCISES.filter((e) => e.group === bodyPick) : searchExercises(q);
   const groups = MUSCLE_ORDER.map((g) => ({ g, list: found.filter((e) => e.group === g) })).filter((x) => x.list.length);
-  const methods = bodyPick ? [] : Object.entries(METHODS).filter(([, m]) => !q ||
-    [m.name, m.origin, m.desc].some((t) => (t || "").toLowerCase().includes(q)));
   const cov = weeklyCoverage(week, S.plan || {});
   const lvlBadge = (g) => ({ ok: "b-vol", low: "b-load", miss: "b-warn", none: "b-dim" })[coverLevel(cov[g], g)];
   // объём выбранной мышцы по всем неделям: видно, в какой именно она проседает,
@@ -1253,7 +1251,7 @@ function renderPool() {
       </div>
       <div class="search-bar">
         <span class="search-ico">${icon("search")}</span>
-        <input class="search-input" id="pool-q" placeholder="Движение, мышца, снаряд, приём" value="${poolFilter}"
+        <input class="search-input" id="pool-q" placeholder="Движение, мышца, снаряд" value="${poolFilter}"
                autocomplete="off" autocorrect="off" spellcheck="false" />
         ${poolFilter ? `<button class="search-clear" id="pool-clear" aria-label="Очистить">${icon("close")}</button>` : ""}
       </div>
@@ -1261,7 +1259,7 @@ function renderPool() {
 
     ${!showMap ? `<div class="search-count dim small">${found.length
         ? plural3(found.length, "движение", "движения", "движений") + " найдено"
-        : "Движений не найдено"}${methods.length ? ` · ${plural3(methods.length, "приём", "приёма", "приёмов")}` : ""}</div>` : `
+        : "Движений не найдено"}</div>` : `
     <div class="panel">
       <div class="panel-head">
         <span class="eyebrow">Покрытие мышц</span>
@@ -1303,18 +1301,6 @@ function renderPool() {
       </div>
     </div>`}
 
-    ${methods.length ? `
-    <div class="panel">
-      <div class="eyebrow" style="margin-bottom:10px">Приёмы интенсивности</div>
-      <div class="meth-grid">
-        ${methods.map(([k, m]) => `
-          <button class="meth" data-method="${k}">
-            <span class="meth-ico">${icon(METHOD_ICON(k))}</span>
-            <span class="meth-name">${m.name}</span>
-          </button>`).join("")}
-      </div>
-    </div>` : ""}
-
     ${groups.map(({ g, list }) => {
       const open = !!q || !!bodyPick || poolOpen.has(g);
       return `
@@ -1325,7 +1311,7 @@ function renderPool() {
         </button>
         <div class="pool-list">${list.map(poolRow).join("")}</div>
       </div>`; }).join("")}
-    ${!groups.length && !methods.length ? `<div class="empty">Ничего не найдено. Попробуй другое слово — например «блок» или «дроп».</div>` : ""}`;
+    ${!groups.length ? `<div class="empty">Ничего не найдено. Попробуй другое слово — например «блок» или «тяга».</div>` : ""}`;
 
   document.getElementById("pool-help").onclick = () => showInfo({
     title: "Арсенал движений", eyebrow: "как читать",
@@ -1337,7 +1323,7 @@ function renderPool() {
         <div><span class="badge b-ss">растяжение</span> движение грузит мышцу в растянутой позиции: по свежим данным это приоритет</div>
       </div>
       <p>На карте тела мышца подсвечена по числу активных дней за неделю. Тапни по мышце — покажу частоту и объём. Правило цикла: каждая группа работает дважды в неделю.</p>
-      <p class="dim small">Приёмы интенсивности взяты у про-атлетов и урезаны под натурала: 1–2 за сессию, только на изоляции и тренажёрах.</p>`,
+      <p class="dim small">В самих квестах встречаются две механики подхода: суперсет (два движения подряд без отдыха) и дроп-сет (сброс веса на последнем подходе). Тапни по бейджу в тренировке — расскажу подробнее.</p>`,
   });
 
   const leavePool = () => { cycleSub = null; bodyPick = null; poolFilter = ""; withLoader(() => { view = "cycle"; render(); }); };
@@ -1463,12 +1449,12 @@ function showMethod(key) {
   o.className = "overlay portion-overlay";
   o.innerHTML = `
     <div class="portion-card ex-card">
-      <div class="eyebrow">приём интенсивности · ${m.origin}</div>
+      <div class="eyebrow">механика подхода</div>
       <div class="portion-name display">${m.name}</div>
       <p class="ex-desc">${m.desc}</p>
       <div class="eyebrow" style="margin:14px 0 6px">Как делать</div>
       <p class="ex-desc" style="text-align:left">${m.how}</p>
-      <div class="dim small" style="margin-top:12px;text-align:left">Натуралу такие приёмы нужны точечно: 1–2 за сессию, на изоляции и тренажёрах. Тяжёлая база идёт без них, с запасом повторов.</div>
+      <div class="dim small" style="margin-top:12px;text-align:left">Движок сам ставит дроп-сет не чаще одного раза за квест и только на изоляции: тяжёлая база идёт без него, с запасом повторов.</div>
       <button class="btn-ghost" id="m-close" style="margin-top:16px">Закрыть</button>
     </div>`;
   overlayRoot.appendChild(o);
@@ -1615,7 +1601,7 @@ function renderWorkout(wid) {
             <span class="badge">${SCHEME[w.type] && SCHEME[w.type][ex.role] ? SCHEME[w.type][ex.role].tag : ""}</span>
             ${weightLabel(ex)}
             ${ex.ssWith ? `<span class="badge b-ss">суперсет: ${ex.ssWith}</span>` : ""}
-            ${ex.method && METHODS[ex.method] ? `<span class="badge b-method" data-method="${ex.method}">${METHODS[ex.method].name}</span>` : ""}
+            ${ex.method && METHODS[ex.method] ? `<span class="badge b-method" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))}${METHODS[ex.method].name}</span>` : ""}
           </span>
           ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]), (movSeries[movementKey(ex)] || []).length)}
         </span>

@@ -1026,17 +1026,6 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .bm-hint { font-size: .66rem; margin-left: auto; white-space: nowrap; }
 .bm-info .warn { color: var(--ember); font-weight: 600; }
 
-/* ---------- приёмы интенсивности ---------- */
-.meth-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); grid-auto-rows: 1fr; gap: 7px; }
-.meth { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
-  background: linear-gradient(180deg, rgba(79,154,168,.09), rgba(0,0,0,.25));
-  border: 1px solid rgba(79,154,168,.3); border-radius: var(--r);
-  padding: 9px 6px; color: var(--bone); font: inherit; text-align: center; }
-.meth:active { transform: scale(.96); border-color: var(--teal); }
-.meth-ico { color: var(--teal); display: grid; place-content: center; }
-.meth-ico .ico { width: 24px; height: 24px; }
-.meth-name { font-size: .7rem; line-height: 1.2; }
-
 /* ---------- поиск по странице ---------- */
 /* Шапка и поиск — один липкий блок во всю ширину со скруглением снизу:
    поиск читается как продолжение шапки, а не как отдельная плашка,
@@ -1146,6 +1135,7 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .badge.b-weight { color: var(--gold); border-color: var(--line-strong); }
 .badge.b-ss     { color: var(--gold); border-color: var(--line-strong); background: rgba(201,169,97,.08); }
 .badge.b-method { color: var(--teal); border-color: rgba(79,154,168,.5); background: rgba(79,154,168,.1); cursor: pointer; }
+.badge.b-method .ico { width: 12px; height: 12px; }
 .badge.b-ceil   { color: var(--gold-bright); border-color: var(--line-strong); }
 .badge.b-floor  { color: var(--moss); border-color: rgba(143,174,111,.4); }
 .badge.b-goal   { color: var(--teal); border-color: rgba(79,154,168,.4); }
