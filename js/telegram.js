@@ -85,7 +85,7 @@ const cloudRemove = (keys) => new Promise((res) => {
 });
 
 /** Сохранить состояние в облако. Возвращает { parts, bytes }. */
-export async function cloudSave(stateJson) {
+export async function cloudSave(stateJson, { rev = 0 } = {}) {
   if (!cloud()) throw new Error("Облако Telegram недоступно в этой версии");
   const parts = [];
   for (let i = 0; i < stateJson.length; i += CHUNK) parts.push(stateJson.slice(i, i + CHUNK));
@@ -93,7 +93,7 @@ export async function cloudSave(stateJson) {
   // сначала данные, потом мета — если запись оборвётся, старая мета укажет на старые части
   for (let i = 0; i < parts.length; i++) await cloudSet(keyPart(i), parts[i]);
   const prev = await cloudGet([KEY_META]).catch(() => ({}));
-  await cloudSet(KEY_META, JSON.stringify({ parts: parts.length, at: new Date().toISOString(), len: stateJson.length }));
+  await cloudSet(KEY_META, JSON.stringify({ parts: parts.length, at: new Date().toISOString(), len: stateJson.length, rev }));
   // подчищаем хвост от прошлого, более длинного сохранения
   const prevParts = safe(() => JSON.parse(prev[KEY_META] || "{}").parts) || 0;
   const stale = [];
@@ -127,8 +127,42 @@ export async function cloudInfo() {
   return metaRaw ? safe(() => JSON.parse(metaRaw)) || null : null;
 }
 
-/** Имя пользователя из Телеграма — чтобы не спрашивать его в профиле. */
+/* ================= кто именно открыл приложение ================= */
+// CloudStorage и так изолирован связкой «бот + пользователь», а локальный ключ
+// разводим по id вручную: на одном телефоне могут сидеть несколько аккаунтов.
+export function tgUser() {
+  return (inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+}
+export function tgUserId() {
+  const u = tgUser();
+  return u && u.id != null ? String(u.id) : null;
+}
 export function tgUserName() {
-  const u = inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  const u = tgUser();
   return (u && (u.first_name || u.username)) || null;
+}
+export function tgUserHandle() {
+  const u = tgUser();
+  if (!u) return null;
+  return u.username ? `@${u.username}` : [u.first_name, u.last_name].filter(Boolean).join(" ") || null;
+}
+
+/* ================= кто свежее: локальная копия или облачная ================= */
+/**
+ * Чистое решение о направлении синхронизации.
+ * @param local  { rev, syncedRev } — ревизия журнала и ревизия на момент последней синхронизации
+ * @param cloud  { rev } | null     — ревизия облачной копии (null, если её нет)
+ * @returns "push" | "pull" | "none" | "conflict"
+ */
+export function decideSync(local, cloud) {
+  const lRev = (local && local.rev) || 0;
+  const lSynced = (local && local.syncedRev) || 0;
+  if (!cloud) return lRev > 0 ? "push" : "none";
+  const cRev = cloud.rev || 0;
+  if (cRev === lRev) return "none";
+  const localChanged = lRev > lSynced;         // журнал меняли после последней синхронизации
+  const cloudChanged = cRev > lSynced;         // облако тоже уехало вперёд
+  if (cloudChanged && localChanged) return lRev === 0 ? "pull" : "conflict";
+  if (cloudChanged) return "pull";
+  return "push";
 }

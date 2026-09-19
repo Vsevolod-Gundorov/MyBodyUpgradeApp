@@ -430,3 +430,31 @@ test("правки атлета тоже проверяются на перег�
   assert.equal(bad.overload, true, "две максимальные базы должны помечаться как перегруз");
   assert.equal(bad.level, "high");
 });
+
+/* ---------- синхронизация журнала между устройствами одного пользователя ---------- */
+import { decideSync } from "../js/telegram.js";
+
+test("синхронизация: направление выбирается по ревизиям", () => {
+  // первое устройство: облака ещё нет
+  assert.equal(decideSync({ rev: 5, syncedRev: 0 }, null), "push");
+  assert.equal(decideSync({ rev: 0, syncedRev: 0 }, null), "none", "пустой журнал нечего заливать");
+  // новое устройство того же пользователя: локально пусто, в облаке журнал
+  assert.equal(decideSync({ rev: 0, syncedRev: 0 }, { rev: 12 }), "pull");
+  // писали с другого телефона, здесь с тех пор ничего не меняли
+  assert.equal(decideSync({ rev: 5, syncedRev: 5 }, { rev: 8 }), "pull");
+  // здесь тренировались, облако отстало
+  assert.equal(decideSync({ rev: 9, syncedRev: 5 }, { rev: 5 }), "push");
+  // ревизии совпали — синхронизировать нечего
+  assert.equal(decideSync({ rev: 7, syncedRev: 7 }, { rev: 7 }), "none");
+  // и здесь тренировались, и с другого телефона — спрашиваем пользователя
+  assert.equal(decideSync({ rev: 7, syncedRev: 5 }, { rev: 8 }), "conflict");
+});
+
+test("синхронизация: устойчива к пустым и битым метаданным", () => {
+  assert.equal(decideSync(null, null), "none");
+  assert.equal(decideSync({}, {}), "none");
+  assert.equal(decideSync({ rev: 3 }, {}), "push");
+  assert.equal(decideSync({}, { rev: 3 }), "pull");
+  // ревизия из облака меньше, чем уже синхронизированная — облако отстало, льём своё
+  assert.equal(decideSync({ rev: 10, syncedRev: 10 }, { rev: 4 }), "push");
+});

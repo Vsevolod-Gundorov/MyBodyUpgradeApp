@@ -1,6 +1,6 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
-import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUserName } from "./telegram.js";
+import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
@@ -140,7 +140,22 @@ function autoBuffFromReal(real, offset = 0) {
 const doseStr = (b, val) => { const d = (val != null ? val : b.dose); return b.unit ? `${d} ${b.unit}` : `${d}`; };
 
 /* ================= состояние (БД = localStorage + экспорт в JSON-файл) ================= */
-const DB_KEY = "bodyupgrade.v1";
+const DB_BASE = "bodyupgrade.v1";
+// У каждого пользователя Телеграма свой журнал: на одном телефоне может быть
+// несколько аккаунтов, и смешивать их прогресс нельзя.
+const DB_KEY = (() => {
+  const uid = tgUserId();
+  if (!uid) return DB_BASE;                       // обычный браузер — как раньше
+  const key = `${DB_BASE}.u${uid}`;
+  // первый вход этого аккаунта: забираем журнал, накопленный до появления аккаунтов
+  try {
+    if (!localStorage.getItem(key)) {
+      const legacy = localStorage.getItem(DB_BASE);
+      if (legacy) { localStorage.setItem(key, legacy); localStorage.removeItem(DB_BASE); }
+    }
+  } catch (e) { /* приватный режим — просто работаем без переноса */ }
+  return key;
+})();
 
 const defaultState = () => ({
   hero: { name: "Всеволод", title: "Одинокий Гриндер", bodyweight: 93 },
@@ -166,6 +181,9 @@ const defaultState = () => ({
   achievements: {}, // id -> { count, first, last } — знаки отличия (см. data/achievements.js)
   plan: {},      // wid -> { swap: {origId:newId}, add: [id], hide: [id] } — правки состава квеста
   meta: { exports: 0, imports: 0 }, // счётчики служебных действий (для достижений «Хроники»)
+  rev: 0,        // ревизия журнала — растёт с каждым сохранением
+  updatedAt: null,
+  sync: { syncedRev: 0, at: null }, // что и когда уехало в облако Телеграма
 });
 
 let S = load();
@@ -199,6 +217,8 @@ function load() {
         ? parsed.achievements : migrateLegacyStatuses(S2.statuses);
       S2.meta = Object.assign({}, base.meta, parsed.meta);
       S2.plan = (parsed.plan && typeof parsed.plan === "object") ? parsed.plan : {};
+      S2.rev = Number.isFinite(parsed.rev) ? parsed.rev : 0;
+      S2.sync = Object.assign({ syncedRev: 0, at: null }, parsed.sync);
       S2.settings = Object.assign({}, base.settings, parsed.settings);
       S2.cycleStart = Number.isInteger(parsed.cycleStart) ? parsed.cycleStart : 0;
       S2.questStart = (parsed.questStart && typeof parsed.questStart === "object") ? parsed.questStart : {};
@@ -207,7 +227,65 @@ function load() {
   } catch (e) { /* повреждённые данные — начинаем заново */ }
   return defaultState();
 }
-function save() { localStorage.setItem(DB_KEY, JSON.stringify(S)); }
+function save() {
+  S.rev = (S.rev || 0) + 1;                        // ревизия нужна, чтобы понять, чья копия свежее
+  S.updatedAt = new Date().toISOString();
+  localStorage.setItem(DB_KEY, JSON.stringify(S));
+  queueCloudSync();
+}
+
+/* ---- автосинхронизация с облаком Телеграма ---- */
+let cloudTimer = null, cloudBusy = false, cloudState = "idle"; // idle | saving | saved | error | off
+const cloudListeners = new Set();
+const setCloudState = (v) => { cloudState = v; cloudListeners.forEach((f) => f(v)); };
+export const onCloudState = (f) => { cloudListeners.add(f); return () => cloudListeners.delete(f); };
+function queueCloudSync() {
+  if (!cloudAvailable()) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(pushCloud, 4000);        // ввод веса и повторов идёт очередями — не дёргаем облако на каждый символ
+}
+async function pushCloud() {
+  if (!cloudAvailable() || cloudBusy) return;
+  cloudBusy = true; setCloudState("saving");
+  try {
+    const rev = S.rev || 0;
+    await cloudSave(JSON.stringify(S), { rev });
+    S.sync = { ...(S.sync || {}), syncedRev: rev, at: new Date().toISOString() };
+    // пишем отметку синхронизации без save(), чтобы не крутить ревизию, но не затираем
+    // хранилище, если рядом открыта вторая вкладка и она успела записать более свежий журнал
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem(DB_KEY) || "null"); } catch (e) { stored = null; }
+    if (!stored || (stored.rev || 0) <= rev) localStorage.setItem(DB_KEY, JSON.stringify(S));
+    setCloudState("saved");
+  } catch (e) { setCloudState("error"); }
+  finally { cloudBusy = false; }
+}
+function applyCloudJson(json) {
+  localStorage.setItem(DB_KEY, json);
+  S = load();
+  S.sync = { ...(S.sync || {}), syncedRev: S.rev || 0, at: new Date().toISOString() };
+  localStorage.setItem(DB_KEY, JSON.stringify(S));
+  invalidateE1RM();
+}
+/** Старт внутри Телеграма: решаем, чья копия свежее, и подтягиваем облако. */
+async function initCloudSync() {
+  if (!cloudAvailable()) { setCloudState("off"); return; }
+  try {
+    const meta = await cloudInfo();
+    const verdict = decideSync({ rev: S.rev || 0, syncedRev: (S.sync && S.sync.syncedRev) || 0 }, meta ? { rev: meta.rev || 0 } : null);
+    if (verdict === "pull" || verdict === "conflict") {
+      const got = await cloudLoad();
+      if (got) {
+        const take = verdict === "pull" || confirm(
+          `Журнал менялся и здесь, и в облаке Telegram${got.at ? ` (облачная копия от ${fmtDate(got.at.slice(0, 10))})` : ""}.\n\nOK — взять облачную копию, Отмена — оставить то, что на этом устройстве.`);
+        if (take) { applyCloudJson(got.json); render(); setCloudState("saved"); return; }
+        await pushCloud(); return;
+      }
+    }
+    if (verdict === "push") { await pushCloud(); return; }
+    setCloudState("saved");
+  } catch (e) { setCloudState("error"); }
+}
 
 /* ================= справочники ================= */
 const WORKOUTS = {};
@@ -701,6 +779,17 @@ function renderProfile() {
       <button class="toggle-row" id="tg-haptics"><span>Вибро-отдача</span><span class="tg ${S.settings?.haptics ? "on" : ""}"><i></i></span></button>
     </div>
 
+    ${inTelegram ? `
+    <div class="panel">
+      <div class="panel-head">
+        <span class="eyebrow">Аккаунт Telegram</span>
+        <span class="badge b-dim" id="sync-badge">синхронизация…</span>
+      </div>
+      <div class="kv"><span>${tgUserName() || "Герой"}</span><span class="dim mono">${tgUserHandle() || ""}</span></div>
+      <div class="dim small" style="margin-top:6px">Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.</div>
+      <button class="btn-ghost" id="btn-sync" style="margin-top:12px">Синхронизировать сейчас</button>
+    </div>` : ""}
+
     <div class="panel">
       <div class="eyebrow" style="margin-bottom:10px">Сохранение</div>
       ${cloudAvailable() ? `
@@ -733,6 +822,21 @@ function renderProfile() {
     save();
     checkAchievements({ type: "chronicle" });
   };
+  // живой статус синхронизации в шапке блока аккаунта
+  const syncBadge = document.getElementById("sync-badge");
+  if (syncBadge) {
+    const TXT = { idle: "ожидает", saving: "сохраняю…", saved: "синхронизировано", error: "ошибка облака", off: "только на устройстве" };
+    const paint = (st) => {
+      syncBadge.textContent = TXT[st] || st;
+      syncBadge.className = `badge ${st === "saved" ? "b-vol" : (st === "error" ? "b-load" : "b-dim")}`;
+    };
+    paint(cloudState);
+    const off = onCloudState(paint);
+    app.addEventListener("view-change", off, { once: true });
+  }
+  const syncBtn = document.getElementById("btn-sync");
+  if (syncBtn) syncBtn.onclick = async () => { fxTap(); await initCloudSync(); renderProfile(); };
+
   if (cloudAvailable()) {
     const info = document.getElementById("cloud-info");
     const showInfoLine = (txt) => { if (info) info.textContent = txt; };
@@ -742,7 +846,8 @@ function renderProfile() {
     document.getElementById("btn-cloud-save").onclick = async () => {
       showInfoLine("сохраняю…");
       try {
-        const r = await cloudSave(JSON.stringify(S));
+        const r = await cloudSave(JSON.stringify(S), { rev: S.rev || 0 });
+        S.sync = { ...(S.sync || {}), syncedRev: S.rev || 0, at: new Date().toISOString() };
         showInfoLine(`сохранено: ${fmtDate(today())} · ${Math.round(r.bytes / 1024)} КБ`);
         fxChime();
         S.meta = S.meta || { exports: 0, imports: 0 };
@@ -758,9 +863,7 @@ function renderProfile() {
         if (!confirm(`Заменить текущий журнал копией из облака${got.at ? ` от ${fmtDate(got.at.slice(0, 10))}` : ""}? Текущие данные будут перезаписаны.`)) return;
         const parsed = JSON.parse(got.json);
         if (!parsed || typeof parsed !== "object") throw new Error("копия повреждена");
-        localStorage.setItem(DB_KEY, got.json);
-        S = load();
-        invalidateE1RM();
+        applyCloudJson(got.json);
         S.meta = Object.assign({ exports: 0, imports: 0 }, S.meta);
         S.meta.imports = (S.meta.imports || 0) + 1;
         checkAchievements({ type: "silent" }, { silent: true });
@@ -2566,11 +2669,13 @@ document.addEventListener("touchend", (e) => {
 /* ================= старт ================= */
 // Telegram Mini App: системная кнопка «Назад», хаптика, безопасные зоны, облако
 initTelegram({ onBack: () => { if (backHandler) backHandler(); } });
-// первый запуск внутри Телеграма — берём имя героя из профиля
-if (inTelegram && !localStorage.getItem(DB_KEY)) {
+// первый запуск этого аккаунта — берём имя героя из профиля Телеграма
+if (inTelegram && !(S.sessions || []).length && !S.rev) {
   const n = tgUserName();
-  if (n) { S.hero.name = n; save(); }
+  if (n && n !== S.hero.name) { S.hero.name = n; save(); }
 }
+// подтягиваем журнал этого пользователя из его облака
+initCloudSync();
 
 // тихая сверка знаков отличия: подхватывает уже заслуженное (в т.ч. после миграции и обновлений правил)
 checkAchievements({ type: "silent" }, { silent: true }); save();
