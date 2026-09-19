@@ -162,7 +162,8 @@ h2.display { font-size: 1.4rem; }
 .kv:last-child { border-bottom: 0; }
 
 /* ---------- цикл / недели ---------- */
-.week-block { margin-top: 12px; }
+.week-block { margin-top: 10px; }
+.week-block.open { margin-top: 14px; }
 .week-tag {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--gold);
@@ -172,7 +173,7 @@ h2.display { font-size: 1.4rem; }
 .week-tag.vol .dot { background: var(--moss); }
 
 /* сага стоит в строке недели, а не отдельным заголовком: это подпись, а не раздел */
-.saga { font-size: .78rem; color: var(--gold-bright); font-style: italic; letter-spacing: .01em; opacity: .9; }
+.saga { font-size: .74rem; color: var(--gold-bright); font-style: italic; letter-spacing: .01em; opacity: .9; }
 .saga::before { content: "·"; color: var(--dim); margin: 0 5px; font-style: normal; }
 /* на узких экранах сага уступает место бейджам: она украшение, они — факты */
 @media (max-width: 379px) { .saga { display: none; } }
@@ -1053,10 +1054,20 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .icon-btn svg { width: 15px; height: 15px; fill: currentColor; }
 .icon-btn:active { transform: scale(.94); }
 
-.week-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+/* строка недели — кнопка: раскрывает и сворачивает свои квесты */
+.week-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 6px 2px; margin-bottom: 1px; cursor: pointer;
+  background: none; border: 0; border-bottom: 1px solid transparent; color: inherit; font: inherit; text-align: left;
+}
+.week-block:not(.open) .week-head { border-bottom-color: var(--line); }
+.week-head:active { transform: scale(.995); }
+.week-chev { color: var(--dim); font-size: .65rem; line-height: 1; }
 .week-title { display: flex; align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap; }
 .week-title .week-n { letter-spacing: .14em; }   /* разрядка съедала место, которого не хватало саге */
-.week-badges { display: flex; gap: 5px; flex: 0 0 auto; }
+.week-badges { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+/* в строке недели бейджи плотнее, чем на карточках: здесь на счету каждый пиксель */
+.week-badges .badge { padding: 2px 6px; }
 .week-n { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
 .wcard .row1 { margin-bottom: 2px; }
 .wcard .badges { margin-top: 1px; }
