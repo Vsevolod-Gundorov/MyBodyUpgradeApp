@@ -1,0 +1,39 @@
+# Настройка бота без терминала: токен лежит в секретах GitHub, а не в файлах.
+#
+# Как пользоваться:
+#   1. Settings → Secrets and variables → Actions → New repository secret
+#      имя: BOT_TOKEN, значение: токен от @BotFather
+#   2. Вкладка Actions → «Настроить бота» → Run workflow
+#
+# Секрет в логи не попадает: GitHub маскирует его сам, плюс скрипт вырезает токен из вывода.
+name: Настроить бота
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: "Адрес приложения (https)"
+        required: true
+        default: "https://my-body-upgrade-app.vercel.app"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверить, что секрет задан
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          if [ -z "${BOT_TOKEN:-}" ]; then
+            echo "::error::Нет секрета BOT_TOKEN. Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "Секрет на месте"
+
+      - name: Настроить кнопку меню, имя, описания и команды
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          APP_URL: ${{ inputs.app_url }}
+        run: bash tools/setup-bot.sh

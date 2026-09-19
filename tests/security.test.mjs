@@ -117,6 +117,17 @@ test("скрипт настройки бота не печатает токен 
   assert.match(sh, /if \[ -f \.env \]/, "скрипт должен читать .env");
 });
 
+test("workflow настройки бота берёт токен только из секретов и не печатает его", () => {
+  const wf = read(".github/workflows/setup-bot.yml");
+  assert.match(wf, /BOT_TOKEN:\s*\$\{\{\s*secrets\.BOT_TOKEN\s*\}\}/, "токен должен приходить из secrets");
+  assert.ok(!/[0-9]{6,12}:[A-Za-z0-9_-]{30,}/.test(wf), "в workflow не должно быть значения токена");
+  assert.ok(!/echo[^\n]*\$\{?BOT_TOKEN/.test(wf), "workflow не должен печатать токен");
+  assert.match(wf, /workflow_dispatch/, "запуск только руками, не по пушу");
+  // CI-проверка секретов не должна иметь доступа к токену вообще
+  const ci = read(".github/workflows/ci.yml");
+  assert.ok(!/\$\{\{\s*secrets\./.test(ci), "CI не должен получать секреты");
+});
+
 test("хук pre-commit блокирует .env и токены", () => {
   const hook = read(".githooks/pre-commit");
   assert.match(hook, /\.env\|\.env\.\*/);
