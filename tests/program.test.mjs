@@ -1,7 +1,7 @@
 // Тесты бизнес-логики программы и пула движений: node --test tests/program.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROGRAM, TEMPLATES, SCHEME, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage } from "../data/program.js";
+import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, pctOf1RM, similarTo } from "../data/exercises.js";
 
 // группы, которые обязаны прорабатываться не реже 2 раз в неделю
@@ -78,19 +78,111 @@ test("объём за одну сессию не превышает потоло
   }
 });
 
-test("каждый квест закрывает жим, тягу и работу ног", () => {
-  for (const w of allWorkouts()) {
-    const pats = new Set(buildExercises(w).map((e) => EX_BY_ID[e.id].pattern));
-    assert.ok(pats.has("pressH") || pats.has("pressV"), `${w.id}: нет жима`);
-    assert.ok(pats.has("pullH") || pats.has("pullV"), `${w.id}: нет тяги`);
-    assert.ok(pats.has("squat") || pats.has("lunge"), `${w.id}: нет работы на квадрицепс`);
-    assert.ok(pats.has("hinge") || buildExercises(w).some((e) => EX_BY_ID[e.id].group === "hams"), `${w.id}: нет задней цепи`);
-    assert.ok(buildExercises(w).filter((e) => e.main).length === 1, `${w.id}: должно быть ровно одно движение дня`);
+test("сплит: специализированные дни и полное покрытие за неделю", () => {
+  for (const wk of PROGRAM.weeks) {
+    const pats = new Set();
+    for (const w of wk.workouts) {
+      const list = buildExercises(w);
+      assert.equal(list.filter((e) => e.main).length, 1, `${w.id}: должно быть ровно одно движение дня`);
+      list.forEach((e) => pats.add(EX_BY_ID[e.id].pattern));
+    }
+    // за неделю закрыты все ключевые паттерны
+    for (const p of ["squat", "hinge", "pressH", "pressV", "pullH", "pullV", "iso", "core"]) {
+      assert.ok(pats.has(p), `неделя ${wk.n}: не закрыт паттерн ${p}`);
+    }
   }
 });
 
+test("каждая группа активно работает ровно в двух днях недели, по 2+ упражнения за неделю", () => {
+  for (const wk of PROGRAM.weeks) {
+    const cov = weeklyCoverage(wk);
+    const exCount = {};
+    wk.workouts.forEach((w) => {
+      buildExercises(w).forEach((e) => {
+        const src = EX_BY_ID[e.id];
+        exCount[src.group] = (exCount[src.group] || 0) + 1;
+        if (src.tier <= 2) (src.also || []).forEach((g) => { exCount[g] = (exCount[g] || 0) + 0.5; });
+      });
+    });
+    for (const g of CORE_GROUPS) {
+      assert.ok(cov[g] && cov[g].days >= 2, `неделя ${wk.n}: ${MUSCLES[g]} активно только в ${cov[g] ? cov[g].days : 0} дн.`);
+      assert.ok(exCount[g] >= 2, `неделя ${wk.n}: ${MUSCLES[g]} всего ${exCount[g]} упражнение за неделю`);
+    }
+    // в специализированный день группа получает не одно движение, а несколько
+    const upper = wk.workouts.find((w) => w.tpl === "U");
+    const uCount = {};
+    buildExercises(upper).forEach((e) => { const g = EX_BY_ID[e.id].group; uCount[g] = (uCount[g] || 0) + 1; });
+    assert.ok(uCount.chest >= 2, `неделя ${wk.n}: в день верха грудь получает ${uCount.chest} упражнение`);
+    assert.ok(uCount.back >= 2, `неделя ${wk.n}: в день верха спина получает ${uCount.back} упражнение`);
+  }
+});
+
+test("волны A и B дают разные вспомогательные движения при том же движении дня", () => {
+  const waveA = PROGRAM.weeks.find((w) => w.wave === "A");
+  const waveB = PROGRAM.weeks.find((w) => w.wave === "B");
+  assert.ok(waveA && waveB, "в цикле должны быть обе волны");
+  for (const tpl of Object.keys(TEMPLATES)) {
+    const a = buildExercises(waveA.workouts.find((w) => w.tpl === tpl));
+    const b = buildExercises(waveB.workouts.find((w) => w.tpl === tpl));
+    const idsA = a.map((e) => e.id), idsB = b.map((e) => e.id);
+    const diff = idsA.filter((id) => !idsB.includes(id)).length;
+    assert.ok(diff >= 3, `шаблон ${tpl}: волны отличаются всего на ${diff} движения — мало разнообразия`);
+    assert.equal(a.filter((e) => e.main).length, 1);
+    assert.equal(b.filter((e) => e.main).length, 1);
+  }
+  // движение дня в дне ног сохраняется между волнами — прогрессия не рвётся
+  const la = buildExercises(waveA.workouts.find((w) => w.tpl === "L"));
+  const lb = buildExercises(waveB.workouts.find((w) => w.tpl === "L"));
+  assert.equal(la[0].id, lb[0].id, "движение дня ног должно быть одним и тем же на обеих волнах");
+});
+
+test("приёмы интенсивности: описаны, дозированы и не вешаются на тяжёлую базу", () => {
+  for (const [k, m] of Object.entries(METHODS)) {
+    assert.ok(m.name && m.origin, `${k}: нет названия или источника`);
+    assert.ok(m.desc.length > 40 && m.how.length > 20, `${k}: слишком короткое описание`);
+  }
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      const list = buildExercises(w);
+      const withMethod = list.filter((e) => e.method);
+      assert.ok(withMethod.length <= 2, `${w.id}: ${withMethod.length} приёмов за сессию — для натурала многовато`);
+      withMethod.forEach((e) => {
+        assert.ok(METHODS[e.method], `${w.id}: неизвестный приём ${e.method}`);
+        if (e.method !== "pyramid") {
+          assert.ok(e.tier === 3, `${w.id}: приём ${e.method} висит на базовом движении ${e.id}`);
+        }
+      });
+    }
+  }
+});
+
+test("суперсеты: парные, только между разными группами, пара распадается при удалении", () => {
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      const list = buildExercises(w);
+      const groups = {};
+      list.forEach((e) => { if (e.ss) (groups[e.ss] ||= []).push(e); });
+      for (const [n, pair] of Object.entries(groups)) {
+        assert.equal(pair.length, 2, `${w.id}: суперсет ${n} не из двух движений`);
+        assert.notEqual(EX_BY_ID[pair[0].id].group, EX_BY_ID[pair[1].id].group, `${w.id}: суперсет ${n} на одну группу`);
+        assert.ok(pair[0].ssWith && pair[1].ssWith, `${w.id}: у суперсета нет партнёра в подписи`);
+      }
+    }
+  }
+  // если одно движение пары убрать, второе перестаёт быть суперсетом
+  const w = PROGRAM.weeks[0].workouts[0];
+  const full = buildExercises(w);
+  const pair = full.find((e) => e.ss);
+  const partnerId = full.find((e) => e !== pair && e.ss === pair.ss).id;
+  const broken = buildExercises(w, { hide: [pair.id] });
+  const partner = broken.find((e) => e.id === partnerId);
+  assert.ok(partner, "партнёр должен остаться в квесте");
+  assert.equal(partner.ss, null, "одинокое движение не должно оставаться суперсетом");
+  assert.ok(!partner.ssWith);
+});
+
 test("схемы: силовые тяжелее и короче объёмных, база не доводится до отказа", () => {
-  for (const role of ["main", "heavy", "acc", "iso"]) {
+  for (const role of ["main", "heavy", "acc", "iso", "finisher"]) {
     const st = SCHEME.strength[role], vol = SCHEME.volume[role];
     assert.ok(st.reps[1] <= vol.reps[0], `${role}: силовые повторы должны быть ниже объёмных`);
     assert.ok(st.sets >= 3 && vol.sets >= 3);
@@ -104,7 +196,7 @@ test("сборка квеста: состав, роли и схемы", () => {
   const w = PROGRAM.weeks[0].workouts[0];
   const list = buildExercises(w);
   assert.equal(list.length, TEMPLATES[w.tpl].slots.length);
-  assert.equal(list[0].id, "squat");
+  assert.equal(list[0].id, "bench");
   assert.equal(list[0].main, true);
   assert.equal(list[0].sets, SCHEME.strength.main.sets);
   assert.deepEqual(list[0].reps, SCHEME.strength.main.reps);
@@ -112,7 +204,7 @@ test("сборка квеста: состав, роли и схемы", () => {
   // тот же шаблон в объёмную неделю даёт другие схемы
   const volW = PROGRAM.weeks[1].workouts[0];
   const volList = buildExercises(volW);
-  assert.equal(volList[0].id, "squat");
+  assert.equal(volList[0].id, "bench");
   assert.deepEqual(volList[0].reps, SCHEME.volume.main.reps);
 });
 
@@ -120,11 +212,11 @@ test("правки атлета: замена, добавление, скрыт�
   const w = PROGRAM.weeks[0].workouts[0];
   const base = buildExercises(w);
 
-  const swapped = buildExercises(w, { swap: { squat: "front-squat" } });
-  assert.equal(swapped[0].id, "front-squat");
+  const swapped = buildExercises(w, { swap: { bench: "machine-press" } });
+  assert.equal(swapped[0].id, "machine-press");
   assert.equal(swapped[0].role, "main", "замена наследует роль слота");
   assert.equal(swapped[0].main, true);
-  assert.equal(swapped[0].swappedFrom, "squat");
+  assert.equal(swapped[0].swappedFrom, "bench");
   assert.equal(swapped.length, base.length);
 
   const added = buildExercises(w, { add: ["pec-deck"] });
@@ -132,18 +224,18 @@ test("правки атлета: замена, добавление, скрыт�
   assert.equal(added[added.length - 1].id, "pec-deck");
   assert.equal(added[added.length - 1].added, true);
 
-  const hidden = buildExercises(w, { hide: ["abs"] });
+  const hidden = buildExercises(w, { hide: ["face-pull"] });
   assert.equal(hidden.length, base.length - 1);
-  assert.ok(!hidden.some((e) => e.id === "abs"));
+  assert.ok(!hidden.some((e) => e.id === "face-pull"));
 
   // добавление того, что уже есть, не создаёт дубль
-  const dup = buildExercises(w, { add: ["squat"] });
-  assert.equal(dup.filter((e) => e.id === "squat").length, 1);
+  const dup = buildExercises(w, { add: ["bench"] });
+  assert.equal(dup.filter((e) => e.id === "bench").length, 1);
   assert.equal(dup.length, base.length);
 
   // неизвестный id игнорируется, а не ломает квест
   assert.equal(buildExercises(w, { add: ["нет-такого"] }).length, base.length);
-  assert.equal(buildExercises(w, { swap: { squat: "нет-такого" } }).length, base.length - 1);
+  assert.equal(buildExercises(w, { swap: { bench: "нет-такого" } }).length, base.length - 1);
 
   // правки не мутируют шаблон
   assert.deepEqual(buildExercises(w).map((e) => e.id), base.map((e) => e.id));
@@ -152,7 +244,7 @@ test("правки атлета: замена, добавление, скрыт�
 test("покрытие пересчитывается с учётом правок атлета", () => {
   const wk = PROGRAM.weeks[0];
   const before = weeklyCoverage(wk);
-  const after = weeklyCoverage(wk, { [wk.workouts[0].id]: { hide: ["calf-standing"] } });
+  const after = weeklyCoverage(wk, { [wk.workouts[1].id]: { hide: ["calf-standing"] } });
   assert.ok(after.calves.days < before.calves.days || after.calves.sets < before.calves.sets,
     "снятие упражнения должно уменьшать покрытие группы");
 });
@@ -218,7 +310,7 @@ test("подбор замен: тот же паттерн или та же гр�
 
 test("архив прошлых циклов сохранён: старые сессии не осиротеют", () => {
   const ids = new Set(ARCHIVED_WORKOUTS.map((w) => w.id));
-  for (const id of ["t1", "t12", "w1t1", "w4t3"]) assert.ok(ids.has(id), `нет архивного квеста ${id}`);
+  for (const id of ["t1", "t12", "w1t1", "w4t3", "w1a", "w4c"]) assert.ok(ids.has(id), `нет архивного квеста ${id}`);
   for (const w of ARCHIVED_WORKOUTS) {
     assert.ok(w.exercises.length > 0, `${w.id} без упражнений`);
     assert.ok(w.boss, `${w.id} без имени`);
@@ -232,13 +324,13 @@ test("движения квестов существуют в пуле и име
   for (const w of allWorkouts()) {
     for (const slot of TEMPLATES[w.tpl].slots) {
       assert.ok(EX_BY_ID[slot.ex], `${w.id}: движения ${slot.ex} нет в пуле`);
+      if (slot.alt) assert.ok(EX_BY_ID[slot.alt], `${w.id}: альтернативы ${slot.alt} нет в пуле`);
     }
   }
 });
 
 test("доказательный минимум покрытия: оба паттерна на заднюю поверхность, обе икроножные, overhead-трицепс", () => {
-  const week = PROGRAM.weeks[0];
-  const ids = new Set(week.workouts.flatMap((w) => buildExercises(w).map((e) => e.id)));
+  const ids = new Set(PROGRAM.weeks.flatMap((wk) => wk.workouts).flatMap((w) => buildExercises(w).map((e) => e.id)));
   // бицепс бедра: тазовое доминирование + сгибание голени (разные головки)
   assert.ok([...ids].some((id) => EX_BY_ID[id].pattern === "hinge" && (EX_BY_ID[id].group === "hams" || (EX_BY_ID[id].also || []).includes("hams"))));
   assert.ok(ids.has("legcurl-s"), "сгибания сидя грузят хамстринги лучше, чем лёжа (Maeo 2021)");

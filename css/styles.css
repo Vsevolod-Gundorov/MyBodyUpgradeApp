@@ -985,3 +985,11 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .ex-card .ex-tags, .ex-card .ex-used { justify-content: center; }
 .ex-card .ex-desc { text-align: center; }
 .quest-why { margin: 0 2px 12px; line-height: 1.45; }
+
+/* приёмы интенсивности и суперсеты */
+.ex-methods { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.method-chip { font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--teal);
+  border: 1px solid rgba(79,154,168,.45); border-radius: 999px; padding: 2px 8px; background: rgba(79,154,168,.08);
+  font-family: var(--font-body); cursor: pointer; }
+.method-chip.ss { color: var(--gold); border-color: var(--line-strong); background: rgba(201,169,97,.08); cursor: default; }
+.method-chip.big { font-size: .72rem; text-transform: none; letter-spacing: .02em; padding: 6px 11px; }

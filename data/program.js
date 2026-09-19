@@ -1,121 +1,173 @@
-// Цикл IV — Волна (v4). 3 квеста/нед · 4 недели.
+// Цикл V — Арена (v5). 3 квеста/нед · 4 недели.
 //
-// Периодизация: дневная волна (DUP). Три фулбоди-шаблона A/B/C, каждый выходит раз в неделю,
-// но с разным акцентом. Внутри недели акценты всегда 2 + 1:
-//   нечётная неделя → 2 СИЛОВЫХ + 1 объёмная
-//   чётная неделя   → 2 ОБЪЁМНЫХ + 1 силовая
-// За две недели каждое движение получает и тяжёлую, и объёмную работу.
+// Сплит: ВЕРХ / НИЗ / ФУЛБОДИ-ДОБОР. Каждая мышечная группа получает ДВА активных дня в неделю
+// (2–3 упражнения за день), косвенной работы больше. Это адаптация профессиональных
+// бодибилдерских сплитов под натурального атлета: специализация дня как у про, но объём
+// на группу держится в восстанавливаемых рамках, а частота поднята с 1 до 2 раз в неделю.
 //
-// Частота: каждая мышечная группа нагружается 2–3 раза в неделю (проверяется тестами) —
-// при равном недельном объёме это удобнее распределяет сеты и держит их качество.
-// Недели 3–4 повторяют волну с прогрессией по весу.
+// Акценты недели всегда 2 + 1:
+//   нечётная неделя → Верх и Низ силовые, Фулбоди объёмный
+//   чётная неделя   → Верх и Низ объёмные, Фулбоди силовой
+// Так каждая группа каждую неделю получает и тяжёлый, и объёмный стимул.
+//
+// Разнообразие: недели 1–2 идут на волне A, недели 3–4 — на волне B, где вспомогательные
+// движения заменяются на родственные варианты (жим штанги ↔ наклонный, тяга ↔ подтягивания,
+// сгибания сидя ↔ лёжа). Движение дня и схема прогрессии при этом сохраняются.
 //
 // Веса в квесте НЕ зашиты: считаются под атлета из его замеров 1ПМ и коэффициентов пула
 // (data/exercises.js → workingWeight). Пул также позволяет заменить или добавить упражнение.
 import { EX_BY_ID } from "./exercises.js";
 
 /* ---------- схемы подходов: роль упражнения × тип сессии ---------- */
-// rir — запас повторов (0 = до отказа). Для базы держим 1–2: близость к отказу
-// почти не добавляет гипертрофии, но сильно бьёт по восстановлению.
+// rir — запас повторов (0 = до отказа). База идёт с запасом: близость к отказу почти
+// не добавляет гипертрофии, но сильно бьёт по восстановлению. Изоляция — ближе к отказу.
 export const SCHEME = {
   strength: {
-    main:  { sets: 4, reps: [3, 5],   rir: 1, tag: "RPE 8–9" },
-    heavy: { sets: 4, reps: [5, 6],   rir: 2, tag: "RPE 8" },
-    acc:   { sets: 3, reps: [6, 8],   rir: 2, tag: "RIR 2" },
-    iso:   { sets: 3, reps: [10, 12], rir: 1, tag: "RIR 1" },
+    main:     { sets: 4, reps: [4, 6],   rir: 1, tag: "RPE 8–9" },
+    heavy:    { sets: 4, reps: [6, 8],   rir: 2, tag: "RPE 8" },
+    acc:      { sets: 3, reps: [8, 10],  rir: 2, tag: "RIR 2" },
+    iso:      { sets: 3, reps: [10, 12], rir: 1, tag: "RIR 1" },
+    finisher: { sets: 3, reps: [15, 20], rir: 0, tag: "до отказа" },
   },
   volume: {
-    main:  { sets: 4, reps: [8, 10],  rir: 2, tag: "RIR 1–2" },
-    heavy: { sets: 4, reps: [10, 12], rir: 2, tag: "RIR 1–2" },
-    acc:   { sets: 3, reps: [12, 15], rir: 1, tag: "RIR 1" },
-    iso:   { sets: 3, reps: [15, 20], rir: 1, tag: "RIR 0–1" },
+    main:     { sets: 4, reps: [8, 10],  rir: 2, tag: "RIR 1–2" },
+    heavy:    { sets: 4, reps: [10, 12], rir: 2, tag: "RIR 1–2" },
+    acc:      { sets: 3, reps: [12, 15], rir: 1, tag: "RIR 1" },
+    iso:      { sets: 3, reps: [15, 20], rir: 1, tag: "RIR 0–1" },
+    finisher: { sets: 3, reps: [20, 30], rir: 0, tag: "до отказа" },
   },
 };
-export const ROLE_NAMES = { main: "движение дня", heavy: "вторая база", acc: "вспомогательное", iso: "изоляция" };
+export const ROLE_NAMES = { main: "движение дня", heavy: "вторая база", acc: "вспомогательное", iso: "изоляция", finisher: "добивающее" };
 export const TYPE_NAMES = { strength: "силовая", volume: "объёмная" };
 
-/* ---------- три фулбоди-шаблона ---------- */
-// Каждый закрывает: приседание, тазовое доминирование, жим, тягу, изоляцию и кор.
+/* ---------- приёмы интенсивности из практики про-атлетов ----------
+   У химического атлета восстановление другое, поэтому «как у них» в лоб натуралу не годится:
+   приёмы оставлены, но применяются точечно — 1–2 за сессию, только на изоляции и тренажёрах,
+   и почти всегда на объёмных днях. Тяжёлая база идёт без них, с запасом повторов. */
+export const METHODS = {
+  pyramid: {
+    name: "Пирамида", origin: "Ронни Колеман",
+    desc: "Разминочные подходы с ростом веса и падением повторов, затем рабочие. Даёт выйти на тяжёлый вес без потери техники и без лишней усталости.",
+    how: "Например: 20 повторов с пустым грифом → 10 с 50% → 5 с 70% → 3 с 85%, дальше рабочие подходы.",
+  },
+  superset: {
+    name: "Суперсет антагонистов", origin: "Кевин Леврон",
+    desc: "Два упражнения на противоположные группы подряд без отдыха. Сессия становится короче и плотнее, а сила в обоих движениях почти не падает — мышцы-антагонисты не мешают друг другу.",
+    how: "Подход первого упражнения → сразу подход второго → отдых 90–120 с → следующая пара.",
+  },
+  dropset: {
+    name: "Дроп-сет", origin: "Ли Прист",
+    desc: "На последнем рабочем подходе сбросить 20–30% веса и добить до отказа. Дешёвый способ добавить объёма в конце, когда ещё есть силы, но нет времени.",
+    how: "Только на последнем подходе и только на изоляции или тренажёре: отказ → минус 25% → отказ.",
+  },
+  restpause: {
+    name: "Отдых-пауза", origin: "Кевин Леврон",
+    desc: "После отказа короткая пауза и ещё несколько повторов с тем же весом. Позволяет выжать больше качественной работы из одного подхода.",
+    how: "Отказ → 15–20 с отдыха → 2–4 повтора → ещё 15 с → 1–2 повтора.",
+  },
+  partials: {
+    name: "Частичные в растяжении", origin: "Ли Прист",
+    desc: "После отказа в полной амплитуде добить короткими повторами в растянутой части. Именно растянутая позиция даёт основной стимул роста.",
+    how: "Отказ → 5–8 частичных повторов в нижней (растянутой) трети амплитуды.",
+  },
+  highrep: {
+    name: "Высокоповторный добой", origin: "Ли Прист",
+    desc: "Один длинный подход на 20–30 повторов в конце дня ног или на икры. Гипертрофия в многоповторке не хуже, если доходить близко к отказу.",
+    how: "Вес около 40–50% от обычного рабочего, один-два подхода, терпеть жжение до конца.",
+  },
+  preexhaust: {
+    name: "Предварительное утомление", origin: "Классика Золотой эры",
+    desc: "Изоляция перед базой, чтобы целевая мышца отказала раньше вспомогательных. Полезно, когда в жиме раньше груди сдаётся трицепс.",
+    how: "Изоляция 1–2 подхода до жжения → сразу базовое движение с меньшим весом.",
+  },
+};
+
+/* ---------- три шаблона сплита ----------
+   slot: ex — движение волны A, alt — волны B (разнообразие без потери прогрессии),
+   role — схема подходов, method — приём интенсивности, methodOn — на каком типе сессии он включается,
+   ss — номер суперсета (слоты с одинаковым номером выполняются в связке). */
 export const TEMPLATES = {
-  A: {
-    key: "A", name: "Присед + горизонтальный жим",
-    why: "Тяжёлое приседание и жим лёжа в начале, дальше тяга и тазовое доминирование. Средняя дельта и икры — изоляцией, их жимы не закрывают.",
+  U: {
+    key: "U", name: "Верх тела", short: "Верх",
+    why: "День верха по-бодибилдерски: грудь и спина чередуются как антагонисты (приём Леврона), затем дельты и руки. Каждая группа получает по два движения — разные углы и линии тяги.",
     slots: [
-      { ex: "squat",         role: "main" },
-      { ex: "bench",         role: "heavy" },
-      { ex: "row",           role: "acc" },
-      { ex: "rdl",           role: "acc" },
-      { ex: "lat-raise",     role: "iso" },
-      { ex: "calf-standing", role: "iso" },
-      { ex: "abs",           role: "iso" },
+      { ex: "bench",      alt: "incline-bb",       role: "main",  method: "pyramid", methodOn: "strength" },
+      { ex: "row",        alt: "pullup",           role: "heavy" },
+      { ex: "incline-db", alt: "flat-db",          role: "acc",   ss: 1 },
+      { ex: "lat",        alt: "cable-row",        role: "acc",   ss: 1 },
+      { ex: "lat-raise",  alt: "cable-lat-raise",  role: "iso",   method: "dropset" },
+      { ex: "face-pull",  alt: "rear-delt",        role: "iso" },
+      { ex: "curl-ez",    alt: "incline-curl",     role: "iso",   ss: 2 },
+      { ex: "french-db",  alt: "pushdown",         role: "iso",   ss: 2, method: "partials" },
     ],
   },
-  B: {
-    key: "B", name: "Становая + вертикальный жим",
-    why: "Становая как главный hinge, швунг как вертикальный жим. Подтягивания дают вторую линию тяги, наклонные сгибания грузят бицепс в растяжении.",
+  L: {
+    key: "L", name: "Низ тела", short: "Низ",
+    why: "День ног: тяжёлая база в начале по заветам Колемана, затем квадрицепс и задняя цепь по отдельности, а закрывает всё высокоповторный добой в стиле Ли Приста.",
     slots: [
-      { ex: "deadlift",   role: "main" },
-      { ex: "push-press", role: "heavy" },
-      { ex: "pullup",     role: "acc" },
-      { ex: "legpress",   role: "acc" },
-      { ex: "incline-db", role: "acc" },
-      { ex: "incline-curl", role: "iso" },
-      { ex: "calf-seated", role: "iso" },
-      { ex: "hanging-leg", role: "iso" },
+      { ex: "squat",         alt: "squat",         role: "main",  method: "pyramid", methodOn: "strength" },
+      { ex: "rdl",           alt: "deadlift",      role: "heavy" },
+      { ex: "legpress",      alt: "hack",          role: "acc" },
+      { ex: "legcurl-s",     alt: "legcurl-l",     role: "acc" },
+      { ex: "legext",        alt: "bulgarian",     role: "iso",   method: "highrep" },
+      { ex: "hip-thrust",    alt: "back-ext-45",   role: "iso" },
+      { ex: "calf-standing", alt: "calf-seated",   role: "finisher", method: "partials" },
+      { ex: "cable-crunch",  alt: "hanging-leg",   role: "iso" },
     ],
   },
-  C: {
-    key: "C", name: "Наклонный жим + тяга",
-    why: "Верх груди (наклон 30–45°) и горизонтальная тяга. Разгибания сидя — под прямую мышцу бедра, из-за головы — под длинную головку трицепса (Maeo 2023).",
+  F: {
+    key: "F", name: "Фулбоди-добор", short: "Добор",
+    why: "Второй активный день для всех групп: другие движения, другие углы. Здесь закрывается вторая половина недельного объёма и добираются мышцы, которым не хватило работы в специализированные дни.",
     slots: [
-      { ex: "incline-bb", role: "main" },
-      { ex: "cable-row",  role: "heavy" },
-      { ex: "hack",       role: "acc" },
-      { ex: "legcurl-s",  role: "acc" },
-      { ex: "legext",     role: "iso" },
-      { ex: "face-pull",  role: "iso" },
-      { ex: "french-db",  role: "iso" },
-      { ex: "cable-crunch", role: "iso" },
+      { ex: "front-squat",  alt: "lunge",          role: "main" },
+      { ex: "machine-press", alt: "dips",          role: "heavy" },
+      { ex: "pullup",       alt: "lat",            role: "acc" },
+      { ex: "db-ohp",       alt: "ohp",            role: "acc" },
+      { ex: "legcurl-l",    alt: "good-morning",   role: "acc" },
+      { ex: "hammer",       alt: "cable-curl",     role: "iso",   ss: 1 },
+      { ex: "pushdown",     alt: "cg-bench",       role: "iso",   ss: 1, method: "dropset" },
+      { ex: "calf-seated",  alt: "calf-standing",  role: "finisher", method: "highrep" },
+      { ex: "abs",          alt: "cable-crunch",   role: "iso" },
     ],
   },
 };
 
-/* ---------- 4 недели волны ---------- */
-const W = (id, tpl, type, boss, icon, prog = 0) => ({ id, tpl, type, boss, icon, prog });
+/* ---------- 4 недели ---------- */
+const W = (id, tpl, type, boss, icon, wave, prog = 0) => ({ id, tpl, type, boss, icon, wave, prog });
 export const PROGRAM = {
-  cycleName: "Цикл IV — Волна",
-  note: "Недели 1 и 3 — две силовых и одна объёмная, недели 2 и 4 — наоборот. Каждая группа мышц работает 2–3 раза в неделю. Прогрессия двойная: сначала добираешь повторы в вилке, потом вес. Разгрузка не обязательна — делай её по состоянию раз в 6–10 недель, срезая объём на 40–50% при той же интенсивности.",
+  cycleName: "Цикл V — Арена",
+  note: "Сплит Верх / Низ / Фулбоди-добор: каждая группа мышц получает два активных дня в неделю, по 2–3 упражнения за день. Недели 1 и 3 — Верх и Низ силовые, Фулбоди объёмный; недели 2 и 4 — наоборот, так что каждая группа каждую неделю видит и тяжёлую, и объёмную работу. Недели 3–4 идут на второй волне движений: вспомогательные заменяются вариантами, движение дня и прогрессия сохраняются.",
   weeks: [
     {
-      n: 1, emphasis: "strength", saga: "Сага о Пробуждении",
+      n: 1, emphasis: "strength", wave: "A", saga: "Сага о Пробуждении",
       workouts: [
-        W("w1a", "A", "strength", "Столпы Земли", "pillars"),
-        W("w1b", "B", "volume",   "Песнь Выдержки", "hourglass"),
-        W("w1c", "C", "strength", "Восхождение по Склону", "mountain"),
+        W("w1u", "U", "strength", "Клинок Титанов", "sword", "A"),
+        W("w1l", "L", "strength", "Столпы Земли", "pillars", "A"),
+        W("w1f", "F", "volume",   "Песнь Выдержки", "hourglass", "A"),
       ],
     },
     {
-      n: 2, emphasis: "volume", saga: "Сага о Полноте",
+      n: 2, emphasis: "volume", wave: "A", saga: "Сага о Полноте",
       workouts: [
-        W("w2a", "A", "volume",   "Корни Титана", "tree"),
-        W("w2b", "B", "strength", "Гнев Хребта", "spine"),
-        W("w2c", "C", "volume",   "Пламя Полноты", "sun"),
+        W("w2u", "U", "volume",   "Пламя Полноты", "sun", "A"),
+        W("w2l", "L", "volume",   "Корни Титана", "tree", "A"),
+        W("w2f", "F", "strength", "Гнев Хребта", "spine", "A"),
       ],
     },
     {
-      n: 3, emphasis: "strength", saga: "Сага о Закалке",
+      n: 3, emphasis: "strength", wave: "B", saga: "Сага о Закалке",
       workouts: [
-        W("w3a", "A", "strength", "Пробуждение Стали", "anvil", 0.025),
-        W("w3b", "B", "volume",   "Расправить Крылья", "wings", 0.025),
-        W("w3c", "C", "strength", "Клинок Закалённый", "dagger", 0.025),
+        W("w3u", "U", "strength", "Молот Зари", "anvil", "B", 0.025),
+        W("w3l", "L", "strength", "Бастион Ног", "tower", "B", 0.025),
+        W("w3f", "F", "volume",   "Расправить Крылья", "wings", "B", 0.025),
       ],
     },
     {
-      n: 4, emphasis: "volume", saga: "Сага о Вершине",
+      n: 4, emphasis: "volume", wave: "B", saga: "Сага о Вершине",
       workouts: [
-        W("w4a", "A", "volume",   "Бастион Ног", "tower", 0.025),
-        W("w4b", "B", "strength", "Второе Пламя", "flame", 0.05),
-        W("w4c", "C", "volume",   "Вершина Цикла", "peak", 0.025),
+        W("w4u", "U", "volume",   "Второе Пламя", "flame", "B", 0.025),
+        W("w4l", "L", "volume",   "Ход Исполина", "mountain", "B", 0.025),
+        W("w4f", "F", "strength", "Вершина Цикла", "peak", "B", 0.05),
       ],
     },
   ],
@@ -131,9 +183,12 @@ export function buildExercises(workout, plan = {}) {
   const scheme = SCHEME[workout.type] || SCHEME.strength;
   const swap = plan.swap || {};
   const hide = new Set(plan.hide || []);
+  const wave = workout.wave || "A";
+  // движение волны: на волне B вспомогательные меняются на родственные варианты
+  const pick = (slot) => (wave === "B" && slot.alt) ? slot.alt : slot.ex;
   const slots = tpl.slots
-    .filter((s) => !hide.has(s.ex))
-    .map((s) => ({ ...s, ex: swap[s.ex] || s.ex, from: swap[s.ex] ? s.ex : null }));
+    .filter((s) => !hide.has(pick(s)))
+    .map((s) => { const base = pick(s); return { ...s, ex: swap[base] || base, from: swap[base] ? base : null }; });
   (plan.add || []).forEach((id) => { if (!hide.has(id)) slots.push({ ex: id, role: "iso", added: true }); });
 
   const out = [];
@@ -143,15 +198,31 @@ export function buildExercises(workout, plan = {}) {
     if (!ex || seen.has(ex.id)) return;   // неизвестное или дублирующее движение пропускаем
     seen.add(ex.id);
     const sc = scheme[slot.role] || scheme.iso;
+    // приём интенсивности включается только на своём типе сессии (по умолчанию — объёмная)
+    // и только на изоляции: на базе он стоит натуралу дороже, чем даёт. Пирамида — исключение,
+    // это способ выйти на тяжёлый вес, а не добавить усталости.
+    const on = slot.methodOn || "volume";
+    const fits = slot.method === "pyramid" ? ex.tier <= 2 : ex.tier === 3;
+    const method = slot.method && fits && (on === "both" || on === workout.type) ? slot.method : null;
     out.push({
       id: ex.id, name: ex.name, short: ex.short || ex.name,
       role: slot.role, main: slot.role === "main",
       lift: ex.lift, tier: ex.tier, equip: ex.equip, group: ex.group, pattern: ex.pattern,
       sets: sc.sets, reps: sc.reps, rir: sc.rir,
       scheme: `${sc.sets} × ${sc.reps[0]}${sc.reps[1] !== sc.reps[0] ? "–" + sc.reps[1] : ""} · ${sc.tag}`,
+      method, ss: slot.ss || null,
       prog: workout.prog || 0,
       swappedFrom: slot.from || null, added: !!slot.added,
     });
+  });
+  // суперсет засчитывается только если в квесте осталась вся пара
+  const ssCount = {};
+  out.forEach((e) => { if (e.ss) ssCount[e.ss] = (ssCount[e.ss] || 0) + 1; });
+  out.forEach((e) => {
+    if (!e.ss) return;
+    if (ssCount[e.ss] < 2) { e.ss = null; return; }
+    const partner = out.find((x) => x !== e && x.ss === e.ss);
+    e.ssWith = partner ? partner.short : null;
   });
   return out;
 }
@@ -159,20 +230,24 @@ export function buildExercises(workout, plan = {}) {
 /** Недельный объём по мышечным группам: сколько сессий и рабочих подходов получает группа. */
 export function weeklyCoverage(week, plans = {}) {
   const cover = {};
-  const touch = (g, sets, wid) => {
+  const touch = (g, sets, wid, active) => {
     if (!g) return;
-    const c = (cover[g] ||= { sets: 0, sessions: new Set() });
-    c.sets += sets; c.sessions.add(wid);
+    const c = (cover[g] ||= { sets: 0, days: new Set(), anyDays: new Set() });
+    c.sets += sets; c.anyDays.add(wid);
+    if (active) c.days.add(wid);
   };
   week.workouts.forEach((w) => {
     buildExercises(w, plans[w.id]).forEach((ex) => {
       const src = EX_BY_ID[ex.id];
       if (!src) return;
-      touch(src.group, ex.sets, w.id);
-      (src.also || []).forEach((g) => touch(g, ex.sets / 2, w.id)); // вторичные считаем за половину
+      touch(src.group, ex.sets, w.id, true);
+      // вторичная группа в многосуставном движении — это тоже активная работа
+      // (ягодицы в приседе, трицепс в жиме); в изоляции она в зачёт не идёт
+      (src.also || []).forEach((g) => touch(g, ex.sets / 2, w.id, src.tier <= 2));
     });
   });
-  return Object.fromEntries(Object.entries(cover).map(([g, c]) => [g, { sets: Math.round(c.sets), days: c.sessions.size }]));
+  return Object.fromEntries(Object.entries(cover).map(([g, c]) =>
+    [g, { sets: Math.round(c.sets), days: c.days.size, anyDays: c.anyDays.size }]));
 }
 
 // Базовые расчётные максимумы (старт персонажа)
@@ -184,6 +259,19 @@ export const LIFT_NAMES = { bench: "Жим лёжа", squat: "Присед", dea
    учитывались в аналитике потолка/пола (id движений совпадают с пулом). */
 const ax = (id, name, extra = {}) => ({ id, name, sets: 3, reps: [6, 10], ...extra });
 export const ARCHIVED_WORKOUTS = [
+  // Цикл IV (Волна) — фулбоди A/B/C
+  { id: "w1a", boss: "Столпы Земли", icon: "pillars", title: "Цикл IV · Присед + горизонтальный жим", exercises: [ax("squat", "Приседания со штангой", { sets: 4, reps: [3,5], main: true, lift: "squat" }), ax("bench", "Жим штанги лёжа", { sets: 4, reps: [5,6], lift: "bench" }), ax("row", "Тяга штанги в наклоне", { sets: 3, reps: [6,8] }), ax("rdl", "Мёртвая тяга (RDL)", { sets: 3, reps: [6,8] }), ax("lat-raise", "Махи гантелями стоя", { sets: 3, reps: [10,12] }), ax("calf-standing", "Подъёмы на носки стоя", { sets: 3, reps: [10,12] }), ax("abs", "Пресс в тренажёре", { sets: 3, reps: [10,12] })] },
+  { id: "w1b", boss: "Песнь Выдержки", icon: "hourglass", title: "Цикл IV · Становая + вертикальный жим", exercises: [ax("deadlift", "Становая тяга", { sets: 4, reps: [8,10], main: true, lift: "deadlift" }), ax("push-press", "Швунг жимовой", { sets: 4, reps: [10,12], lift: "ohp" }), ax("pullup", "Подтягивания с весом", { sets: 3, reps: [12,15] }), ax("legpress", "Жим ногами", { sets: 3, reps: [12,15] }), ax("incline-db", "Жим гантелей в наклоне", { sets: 3, reps: [12,15] }), ax("incline-curl", "Сгибания на наклонной скамье", { sets: 3, reps: [15,20] }), ax("calf-seated", "Подъёмы на носки сидя", { sets: 3, reps: [15,20] }), ax("hanging-leg", "Подъём ног в висе", { sets: 3, reps: [15,20] })] },
+  { id: "w1c", boss: "Восхождение по Склону", icon: "mountain", title: "Цикл IV · Наклонный жим + тяга", exercises: [ax("incline-bb", "Жим штанги в наклоне", { sets: 4, reps: [3,5], main: true }), ax("cable-row", "Тяга к поясу в блоке", { sets: 4, reps: [5,6] }), ax("hack", "Присед в гак-машине", { sets: 3, reps: [6,8] }), ax("legcurl-s", "Сгибания ног сидя", { sets: 3, reps: [6,8] }), ax("legext", "Разгибания ног сидя", { sets: 3, reps: [10,12] }), ax("face-pull", "Face pull в блоке", { sets: 3, reps: [10,12] }), ax("french-db", "Разгибание из-за головы", { sets: 3, reps: [10,12] }), ax("cable-crunch", "Скручивания в блоке", { sets: 3, reps: [10,12] })] },
+  { id: "w2a", boss: "Корни Титана", icon: "tree", title: "Цикл IV · Присед + горизонтальный жим", exercises: [ax("squat", "Приседания со штангой", { sets: 4, reps: [8,10], main: true, lift: "squat" }), ax("bench", "Жим штанги лёжа", { sets: 4, reps: [10,12], lift: "bench" }), ax("row", "Тяга штанги в наклоне", { sets: 3, reps: [12,15] }), ax("rdl", "Мёртвая тяга (RDL)", { sets: 3, reps: [12,15] }), ax("lat-raise", "Махи гантелями стоя", { sets: 3, reps: [15,20] }), ax("calf-standing", "Подъёмы на носки стоя", { sets: 3, reps: [15,20] }), ax("abs", "Пресс в тренажёре", { sets: 3, reps: [15,20] })] },
+  { id: "w2b", boss: "Гнев Хребта", icon: "spine", title: "Цикл IV · Становая + вертикальный жим", exercises: [ax("deadlift", "Становая тяга", { sets: 4, reps: [3,5], main: true, lift: "deadlift" }), ax("push-press", "Швунг жимовой", { sets: 4, reps: [5,6], lift: "ohp" }), ax("pullup", "Подтягивания с весом", { sets: 3, reps: [6,8] }), ax("legpress", "Жим ногами", { sets: 3, reps: [6,8] }), ax("incline-db", "Жим гантелей в наклоне", { sets: 3, reps: [6,8] }), ax("incline-curl", "Сгибания на наклонной скамье", { sets: 3, reps: [10,12] }), ax("calf-seated", "Подъёмы на носки сидя", { sets: 3, reps: [10,12] }), ax("hanging-leg", "Подъём ног в висе", { sets: 3, reps: [10,12] })] },
+  { id: "w2c", boss: "Пламя Полноты", icon: "sun", title: "Цикл IV · Наклонный жим + тяга", exercises: [ax("incline-bb", "Жим штанги в наклоне", { sets: 4, reps: [8,10], main: true }), ax("cable-row", "Тяга к поясу в блоке", { sets: 4, reps: [10,12] }), ax("hack", "Присед в гак-машине", { sets: 3, reps: [12,15] }), ax("legcurl-s", "Сгибания ног сидя", { sets: 3, reps: [12,15] }), ax("legext", "Разгибания ног сидя", { sets: 3, reps: [15,20] }), ax("face-pull", "Face pull в блоке", { sets: 3, reps: [15,20] }), ax("french-db", "Разгибание из-за головы", { sets: 3, reps: [15,20] }), ax("cable-crunch", "Скручивания в блоке", { sets: 3, reps: [15,20] })] },
+  { id: "w3a", boss: "Пробуждение Стали", icon: "anvil", title: "Цикл IV · Присед + горизонтальный жим", exercises: [ax("squat", "Приседания со штангой", { sets: 4, reps: [3,5], main: true, lift: "squat" }), ax("bench", "Жим штанги лёжа", { sets: 4, reps: [5,6], lift: "bench" }), ax("row", "Тяга штанги в наклоне", { sets: 3, reps: [6,8] }), ax("rdl", "Мёртвая тяга (RDL)", { sets: 3, reps: [6,8] }), ax("lat-raise", "Махи гантелями стоя", { sets: 3, reps: [10,12] }), ax("calf-standing", "Подъёмы на носки стоя", { sets: 3, reps: [10,12] }), ax("abs", "Пресс в тренажёре", { sets: 3, reps: [10,12] })] },
+  { id: "w3b", boss: "Расправить Крылья", icon: "wings", title: "Цикл IV · Становая + вертикальный жим", exercises: [ax("deadlift", "Становая тяга", { sets: 4, reps: [8,10], main: true, lift: "deadlift" }), ax("push-press", "Швунг жимовой", { sets: 4, reps: [10,12], lift: "ohp" }), ax("pullup", "Подтягивания с весом", { sets: 3, reps: [12,15] }), ax("legpress", "Жим ногами", { sets: 3, reps: [12,15] }), ax("incline-db", "Жим гантелей в наклоне", { sets: 3, reps: [12,15] }), ax("incline-curl", "Сгибания на наклонной скамье", { sets: 3, reps: [15,20] }), ax("calf-seated", "Подъёмы на носки сидя", { sets: 3, reps: [15,20] }), ax("hanging-leg", "Подъём ног в висе", { sets: 3, reps: [15,20] })] },
+  { id: "w3c", boss: "Клинок Закалённый", icon: "dagger", title: "Цикл IV · Наклонный жим + тяга", exercises: [ax("incline-bb", "Жим штанги в наклоне", { sets: 4, reps: [3,5], main: true }), ax("cable-row", "Тяга к поясу в блоке", { sets: 4, reps: [5,6] }), ax("hack", "Присед в гак-машине", { sets: 3, reps: [6,8] }), ax("legcurl-s", "Сгибания ног сидя", { sets: 3, reps: [6,8] }), ax("legext", "Разгибания ног сидя", { sets: 3, reps: [10,12] }), ax("face-pull", "Face pull в блоке", { sets: 3, reps: [10,12] }), ax("french-db", "Разгибание из-за головы", { sets: 3, reps: [10,12] }), ax("cable-crunch", "Скручивания в блоке", { sets: 3, reps: [10,12] })] },
+  { id: "w4a", boss: "Бастион Ног", icon: "tower", title: "Цикл IV · Присед + горизонтальный жим", exercises: [ax("squat", "Приседания со штангой", { sets: 4, reps: [8,10], main: true, lift: "squat" }), ax("bench", "Жим штанги лёжа", { sets: 4, reps: [10,12], lift: "bench" }), ax("row", "Тяга штанги в наклоне", { sets: 3, reps: [12,15] }), ax("rdl", "Мёртвая тяга (RDL)", { sets: 3, reps: [12,15] }), ax("lat-raise", "Махи гантелями стоя", { sets: 3, reps: [15,20] }), ax("calf-standing", "Подъёмы на носки стоя", { sets: 3, reps: [15,20] }), ax("abs", "Пресс в тренажёре", { sets: 3, reps: [15,20] })] },
+  { id: "w4b", boss: "Второе Пламя", icon: "flame", title: "Цикл IV · Становая + вертикальный жим", exercises: [ax("deadlift", "Становая тяга", { sets: 4, reps: [3,5], main: true, lift: "deadlift" }), ax("push-press", "Швунг жимовой", { sets: 4, reps: [5,6], lift: "ohp" }), ax("pullup", "Подтягивания с весом", { sets: 3, reps: [6,8] }), ax("legpress", "Жим ногами", { sets: 3, reps: [6,8] }), ax("incline-db", "Жим гантелей в наклоне", { sets: 3, reps: [6,8] }), ax("incline-curl", "Сгибания на наклонной скамье", { sets: 3, reps: [10,12] }), ax("calf-seated", "Подъёмы на носки сидя", { sets: 3, reps: [10,12] }), ax("hanging-leg", "Подъём ног в висе", { sets: 3, reps: [10,12] })] },
+  { id: "w4c", boss: "Вершина Цикла", icon: "peak", title: "Цикл IV · Наклонный жим + тяга", exercises: [ax("incline-bb", "Жим штанги в наклоне", { sets: 4, reps: [8,10], main: true }), ax("cable-row", "Тяга к поясу в блоке", { sets: 4, reps: [10,12] }), ax("hack", "Присед в гак-машине", { sets: 3, reps: [12,15] }), ax("legcurl-s", "Сгибания ног сидя", { sets: 3, reps: [12,15] }), ax("legext", "Разгибания ног сидя", { sets: 3, reps: [15,20] }), ax("face-pull", "Face pull в блоке", { sets: 3, reps: [15,20] }), ax("french-db", "Разгибание из-за головы", { sets: 3, reps: [15,20] }), ax("cable-crunch", "Скручивания в блоке", { sets: 3, reps: [15,20] })] },
   // Цикл III (Сила/Объём)
   { id: "t1", boss: "Пробуждение Стали", icon: "anvil", title: "Верх тяжёлый А", exercises: [ax("bench", "Жим штанги лёжа", { main: true, lift: "bench", sets: 5 }), ax("row", "Тяга штанги в наклоне", { sets: 4 }), ax("push-press", "Швунг / армейский жим стоя", { lift: "ohp" }), ax("pullup", "Подтягивания с весом"), ax("dips", "Брусья / жим узким"), ax("curl-ez", "Сгибания EZ-гриф"), ax("abs", "Пресс в тренажёре")] },
   { id: "t2", boss: "Столпы Земли", icon: "pillars", title: "Низ тяжёлый — присед", exercises: [ax("squat", "Приседания", { main: true, lift: "squat", sets: 5 }), ax("rdl", "Мёртвая тяга"), ax("legpress", "Жим ногами"), ax("legcurl-s", "Сгибания ног сидя"), ax("calves", "Икры", { sets: 4 }), ax("abs", "Пресс в тренажёре")] },

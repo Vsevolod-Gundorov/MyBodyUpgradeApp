@@ -1,4 +1,4 @@
-import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage } from "../data/program.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, similarTo } from "../data/exercises.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
@@ -861,10 +861,18 @@ function renderPool() {
       <div class="cov-grid">
         ${MUSCLE_ORDER.filter((g) => cov[g]).map((g) => `
           <span class="cov-chip ${cov[g].days >= 2 ? "ok" : (CORE.has(g) ? "low" : "")}">
-            <b>${MUSCLES[g]}</b><span class="mono">${cov[g].days}×/нед · ${cov[g].sets} сет.</span>
+            <b>${MUSCLES[g]}</b><span class="mono">${cov[g].days ? `${cov[g].days}×/нед · ${cov[g].sets} сет.` : `косвенно · ${cov[g].sets} сет.`}</span>
           </span>`).join("")}
       </div>
-      <div class="dim small" style="margin-top:8px">Минимум — 2 раза в неделю на группу. Подходы считаются с учётом твоих замен: вторичная работа идёт за половину.</div>
+      <div class="dim small" style="margin-top:8px">Активная работа — это когда движение целит в группу напрямую или грузит её как вторичную в базовом упражнении (ягодицы в приседе, трицепс в жиме). Минимум — 2 раза в неделю; косвенной работы может быть больше. Подходы пересчитываются с учётом твоих замен.</div>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow" style="margin-bottom:8px">Приёмы интенсивности</div>
+      <div class="cov-grid">
+        ${Object.entries(METHODS).map(([k, m]) => `<button class="method-chip big" data-method="${k}">${m.name}<span class="dim"> · ${m.origin}</span></button>`).join("")}
+      </div>
+      <div class="dim small" style="margin-top:8px">Взяты из практики про-атлетов и урезаны под натурала: 1–2 приёма за сессию, только на изоляции и тренажёрах.</div>
     </div>
 
     <input class="pool-search" id="pool-q" placeholder="Поиск: название, мышца, паттерн" value="${poolFilter}" />
@@ -879,6 +887,7 @@ function renderPool() {
   const qi = document.getElementById("pool-q");
   qi.oninput = () => { poolFilter = qi.value; const at = qi.selectionStart; renderPool(); const n = document.getElementById("pool-q"); n.focus(); n.setSelectionRange(at, at); };
   app.querySelectorAll(".pool-row").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.ex));
+  app.querySelectorAll("[data-method]").forEach((b) => b.onclick = () => showMethod(b.dataset.method));
 }
 
 /* разбор движения: техника, мышцы, рабочий вес и история атлета */
@@ -937,6 +946,28 @@ function showExerciseDetail(id, opts = {}) {
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
 
+/* разбор приёма интенсивности (как у про, но в дозировке натурала) */
+function showMethod(key) {
+  const m = METHODS[key];
+  if (!m) return;
+  fxTap();
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  o.innerHTML = `
+    <div class="portion-card ex-card">
+      <div class="eyebrow">приём интенсивности · ${m.origin}</div>
+      <div class="portion-name display">${m.name}</div>
+      <p class="ex-desc">${m.desc}</p>
+      <div class="eyebrow" style="margin:14px 0 6px">Как делать</div>
+      <p class="ex-desc" style="text-align:left">${m.how}</p>
+      <div class="dim small" style="margin-top:12px;text-align:left">Натуралу такие приёмы нужны точечно: 1–2 за сессию, на изоляции и тренажёрах. Тяжёлая база идёт без них, с запасом повторов.</div>
+      <button class="btn-ghost" id="m-close" style="margin-top:16px">Закрыть</button>
+    </div>`;
+  overlayRoot.appendChild(o);
+  o.querySelector("#m-close").onclick = () => o.remove();
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
 /* выбор движения из пула: замена или добавление в квест */
 function openPoolPicker({ title, suggest = [], exclude = [], onPick }) {
   fxTap();
@@ -986,7 +1017,7 @@ function renderWorkout(wid) {
       <button class="back-btn" id="back"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
       <span class="medallion medallion--lg">${icon(w.icon || "anvil")}</span>
       <div class="topbar-mid">
-        <div class="eyebrow"><span class="wtype ${w.type}">${TYPE_NAMES[w.type] || ""}</span> · неделя ${WEEK_OF[wid] ? WEEK_OF[wid].n : "—"}${w.prog ? ` · +${Math.round(w.prog * 100)}%` : ""}</div>
+        <div class="eyebrow"><span class="wtype ${w.type}">${TYPE_NAMES[w.type] || ""}</span> · неделя ${WEEK_OF[wid] ? WEEK_OF[wid].n : "—"}${w.wave ? ` · волна ${w.wave}` : ""}${w.prog ? ` · +${Math.round(w.prog * 100)}%` : ""}</div>
         <h2 class="display">${w.boss}</h2>
         <div class="dim small">${w.title}</div>
       </div>
@@ -1032,6 +1063,10 @@ function renderWorkout(wid) {
         <span>
           <span class="name">${ex.name}</span>${ex.main ? ' <span class="main-badge">движение дня</span>' : ""}${ex.added ? ' <span class="main-badge alt">добавлено</span>' : ""}${ex.swappedFrom ? ' <span class="main-badge alt">замена</span>' : ""}
           <div class="plan">План: ${ex.scheme} · ${weightLabel(ex)}</div>
+          ${ex.method || ex.ssWith ? `<div class="ex-methods">
+            ${ex.ssWith ? `<span class="method-chip ss">суперсет: ${ex.ssWith}</span>` : ""}
+            ${ex.method && METHODS[ex.method] ? `<span class="method-chip" data-method="${ex.method}">${METHODS[ex.method].name}</span>` : ""}
+          </div>` : ""}
           ${exTargetHTML(ex, analyzeLift(movSeries[movementKey(ex)]), (movSeries[movementKey(ex)] || []).length)}
         </span>
         <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length ? saved.length + " подх." : "0 / " + ex.sets}</span>
@@ -1125,6 +1160,7 @@ function renderWorkout(wid) {
       },
     });
     el.querySelector("[data-info]").onclick = () => showExerciseDetail(ex.id);
+    el.querySelectorAll("[data-method]").forEach((m) => m.onclick = (e) => { e.stopPropagation(); showMethod(m.dataset.method); });
     el.querySelector("[data-drop]").onclick = () => {
       const pl = planOf(wid);
       if (ex.added) setPlan(wid, { add: (pl.add || []).filter((a) => a !== ex.id) });
