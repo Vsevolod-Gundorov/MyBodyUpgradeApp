@@ -236,13 +236,23 @@ export function shapeSvg(list) {
 }
 
 /**
+ * Группы, которым цикл обязан давать два активных дня в неделю.
+ * Если такая группа выпала из плана совсем — это дыра, а не мелочь,
+ * поэтому на карте она горит красным, а не просто гаснет.
+ */
+export const CORE_MUSCLES = ["chest", "back", "delts", "biceps", "triceps",
+  "quads", "hams", "glutes", "calves", "abs"];
+
+/**
  * Насколько часто группа работает за неделю — этим задаётся цвет.
  * Порог «два активных дня» — то же правило, по которому собран цикл:
  * каждая мышца работает дважды в неделю, иначе неделя собрана криво.
- * @returns "ok" | "low" | "none"
+ * @param entry запись покрытия { days, sets }
+ * @param group ключ группы: для основных пропуск подсвечивается тревогой
+ * @returns "ok" | "low" | "miss" | "none"
  */
-export function coverLevel(entry) {
-  if (!entry || !entry.sets) return "none";
+export function coverLevel(entry, group) {
+  if (!entry || !entry.sets) return CORE_MUSCLES.includes(group) ? "miss" : "none";
   if ((entry.days || 0) >= 2) return "ok";
   return "low";
 }
