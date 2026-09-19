@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MUSCLE_ORDER, MUSCLES, EQUIP, EXERCISES, searchExercises } from "../data/exercises.js";
 import { METHODS } from "../data/program.js";
-import { BODY_VIEWS, MAPPED_GROUPS, shapeSvg, coverLevel, coverVolume, coverLabel } from "../data/bodymap.js";
+import { BODY_VIEWS, MAPPED_GROUPS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 
 /* ---------- карта тела ---------- */
@@ -73,6 +73,27 @@ test("частота и объём — независимые оси", () => {
   // часто, но по чуть-чуть: цвет «норма», насыщенность бледная
   assert.equal(coverLevel({ days: 3, sets: 6 }), "ok");
   assert.equal(coverVolume({ days: 3, sets: 6 }), "lo");
+});
+
+test("основная группа, выпавшая из недели, подсвечивается тревогой", () => {
+  // дыра в плане по груди — это не «просто не задействована», это ошибка недели
+  assert.equal(coverLevel(null, "chest"), "miss");
+  assert.equal(coverLevel({ days: 0, sets: 0 }, "quads"), "miss");
+  // второстепенные группы (предплечья, задняя дельта) тревогу не поднимают
+  assert.equal(coverLevel(null, "forearms"), "none");
+  assert.equal(coverLevel(null, "rear"), "none");
+  assert.equal(coverLevel(undefined, undefined), "none", "без группы тревоги быть не может");
+  // как только появилась работа — тревога снимается
+  assert.equal(coverLevel({ days: 0, sets: 2 }, "chest"), "low");
+  assert.equal(coverLevel({ days: 2, sets: 10 }, "chest"), "ok");
+});
+
+test("список основных групп согласован со справочником и картой", () => {
+  assert.ok(CORE_MUSCLES.length >= 8, "основных групп должно быть большинство");
+  for (const g of CORE_MUSCLES) {
+    assert.ok(MUSCLE_ORDER.includes(g), `${g} нет в справочнике мышц`);
+    assert.ok(MAPPED_GROUPS.includes(g), `${g} не нарисована на карте`);
+  }
 });
 
 test("уровень покрытия: два активных дня — норма, один — мало, ноль сетов — вне плана", () => {

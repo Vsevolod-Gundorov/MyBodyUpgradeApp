@@ -951,15 +951,18 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .bm-base { fill: var(--panel-2); stroke: rgba(216,184,104,.2); stroke-width: 2.5; pointer-events: none; }
 .bm-m { stroke: var(--ink-2); stroke-width: 2.5; cursor: pointer; transition: opacity .15s; }
 .bm-m:focus-visible { outline: none; }
-/* цвет — частота работы, насыщенность — недельный объём.
+/* Цвет — частота работы, насыщенность — недельный объём.
    Оттенки заданы явно, а не прозрачностью: полупрозрачная мышца смешивается
-   с фоном панели и уходит в бурый. */
-.bm-m.lvl-ok.vol-lo   { fill: #56704a; }
-.bm-m.lvl-ok.vol-mid  { fill: #78a05e; }
-.bm-m.lvl-ok.vol-hi   { fill: #a3d27e; }
-.bm-m.lvl-low.vol-lo  { fill: #93793c; }
-.bm-m.lvl-low.vol-mid { fill: #c09a43; }
-.bm-m.lvl-low.vol-hi  { fill: #f0cb70; }
+   с фоном панели и уходит в бурый. Шаг между ступенями крупный — иначе
+   «6 сетов» и «16 сетов» на глаз не различить. */
+.bm-m.lvl-ok.vol-lo   { fill: #2f5b3a; }
+.bm-m.lvl-ok.vol-mid  { fill: #62ab4e; }
+.bm-m.lvl-ok.vol-hi   { fill: #b6ef6a; }
+.bm-m.lvl-low.vol-lo  { fill: #6b5117; }
+.bm-m.lvl-low.vol-mid { fill: #c2932c; }
+.bm-m.lvl-low.vol-hi  { fill: #ffd75e; }
+/* основная группа выпала из недели — это дыра в плане, а не мелочь */
+.bm-m.lvl-miss        { fill: #b8372a; stroke: #e0705f; }
 .bm-m.lvl-none        { fill: #2b3c42; }
 .bm-m.pick { stroke: var(--gold-bright); stroke-width: 6; filter: drop-shadow(0 0 6px rgba(224,189,102,.55)); }
 .bm-row:has(.pick) .bm-m:not(.pick) { opacity: .45; }
@@ -968,37 +971,74 @@ button.log-row:active { background: rgba(224,189,102,.05); }
   padding: 5px 8px; border-radius: 8px; border: 1px solid transparent; font-size: .78rem; }
 .bm-info.on { border-color: var(--line); background: rgba(0,0,0,.25); }
 .bm-info .mono { color: var(--bone); }
-.bm-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: .68rem; }
-.bm-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.bm-legend .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
-.bm-legend .dot.lvl-ok.vol-lo { background: #56704a; }
-.bm-legend .dot.lvl-ok.vol-mid { background: #78a05e; }
-.bm-legend .dot.lvl-ok.vol-hi { background: #a3d27e; }
-.bm-legend .dot.lvl-low.vol-hi { background: #f0cb70; }
-.bm-legend .dot.lvl-none { background: #2b3c42; }
-.bm-legend + .bm-legend { margin-top: 4px; }
+.cov-scale { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.cs-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cs-t { flex: 0 0 52px; font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+.cs-chip {
+  display: inline-flex; align-items: center; gap: 5px; font-size: .66rem; letter-spacing: .04em;
+  color: var(--bone); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px 2px 6px;
+  background: rgba(0,0,0,.25);
+}
+.cs-chip::before { content: ""; width: 9px; height: 9px; border-radius: 3px; }
+.cs-chip.lvl-ok::before { background: #62ab4e; }
+.cs-chip.lvl-low::before { background: #c2932c; }
+.cs-chip.lvl-miss::before { background: #b8372a; }
+.cs-chip.lvl-miss { border-color: rgba(184,55,42,.5); color: #e0705f; }
+.cs-bar { display: flex; flex: 0 0 auto; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+.cs-bar i { width: 26px; height: 12px; display: block; }
+.cs-bar i.vol-lo { background: #2f5b3a; }
+.cs-bar i.vol-mid { background: #62ab4e; }
+.cs-bar i.vol-hi { background: #b6ef6a; }
+.cs-scale { font-size: .64rem; color: var(--dim); letter-spacing: .02em; }
+
+/* переключатель недель прямо над фигурой */
+.wk-switch { display: flex; gap: 3px; background: rgba(0,0,0,.3); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+.wk {
+  width: 26px; height: 22px; border: 0; border-radius: 999px; cursor: pointer; padding: 0;
+  background: none; color: var(--dim); font: inherit; font-size: .72rem; font-variant-numeric: tabular-nums;
+}
+.wk.on { color: var(--ink); background: var(--metal-gold); font-weight: 700; }
+.wk:active { transform: scale(.94); }
+
+.bm-hint { font-size: .66rem; margin-left: auto; white-space: nowrap; }
+.bm-info .warn { color: var(--ember); font-weight: 600; }
 
 /* ---------- приёмы интенсивности ---------- */
-.meth-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); grid-auto-rows: 1fr; gap: 8px; }
-.meth { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; cursor: pointer;
-  background: rgba(0,0,0,.22); border: 1px solid var(--line); border-radius: var(--r);
-  padding: 10px 6px 8px; color: var(--bone); font: inherit; text-align: center; }
-.meth:active { transform: scale(.97); }
+.meth-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); grid-auto-rows: 1fr; gap: 7px; }
+.meth { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(79,154,168,.09), rgba(0,0,0,.25));
+  border: 1px solid rgba(79,154,168,.3); border-radius: var(--r);
+  padding: 9px 6px; color: var(--bone); font: inherit; text-align: center; }
+.meth:active { transform: scale(.96); border-color: var(--teal); }
 .meth-ico { color: var(--teal); display: grid; place-content: center; }
-.meth-ico .ico { width: 22px; height: 22px; }
-.meth-name { font-size: .74rem; line-height: 1.25; flex: 1; }
-.meth-src { font-size: .6rem; letter-spacing: .04em; }
+.meth-ico .ico { width: 24px; height: 24px; }
+.meth-name { font-size: .7rem; line-height: 1.2; }
 
 /* ---------- поиск по странице ---------- */
-/* липнет под шапкой: фон во всю ширину, иначе список проезжает сквозь поле */
-.search-wrap { position: sticky; z-index: 25; top: calc(56px + var(--tg-top, 0px));
-  margin: 0 -16px 10px; padding: 4px 16px 8px; background: var(--ink); }
-.search-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px;
-  background: var(--panel); border: 1px solid var(--line-strong); border-radius: 999px; }
+/* Шапка и поиск — один липкий блок во всю ширину со скруглением снизу:
+   поиск читается как продолжение шапки, а не как отдельная плашка,
+   и не даёт списку проезжать под собой. */
+.qstack {
+  position: sticky; top: 0; z-index: 30;
+  margin: -20px -16px 12px; padding: 0 0 10px;
+  background: linear-gradient(180deg, rgba(10,18,21,.99) 78%, rgba(10,18,21,.94));
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 18px 18px;
+  box-shadow: 0 10px 24px -12px rgba(0,0,0,.85);
+}
+.in-telegram .qstack { margin-top: calc(-20px - var(--tg-top, 0px)); }
+.qstack .qhead {
+  position: static; margin: 0; background: none; border-bottom: 0; backdrop-filter: none;
+  padding: 12px 16px 8px; padding-top: max(12px, calc(12px + var(--tg-top, 0px)));
+}
+.search-bar { display: flex; align-items: center; gap: 9px; margin: 0 16px; padding: 9px 13px;
+  background: rgba(0,0,0,.34); border: 1px solid var(--line-strong); border-radius: 999px; }
+.search-bar:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(224,189,102,.12); }
 .search-ico { flex: 0 0 auto; color: var(--gold); display: grid; place-content: center; }
 .search-ico .ico { width: 16px; height: 16px; }
 .search-input { flex: 1; min-width: 0; background: none; border: 0; color: var(--bone);
-  font: inherit; font-size: .88rem; padding: 0; }
+  font: inherit; font-size: .9rem; padding: 0; }
 .search-input:focus { outline: none; }
 .search-input::placeholder { color: var(--dim); }
 .search-clear { flex: 0 0 auto; background: none; border: 0; padding: 2px; color: var(--dim); cursor: pointer; }
