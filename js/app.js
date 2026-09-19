@@ -2710,7 +2710,7 @@ function renderProgress() {
           </div>
         </div>
         <div class="lc-target mono dim small">Цель месяца: потолок ≥ ${fmt(a.targetCeil)} · пол ≥ ${fmt(a.targetFloor)} кг</div>
-        <div class="lc-meta dim small">Рекорд потолка: ${a.sinceCeil === 0 ? "в последнем квесте" : a.sinceCeil + " квестов назад"} · пола: ${a.sinceFloor === 0 ? "в последнем квесте" : a.sinceFloor + " квестов назад"}</div>
+        <div class="lc-meta dim small">Рекорд потолка: ${a.sinceCeil === 0 ? "в последнем квесте" : plural3(a.sinceCeil, "квест", "квеста", "квестов") + " назад"} · пола: ${a.sinceFloor === 0 ? "в последнем квесте" : plural3(a.sinceFloor, "квест", "квеста", "квестов") + " назад"}</div>
       </div>`;
   }).join("");
 
