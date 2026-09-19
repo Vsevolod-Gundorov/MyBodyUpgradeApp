@@ -162,7 +162,7 @@ h2.display { font-size: 1.4rem; }
 .kv:last-child { border-bottom: 0; }
 
 /* ---------- цикл / недели ---------- */
-.week-block { margin-top: 18px; }
+.week-block { margin-top: 12px; }
 .week-tag {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--gold);
@@ -171,7 +171,11 @@ h2.display { font-size: 1.4rem; }
 .week-tag.vol { color: var(--moss); }
 .week-tag.vol .dot { background: var(--moss); }
 
-.saga { font-size: 1.15rem; color: var(--gold-bright); font-style: italic; margin: 6px 0 2px; opacity: .95; }
+/* сага стоит в строке недели, а не отдельным заголовком: это подпись, а не раздел */
+.saga { font-size: .78rem; color: var(--gold-bright); font-style: italic; letter-spacing: .01em; opacity: .9; }
+.saga::before { content: "·"; color: var(--dim); margin: 0 5px; font-style: normal; }
+/* на узких экранах сага уступает место бейджам: она украшение, они — факты */
+@media (max-width: 379px) { .saga { display: none; } }
 
 /* медальон с иконкой тренировки */
 .medallion {
@@ -187,16 +191,19 @@ h2.display { font-size: 1.4rem; }
 .medallion--lg .ico { width: 29px; height: 29px; }
 
 .wcard {
-  display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; cursor: pointer;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
-  padding: 13px 15px; margin-top: 10px; color: inherit; font: inherit;
+  padding: 9px 12px; margin-top: 6px; color: inherit; font: inherit;
   transition: border-color .2s, transform .15s, box-shadow .2s;
 }
+/* медальон в списке квестов меньше, чем в разборах: его задача — опознать квест, а не украсить */
+.wcard .medallion { width: 38px; height: 38px; }
+.wcard .medallion .ico { width: 21px; height: 21px; }
 .wcard-body { flex: 1; min-width: 0; }
 .wcard:active { transform: scale(.985); }
 .wcard:focus-visible, .tab:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .wcard .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.wcard .boss { font-family: var(--font-display); font-size: 1.12rem; font-weight: 600; letter-spacing: .03em; }
+.wcard .boss { font-family: var(--font-display); font-size: 1.06rem; font-weight: 600; letter-spacing: .03em; }
 .wcard .sub { display: block; color: var(--dim); font-size: .82rem; margin-top: 2px; }
 .wcard.done { border-color: var(--line-strong); background: linear-gradient(180deg, rgba(201,169,97,.05), transparent); }
 .wcard.next { border-color: var(--line-strong); box-shadow: 0 0 0 1px var(--line-strong), 0 0 22px rgba(201,169,97,.14); }
@@ -664,14 +671,15 @@ h2.display { font-size: 1.4rem; }
 
 /* ---------- флаг «старт цикла» на карточке квеста ---------- */
 .wcard-wrap { position: relative; }
-.wcard-wrap .wcard { padding-right: 48px; }
+.wcard-wrap .wcard { padding-right: 46px; }
 .wflag {
-  position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+  position: absolute; top: 50%; right: 9px; transform: translateY(-50%);
   width: 30px; height: 30px; border-radius: 8px; z-index: 2; cursor: pointer;
-  display: grid; place-content: center; line-height: 1; font-size: .95rem;
+  display: grid; place-content: center; padding: 0;
   background: rgba(10,18,21,.65); border: 1px solid var(--line); color: var(--dim);
   transition: transform .12s;
 }
+.wflag .ico { width: 15px; height: 15px; }
 .wflag.on {
   color: #241a08; background: var(--metal-gold); border-color: #f0d79c;
   box-shadow: 0 0 10px rgba(224,189,102,.55);
@@ -1029,7 +1037,7 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .badge.b-dim    { opacity: .7; }
 
 /* ============ панель раздела: действие слева, подсказка справа ============ */
-.bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 16px; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
 .pill-btn {
   display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font: inherit; font-size: .82rem;
   color: var(--gold); background: rgba(201,169,97,.07); border: 1px solid var(--line-strong);
@@ -1041,13 +1049,16 @@ button.log-row:active { background: rgba(224,189,102,.05); }
   flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-content: center;
   background: rgba(0,0,0,.25); border: 1px solid var(--line); color: var(--gold); cursor: pointer; padding: 0;
 }
-.icon-btn .ico { width: 17px; height: 17px; }
+.icon-btn .ico { width: 19px; height: 19px; }
 .icon-btn svg { width: 15px; height: 15px; fill: currentColor; }
 .icon-btn:active { transform: scale(.94); }
 
-.week-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.week-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+.week-title { display: flex; align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap; }
+.week-title .week-n { letter-spacing: .14em; }   /* разрядка съедала место, которого не хватало саге */
+.week-badges { display: flex; gap: 5px; flex: 0 0 auto; }
 .week-n { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
-.wcard .row1 { margin-bottom: 5px; }
+.wcard .row1 { margin-bottom: 2px; }
 .wcard .badges { margin-top: 1px; }
 
 /* ============ липкая шапка квеста в одну строку ============ */
@@ -1128,3 +1139,6 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
   word-break:break-all; -webkit-user-select:text; user-select:text;
 }
 .code-box:focus{ outline:none; border-color:var(--line-strong); }
+
+/* кнопка «старт цикла» в шапке: включённое состояние читается сразу */
+.icon-btn.on { color: #241a08; background: var(--metal-gold); border-color: #f0d79c; box-shadow: 0 0 10px rgba(224,189,102,.5); }
