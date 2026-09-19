@@ -1,0 +1,26 @@
+# Проверки на каждый пуш, в том числе на правки через веб-интерфейс GitHub:
+# там локальный хук pre-commit не работает, и поймать утечку может только CI.
+name: Тесты и секреты
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # история нужна для поиска секретов
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Бизнес-логика и приватность
+        run: node --test tests/*.mjs
+
+      - name: Секреты в файлах и истории
+        run: bash tools/check-secrets.sh --history
