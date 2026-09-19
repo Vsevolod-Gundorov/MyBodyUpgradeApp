@@ -6,12 +6,13 @@ import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
+import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
 
 /* ================= иконки (game-icons.net, CC BY 3.0; fill = currentColor) ================= */
-const ICONS = Object.assign({}, GAME_ICONS, ACHIEVEMENT_ICONS, UI_ICONS);
+const ICONS = Object.assign({}, GAME_ICONS, ACHIEVEMENT_ICONS, UI_ICONS, EXERCISE_ICONS);
 // алиасы под имена, которые используются по приложению
 const alias = (a, b) => { if (GAME_ICONS[b]) ICONS[a] = GAME_ICONS[b]; };
 alias("hammer", "muscle");
@@ -1180,7 +1181,8 @@ const poolRow = (ex) => {
   const ww = poolWeight(ex);
   const w = ww && ww.est1RM ? `${fmt(ww.lo)}–${fmt(ww.hi)} кг` : null;
   return `<button class="pool-row" data-ex="${ex.id}">
-    <span class="pool-ico" title="${EQUIP[ex.equip] || ""}">${icon(EQUIP_ICON[ex.equip] || "machine")}</span>
+    <span class="pool-ico" title="${ex.name}">${icon(exerciseIcon(ex))}
+      <span class="pool-eq" title="${EQUIP[ex.equip] || ""}">${icon(EQUIP_ICON[ex.equip] || "machine")}</span></span>
     <span class="pool-body">
       <span class="pool-name">${ex.name}</span>
       <span class="badges">
@@ -1379,8 +1381,13 @@ function showExerciseDetail(id, opts = {}) {
   o.className = "overlay portion-overlay";
   o.innerHTML = `
     <div class="portion-card ex-card">
-      <div class="eyebrow">${MUSCLES[ex.group]} · ${PATTERNS[ex.pattern]} · ${EQUIP[ex.equip]}</div>
-      <div class="portion-name display">${ex.name}</div>
+      <div class="ex-card-head">
+        <span class="ex-card-ico">${icon(exerciseIcon(ex))}</span>
+        <span class="ex-card-ttl">
+          <span class="eyebrow">${MUSCLES[ex.group]} · ${PATTERNS[ex.pattern]} · ${EQUIP[ex.equip]}</span>
+          <span class="portion-name display">${ex.name}</span>
+        </span>
+      </div>
       <div class="ex-tags">
         ${[ex.group, ...(ex.also || [])].map((g) => `<span class="ex-tag${g === ex.group ? " main" : ""}">${MUSCLES[g] || g}</span>`).join("")}
         ${ex.stretch ? `<span class="ex-tag stretch">растянутая позиция</span>` : ""}
@@ -1591,6 +1598,7 @@ function renderWorkout(wid) {
     const saved = entries[ex.id] || [];
     el.innerHTML = `
       <button class="ex-head" aria-expanded="false">
+        <span class="ex-ico">${icon(exerciseIcon(exById(ex.id) || ex))}</span>
         <span class="ex-main">
           <span class="ex-title">
             <span class="name">${ex.name}</span>

@@ -1063,9 +1063,15 @@ button.log-row:active { background: rgba(224,189,102,.05); }
   background: none; border: 0; border-top: 1px solid rgba(216,184,104,.12); padding: 8px 0; color: inherit; font: inherit; }
 .pool-row:first-of-type { border-top: 0; }
 .pool-row:active { background: rgba(255,255,255,.03); }
-.pool-ico { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; display: grid; place-content: center;
+/* значок движения: что делает тело. В углу — маленькая метка снаряда:
+   два сигнала в одном месте, строка не растёт в высоту */
+.pool-ico { position: relative; flex: 0 0 auto; width: 36px; height: 36px; border-radius: 9px; display: grid; place-content: center;
   background: rgba(0,0,0,.28); border: 1px solid var(--line); color: var(--gold); }
-.pool-ico .ico { width: 17px; height: 17px; }
+.pool-ico .ico { width: 22px; height: 22px; }
+.pool-eq { position: absolute; right: -5px; bottom: -5px; width: 16px; height: 16px; border-radius: 5px;
+  display: grid; place-content: center; background: var(--panel); border: 1px solid var(--line); color: var(--dim); }
+.pool-eq .ico { width: 10px; height: 10px; }
+.pool-row:active .pool-eq { color: var(--gold); }
 .pool-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .pool-name { font-size: .92rem; font-weight: 500; }
 .pool-chev { flex: 0 0 auto; color: var(--dim); font-size: 1.1rem; line-height: 1; }
@@ -1073,6 +1079,12 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 
 /* разбор движения */
 .ex-card { max-height: 88vh; overflow-y: auto; }
+.ex-card-head { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 2px; }
+.ex-card-ico { width: 54px; height: 54px; border-radius: 14px; display: grid; place-content: center;
+  background: rgba(0,0,0,.3); border: 1px solid var(--line-strong); color: var(--gold-bright); }
+.ex-card-ico .ico { width: 34px; height: 34px; }
+.ex-card-ttl { width: 100%; }
+.ex-card-ttl .eyebrow, .ex-card-ttl .portion-name { display: block; }
 .ex-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 10px; }
 .ex-tag { font-size: .66rem; letter-spacing: .06em; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
 .ex-tag.main { color: var(--gold-bright); border-color: var(--line-strong); }
@@ -1196,6 +1208,10 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 
 /* ============ карточка упражнения ============ */
 .ex-head { align-items: flex-start; }
+.ex-ico { flex: 0 0 auto; width: 30px; height: 30px; margin-right: 9px; border-radius: 8px; display: grid; place-content: center;
+  background: rgba(0,0,0,.25); border: 1px solid var(--line); color: var(--gold); }
+.ex-ico .ico { width: 19px; height: 19px; }
+.main-ex .ex-ico { color: var(--gold-bright); border-color: var(--line-strong); }
 .ex-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .ex-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ex-status { font-family: var(--font-mono); font-size: .95rem; color: var(--gold); padding-top: 2px; }
