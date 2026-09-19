@@ -29,12 +29,13 @@ export const MUSCLES = {
   quads:    "Квадрицепс",
   hams:     "Бицепс бедра",
   glutes:   "Ягодицы",
+  adductors: "Приводящие",
   lowback:  "Разгибатели спины",
   calves:   "Икры",
   abs:      "Пресс",
 };
 // порядок вывода в «Арсенале»
-export const MUSCLE_ORDER = ["chest", "back", "delts", "rear", "traps", "biceps", "triceps", "forearms", "quads", "hams", "glutes", "lowback", "calves", "abs"];
+export const MUSCLE_ORDER = ["chest", "back", "delts", "rear", "traps", "biceps", "triceps", "forearms", "quads", "hams", "glutes", "adductors", "lowback", "calves", "abs"];
 
 export const PATTERNS = {
   squat:  "Приседание",
@@ -110,7 +111,7 @@ export const EXERCISES = [
 
   /* ================= СПИНА ================= */
   E("deadlift", "Становая тяга", {
-    short: "Становая", group: "back", also: ["hams", "glutes", "lowback", "traps"], pattern: "hinge", equip: "bb", tier: 1, cns: 3, lift: "deadlift", ref: "deadlift", k: 1,
+    short: "Становая", group: "back", also: ["hams", "glutes", "lowback", "traps", "adductors"], pattern: "hinge", equip: "bb", tier: 1, cns: 3, lift: "deadlift", ref: "deadlift", k: 1,
     desc: "Самое тяжёлое движение в зале: задняя цепь целиком плюс хват и жёсткость корпуса. Главный вклад в силовой тоннаж.",
     cues: ["Гриф над серединой стопы, плечи чуть впереди грифа", "Перед съёмом — вдох, брейсинг, «выдавить пол» ногами",
            "Спина нейтральна от старта до локаута, без округления поясницы", "Локаут — тазом вперёд, без переразгибания назад"],
@@ -157,6 +158,12 @@ export const EXERCISES = [
     short: "Шраги", group: "traps", also: ["forearms"], pattern: "iso", equip: "bb", tier: 3, cns: 1, ref: "deadlift", k: 0.65,
     desc: "Верх трапеций — прямая работа на «каркас» плечевого пояса и хват.",
     cues: ["Плечи строго вверх, без вращения", "Пауза 1 с в верхней точке", "Не помогать бицепсом — руки просто крюки"],
+  }),
+
+  E("shrug-db", "Шраги с гантелями", {
+    short: "Шраги гант.", group: "traps", also: ["forearms"], pattern: "iso", equip: "db", tier: 3, cns: 1, ref: "deadlift", k: 0.3, perHand: true,
+    desc: "Тот же верх трапеций, но гантели дают больше амплитуды вверх и не упираются в бёдра.",
+    cues: ["Руки свободно висят вдоль тела", "Плечи тянуть к ушам, пауза 1 с наверху", "Опускать подконтрольно, чувствуя растяжение"],
   }),
 
   /* ================= ПЛЕЧИ ================= */
@@ -262,35 +269,35 @@ export const EXERCISES = [
 
   /* ================= НОГИ: КОЛЕНО ================= */
   E("squat", "Приседания со штангой", {
-    short: "Присед", group: "quads", also: ["glutes", "hams", "abs", "lowback"], pattern: "squat", equip: "bb", tier: 1, cns: 3, lift: "squat", ref: "squat", k: 1, stretch: true,
+    short: "Присед", group: "quads", also: ["glutes", "hams", "abs", "lowback", "adductors"], pattern: "squat", equip: "bb", tier: 1, cns: 3, lift: "squat", ref: "squat", k: 1, stretch: true,
     desc: "Король движений на низ: квадрицепс, ягодицы и корпус целиком. Главный вклад в силу ног и общий тоннаж.",
     cues: ["Гриф на трапециях, локти под гриф, грудь вверх", "Вдох и брейсинг перед каждым повтором",
            "Таз назад-вниз, колени по линии стоп", "Глубина не выше параллели — ниже стимул для ягодиц и приводящих"],
   }),
   E("front-squat", "Фронтальный присед", {
-    short: "Фронтальный", group: "quads", also: ["abs", "glutes"], pattern: "squat", equip: "bb", tier: 1, cns: 3, ref: "squat", k: 0.82, stretch: true,
+    short: "Фронтальный", group: "quads", also: ["abs", "glutes", "adductors"], pattern: "squat", equip: "bb", tier: 1, cns: 3, ref: "squat", k: 0.82, stretch: true,
     desc: "Вертикальный корпус переносит нагрузку на квадрицепс и разгружает поясницу.",
     cues: ["Гриф на дельтах, локти высоко", "Корпус максимально вертикально", "Колени идут вперёд — это нормально при подвижном голеностопе"],
   }),
   E("hack", "Присед в гак-машине", {
-    short: "Гак-присед", group: "quads", also: ["glutes"], pattern: "squat", equip: "machine", tier: 2, cns: 1, ref: "squat", k: 0.62, stretch: true,
+    short: "Гак-присед", group: "quads", also: ["glutes", "adductors"], pattern: "squat", equip: "machine", tier: 2, cns: 1, ref: "squat", k: 0.62, stretch: true,
     desc: "Квадрицепс под фиксированной траекторией: можно идти ближе к отказу без риска и без нагрузки на поясницу.",
     cues: ["Стопы чуть ниже центра платформы — больше квадрицепс", "Спина плотно к спинке", "Глубина до параллели и ниже"],
   }),
   E("legpress", "Жим ногами", {
-    short: "Жим ногами", group: "quads", also: ["glutes", "hams"], pattern: "squat", equip: "machine", tier: 2, cns: 1, ref: "squat", k: 1.55,
+    short: "Жим ногами", group: "quads", also: ["glutes", "hams", "adductors"], pattern: "squat", equip: "machine", tier: 2, cns: 1, ref: "squat", k: 1.55,
     desc: "Большой объём на ноги без осевой нагрузки на позвоночник — идеальный «второй» тяжёлый после приседа.",
     cues: ["Поясница прижата к спинке — не допускать скругления внизу", "Колени по линии стоп",
            "Амплитуда максимальная без отрыва таза", "Не выключать колени в верхней точке"],
   }),
   E("bulgarian", "Болгарские выпады", {
-    short: "Болгарские", group: "quads", also: ["glutes", "hams"], pattern: "lunge", equip: "db", tier: 2, cns: 2, ref: "squat", k: 0.5, perHand: true, stretch: true,
+    short: "Болгарские", group: "quads", also: ["glutes", "hams", "adductors"], pattern: "lunge", equip: "db", tier: 2, cns: 2, ref: "squat", k: 0.5, perHand: true, stretch: true,
     desc: "Одностороннее движение: убирает перекосы, грузит ягодицу в растяжении, требует меньше веса при том же стимуле.",
     cues: ["Задняя нога на скамье, опора на переднюю", "Наклон корпуса вперёд — больше ягодица, вертикально — квадрицепс",
            "Колено передней ноги по линии стопы", "Шаг подобрать так, чтобы внизу угол 90°"],
   }),
   E("lunge", "Выпады с гантелями", {
-    short: "Выпады", group: "quads", also: ["glutes", "hams"], pattern: "lunge", equip: "db", tier: 2, cns: 2, ref: "squat", k: 0.45, perHand: true,
+    short: "Выпады", group: "quads", also: ["glutes", "hams", "adductors"], pattern: "lunge", equip: "db", tier: 2, cns: 2, ref: "squat", k: 0.45, perHand: true,
     desc: "Шаговый паттерн: ноги, баланс и стабильность таза. Хорошая замена приседу при больной спине.",
     cues: ["Шаг достаточно длинный — колено над стопой", "Корпус вертикально", "Возврат толчком пятки передней ноги"],
   }),
@@ -303,18 +310,32 @@ export const EXERCISES = [
 
   /* ================= НОГИ: ТАЗ И ЗАДНЯЯ ЦЕПЬ ================= */
   E("rdl", "Мёртвая тяга (RDL)", {
-    short: "Мёртвая тяга", group: "hams", also: ["glutes", "lowback", "back"], pattern: "hinge", equip: "bb", tier: 1, cns: 2, ref: "deadlift", k: 0.75, stretch: true,
+    short: "Мёртвая тяга", group: "hams", also: ["glutes", "lowback", "back", "adductors"], pattern: "hinge", equip: "bb", tier: 1, cns: 2, ref: "deadlift", k: 0.75, stretch: true,
     desc: "Тазовое доминирование с прямыми ногами: бицепс бедра под растяжением плюс ягодицы и разгибатели.",
     cues: ["Колени чуть согнуты и зафиксированы", "Таз назад, гриф скользит по бедру",
            "Опускать до ощущения растяжения под коленом, не до пола", "Спина нейтральна всю амплитуду"],
   }),
   E("good-morning", "Наклоны со штангой", {
-    short: "Гуд монинг", group: "hams", also: ["glutes", "lowback"], pattern: "hinge", equip: "bb", tier: 2, cns: 2, ref: "deadlift", k: 0.5, stretch: true,
+    short: "Гуд монинг", group: "hams", also: ["glutes", "lowback", "adductors"], pattern: "hinge", equip: "bb", tier: 2, cns: 2, ref: "deadlift", k: 0.5, stretch: true,
     desc: "Классика для задней цепи и жёсткости корпуса; хорошо переносится на силу приседа и становой.",
     cues: ["Гриф на трапециях, таз назад", "Наклон до параллели корпуса с полом", "Небольшие веса — движение про технику"],
   }),
+  /* ================= ПРИВОДЯЩИЕ ================= */
+  // Большая приводящая — полноценный разгибатель бедра: работает во всех приседах,
+  // выпадах и тягах от таза, но прямой работы ей обычно не достаётся.
+  E("plie-squat", "Плие-присед с гантелью", {
+    short: "Плие-присед", group: "adductors", also: ["quads", "glutes"], pattern: "squat", equip: "db", tier: 2, cns: 1.5, ref: "squat", k: 0.4, stretch: true,
+    desc: "Широкая постановка и развёрнутые носки переносят работу на приводящие и ягодицы. Даёт приводящим растянутую позицию, которой нет в обычном приседе.",
+    cues: ["Стопы шире плеч, носки развёрнуты на 30–45°", "Колени строго по линии носков", "Таз опускать вертикально вниз, корпус держать прямо"],
+  }),
+  E("adduction", "Сведение ног в тренажёре", {
+    short: "Сведение ног", group: "adductors", also: [], pattern: "iso", equip: "machine", tier: 3, cns: 0.5, ref: "squat", k: 0.32,
+    desc: "Изоляция приводящих с постоянным натяжением — добирает объём без нагрузки на колени и поясницу.",
+    cues: ["Спина прижата к спинке, таз не отрывать", "Сводить подконтрольно, без хлопка", "В крайней точке пауза 1 с, разводить медленно до растяжения"],
+  }),
+
   E("hip-thrust", "Ягодичный мост со штангой", {
-    short: "Хип-траст", group: "glutes", also: ["hams"], pattern: "hinge", equip: "bb", tier: 2, cns: 1.5, ref: "deadlift", k: 1.1,
+    short: "Хип-траст", group: "glutes", also: ["hams", "adductors"], pattern: "hinge", equip: "bb", tier: 2, cns: 1.5, ref: "deadlift", k: 1.1,
     desc: "Максимальное напряжение ягодиц в сокращённой позиции — то, чего не дают присед и тяга.",
     cues: ["Лопатки на скамье, подбородок к груди", "Толкать пятками, таз до нейтрали — без переразгибания",
            "Пауза 1 с наверху", "Ребра вниз, не прогибать поясницу"],
