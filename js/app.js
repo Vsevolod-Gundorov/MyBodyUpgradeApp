@@ -1,6 +1,8 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
+import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
+import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
@@ -163,7 +165,8 @@ const defaultState = () => ({
   sessions: [], // { id, workoutId, date, verdict, score, xp, entries: { exId: [{w, r}] } }
   drafts: {},   // workoutId -> entries (незавершённые)
   cycleStart: 0, // с какого квеста (индекс в ORDER) начинается цикл
-  questStart: {}, // wid -> ts начала квеста (для таймера квеста)
+  questStart: {}, // wid -> ts открытия квеста (справочно; длительность считается не по нему)
+  questTicks: {}, // wid -> [ts] отметки активности: по ним и меряется длительность тренировки
   settings: { sound: true, haptics: true, offSearch: true }, // offSearch — искать ли продукты во внешней базе
   buffs: {
     active: { creatine: 10, arginine: 7 }, // id -> доза (число; единица берётся из баффа)
@@ -222,6 +225,7 @@ function load() {
       S2.settings = Object.assign({}, base.settings, parsed.settings);
       S2.cycleStart = Number.isInteger(parsed.cycleStart) ? parsed.cycleStart : 0;
       S2.questStart = (parsed.questStart && typeof parsed.questStart === "object") ? parsed.questStart : {};
+      S2.questTicks = (parsed.questTicks && typeof parsed.questTicks === "object") ? parsed.questTicks : {};
       return S2;
     }
   } catch (e) { /* повреждённые данные — начинаем заново */ }
@@ -267,6 +271,22 @@ function applyCloudJson(json) {
   localStorage.setItem(DB_KEY, JSON.stringify(S));
   invalidateE1RM();
 }
+/** Принять журнал с другого устройства: слить с текущим, ничего не потеряв. */
+async function applyTransfer(json) {
+  const incoming = JSON.parse(json);
+  if (!incoming || typeof incoming !== "object" || !Array.isArray(incoming.sessions)) {
+    throw new Error("это не журнал приложения");
+  }
+  const { state, stats } = mergeState(S, incoming);
+  localStorage.setItem(DB_KEY, JSON.stringify(state));
+  S = load();
+  invalidateE1RM();
+  checkAchievements({ type: "silent" }, { silent: true });
+  save();                      // save() поднимет ревизию и отправит слитый журнал в облако
+  render();
+  return stats;
+}
+
 /** Старт внутри Телеграма: решаем, чья копия свежее, и подтягиваем облако. */
 async function initCloudSync() {
   if (!cloudAvailable()) { setCloudState("off"); return; }
@@ -816,6 +836,14 @@ function renderProfile() {
         <button class="btn-ghost" id="btn-import">Импорт JSON</button>
       </div>
       <input type="file" id="file-import" accept="application/json" hidden />
+      <div class="bar" style="margin-top:16px">
+        <span class="eyebrow">Перенос между устройствами</span>
+        <button class="icon-btn" id="transfer-help" aria-label="Как переносить">?</button>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn-ghost" id="btn-code-out">Создать код</button>
+        <button class="btn-ghost" id="btn-code-in">Вставить код</button>
+      </div>
     </div>`;
 
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
@@ -899,6 +927,79 @@ function renderProfile() {
     };
   }
 
+  document.getElementById("transfer-help").onclick = () => showInfo({
+    title: "Перенос журнала", eyebrow: "между устройствами",
+    body: `<div class="info-legend">
+        <div><span class="badge b-main">1</span> открой приложение там, где журнал уже есть (браузер), профиль → <b>Создать код</b> → скопировать</div>
+        <div><span class="badge b-main">2</span> отправь код себе в «Избранное» в Telegram — он переживает любой мессенджер</div>
+        <div><span class="badge b-main">3</span> открой приложение в Telegram, профиль → <b>Вставить код</b> → журнал сольётся</div>
+      </div>
+      <p class="dim small">Память браузера привязана к конкретному браузеру, а мини-приложение Telegram открывается в своём — само ничего не увидит. Слияние не затирает: квесты опознаются по номеру, повторный перенос того же кода ничего не задвоит.</p>`,
+  });
+
+  document.getElementById("btn-code-out").onclick = async () => {
+    fxTap();
+    try {
+      const code = await encodeTransfer(JSON.stringify(S));
+      const o = showInfo({
+        title: "Код переноса", eyebrow: `${plural3(S.sessions.length, "квест", "квеста", "квестов")} · ${Math.round(code.length / 1024)} КБ`,
+        body: `<textarea class="code-box" id="code-out" readonly rows="5">${code}</textarea>
+          <div class="grid2" style="margin-top:10px">
+            <button class="btn-ghost" id="code-copy">Скопировать</button>
+            <button class="btn-ghost" id="code-file">Файлом</button>
+          </div>
+          <p class="dim small">Отправь код себе в «Избранное», открой приложение в Telegram и вставь его там.</p>`,
+      });
+      const box = o.querySelector("#code-out");
+      o.querySelector("#code-copy").onclick = async () => {
+        box.select(); box.setSelectionRange(0, code.length);
+        try { await navigator.clipboard.writeText(code); } catch (e) { document.execCommand("copy"); }
+        o.querySelector("#code-copy").textContent = "Скопировано";
+        fxChime();
+      };
+      o.querySelector("#code-file").onclick = () => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
+        a.download = `bodyupgrade-code-${today()}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      };
+      S.meta = S.meta || { exports: 0, imports: 0 };
+      S.meta.exports = (S.meta.exports || 0) + 1;
+      save();
+      checkAchievements({ type: "chronicle" });
+    } catch (e) { alert("Не вышло собрать код: " + e.message); }
+  };
+
+  document.getElementById("btn-code-in").onclick = () => {
+    fxTap();
+    const o = showInfo({
+      title: "Вставить код", eyebrow: "перенос",
+      body: `<textarea class="code-box" id="code-in" rows="5" placeholder="BU1..." spellcheck="false"></textarea>
+        <button class="btn-ghost" id="code-apply" style="margin-top:10px">Перенести</button>
+        <p class="dim small" id="code-msg">Журналы сольются: свои квесты останутся, чужие добавятся по датам.</p>`,
+    });
+    const box = o.querySelector("#code-in");
+    const msg = o.querySelector("#code-msg");
+    box.focus();
+    o.querySelector("#code-apply").onclick = async () => {
+      const code = box.value.trim();
+      if (!code) { msg.textContent = "Вставь код — он начинается с BU1."; return; }
+      msg.textContent = "разбираю…";
+      try {
+        const stats = await applyTransfer(await decodeTransfer(code));
+        o.remove();
+        fxChime();
+        const parts = [
+          stats.sessions ? plural3(stats.sessions, "квест", "квеста", "квестов") : "",
+          stats.achievements ? plural3(stats.achievements, "знак", "знака", "знаков") : "",
+          stats.nutritionDays ? `${plural3(stats.nutritionDays, "день", "дня", "дней")} питания` : "",
+        ].filter(Boolean);
+        alert(parts.length ? `Перенесено: ${parts.join(", ")}.` : "Всё это уже было в журнале — ничего не задвоилось.");
+      } catch (e) { msg.textContent = "Не вышло: " + e.message; }
+    };
+  };
+
   const fileInput = document.getElementById("file-import");
   document.getElementById("btn-import").onclick = () => fileInput.click();
   fileInput.onchange = (e) => {
@@ -925,6 +1026,11 @@ function renderProfile() {
 /* ================= КВЕСТЫ (цикл) ================= */
 const exCount = (wid) => { const w = workoutOf(wid); return w ? w.exercises.length : 0; };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// русский счёт: 1 квест, 2 квеста, 5 квестов
+const plural3 = (n, one, few, many) => {
+  const d = Math.abs(n) % 100, u = d % 10;
+  return `${n} ${d > 10 && d < 20 ? many : u === 1 ? one : u >= 2 && u <= 4 ? few : many}`;
+};
 let pickStart = false; // режим выбора стартового квеста цикла
 // метка тяжёлого дня в списке квестов
 function loadTag(wid) {
@@ -1202,6 +1308,7 @@ function showInfo({ title, eyebrow = "", body }) {
   o.querySelector("#info-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
   o.querySelectorAll("[data-method]").forEach((b) => b.onclick = () => showMethod(b.dataset.method));
+  return o;
 }
 
 /* разбор приёма интенсивности (как у про, но в дозировке натурала) */
@@ -1265,10 +1372,11 @@ function renderWorkout(wid) {
   // предзаполнение из последней сессии этого workout
   const lastSession = [...S.sessions].reverse().find((s) => s.workoutId === wid);
 
-  // таймер квеста: старт при открытии; сброс, если запись «протухла» (>6 ч)
+  // таймер квеста идёт по отметкам активности, а не с момента открытия экрана:
+  // заглянуть в состав днём и потренироваться вечером — это не шестичасовая тренировка
+  if (!S.questTicks) S.questTicks = {};
   if (!S.questStart) S.questStart = {};
-  const nowTs = Date.now();
-  if (!S.questStart[wid] || nowTs - S.questStart[wid] > 6 * 3600e3) { S.questStart[wid] = nowTs; save(); }
+  S.questStart[wid] = S.questStart[wid] || Date.now();   // справочно: когда квест открыли впервые
 
   const sl = sessionLoad(w.exercises);
   const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
@@ -1332,10 +1440,19 @@ function renderWorkout(wid) {
     const el = document.getElementById("quest-timer");
     if (!el) { clearInterval(questTimerId); return; }
     const b = el.querySelector("b");
-    if (b) b.textContent = fmtClock((Date.now() - S.questStart[wid]) / 1000);
+    const ticks = (S.questTicks && S.questTicks[wid]) || [];
+    // до первого подхода показываем прочерк: тренировка ещё не началась
+    if (b) b.textContent = ticks.length ? fmtDuration(activeSeconds(ticks, { now: Date.now() })) : "—";
   };
   upQt();
   questTimerId = setInterval(upQt, 1000);
+
+  // отметка работы: ставится при заполнении подходов, из них и складывается длительность
+  const markActivity = () => {
+    const prev = (S.questTicks && S.questTicks[wid]) || [];
+    const next = pushTick(prev);
+    if (next.length !== prev.length) { S.questTicks[wid] = next; save(); }
+  };
 
   const movSeries = buildMovementSeries(); // история по каждому движению для целей потолка/пола
   const list = document.getElementById("ex-list");
@@ -1398,12 +1515,13 @@ function renderWorkout(wid) {
           <input inputmode="numeric" placeholder="${ex.reps[0]}–${ex.reps[1]}" value="${s.r || ""}" aria-label="повторы" />
           <button class="del" aria-label="удалить">✕</button>`;
         const [wi, ri] = row.querySelectorAll("input");
-        wi.oninput = () => { s.w = parseFloat(wi.value.replace(",", ".")) || 0; save(); upd(); };
-        ri.oninput = () => { s.r = parseInt(ri.value) || 0; save(); upd(); };
+        wi.oninput = () => { s.w = parseFloat(wi.value.replace(",", ".")) || 0; markActivity(); save(); upd(); };
+        ri.oninput = () => { s.r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
         // умный отдых: запись подхода завершена (ушёл фокус с повторов, вес и повторы заданы)
         const maybeRest = () => {
           if (s.w > 0 && s.r > 0 && !timedSets.has(s)) {
             timedSets.add(s);
+            markActivity();
             const a = analyzeLift(movSeries[movementKey(ex)]);
             startRest(smartRest(ex, s, a), `${ex.name} · ${repZone(s.r)}`);
           }
@@ -1428,7 +1546,7 @@ function renderWorkout(wid) {
       const arr = ensure(ex.id);
       const prevSet = arr[arr.length - 1];
       arr.push({ w: prevSet ? prevSet.w : 0, r: 0 });
-      save(); drawSets(); upd(); syncLabels();
+      markActivity(); save(); drawSets(); upd(); syncLabels();
       const inputs = setsBox.querySelectorAll(".set-row:last-child input");
       if (inputs[1]) inputs[1].focus();
     };
@@ -1484,18 +1602,19 @@ function renderWorkout(wid) {
     w.exercises.forEach((ex) => { if (ex.lift) prBefore[ex.lift] = Math.max(prBefore[ex.lift] || 0, bestE1RM(ex.lift)); });
     const firstClear = S.sessions.filter((s) => s.workoutId === wid).length === 0;
     let tonn = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => (tonn += (wt || 0) * (r || 0))));
-    const durationSec = S.questStart && S.questStart[wid] ? Math.round((Date.now() - S.questStart[wid]) / 1000) : 0;
+    const durationSec = activeSeconds((S.questTicks && S.questTicks[wid]) || [], { now: Date.now() });
     // пауза перед этим квестом (для «Возвращения») — по дате последней сессии
     const lastDate = S.sessions.length ? [...S.sessions].sort((a, b) => a.date.localeCompare(b.date)).slice(-1)[0].date : null;
     const gapDays = lastDate ? Math.round((new Date(today() + "T00:00:00Z") - new Date(lastDate + "T00:00:00Z")) / 864e5) : 0;
     const now = new Date();
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
     const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role }));
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, exercises: snapshot, entries: e });
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
     S.xp += res.xp;
     invalidateE1RM();
     delete S.drafts[wid];
     if (S.questStart) delete S.questStart[wid];
+    if (S.questTicks) delete S.questTicks[wid];
     clearInterval(questTimerId); stopRestSilent();
     const prAfter = {}; Object.keys(prBefore).forEach((l) => (prAfter[l] = bestE1RM(l)));
     const prLifts = Object.keys(prAfter).filter((l) => prAfter[l] > (prBefore[l] || 0) + 0.4);
@@ -1508,7 +1627,7 @@ function renderWorkout(wid) {
         prLifts, prDetails, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
         hour: now.getHours(), feel: restFeel, totalReps, gapDays, workoutId: wid,
         quest: w.boss, timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-        durationStr: durationSec ? fmtClock(durationSec) : "" },
+        durationStr: durationSec ? fmtDuration(durationSec) : "" },
     }, { silent: true });
     save();
     showVerdict(res, awarded, durationSec);
@@ -1637,7 +1756,7 @@ function showVerdict(res, awarded, durationSec) {
       </svg></div>
       <div class="v-title ${res.cls}">${res.verdict}</div>
       <div class="v-sub">${res.flavor}</div>
-      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP${durationSec ? ` · ⏱ ${fmtClock(durationSec)}` : ""}</div>
+      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP${durationSec ? ` · ⏱ ${fmtDuration(durationSec)}` : ""}</div>
       ${badges}
       <button class="v-close">Вернуться к квестам</button>
     </div>`;
@@ -1668,7 +1787,7 @@ function showSessionDetail(sessionId) {
     <div class="portion-card sd-card">
       <div class="eyebrow">Прошлый квест · ${fmtDate(s.date)}</div>
       <div class="portion-name display">${w ? w.boss : s.workoutId}</div>
-      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtClock(s.durationSec)}` : ""}${w && w.title ? ` · ${w.title}` : ""}</div>
+      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>
     </div>`;
@@ -2606,7 +2725,7 @@ function renderProgress() {
           </div>
         </div>
         <div class="lc-target mono dim small">Цель месяца: потолок ≥ ${fmt(a.targetCeil)} · пол ≥ ${fmt(a.targetFloor)} кг</div>
-        <div class="lc-meta dim small">Рекорд потолка: ${a.sinceCeil === 0 ? "в последнем квесте" : a.sinceCeil + " квестов назад"} · пола: ${a.sinceFloor === 0 ? "в последнем квесте" : a.sinceFloor + " квестов назад"}</div>
+        <div class="lc-meta dim small">Рекорд потолка: ${a.sinceCeil === 0 ? "в последнем квесте" : plural3(a.sinceCeil, "квест", "квеста", "квестов") + " назад"} · пола: ${a.sinceFloor === 0 ? "в последнем квесте" : plural3(a.sinceFloor, "квест", "квеста", "квестов") + " назад"}</div>
       </div>`;
   }).join("");
 

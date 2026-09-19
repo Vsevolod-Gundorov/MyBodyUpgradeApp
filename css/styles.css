@@ -1118,3 +1118,13 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .in-telegram .qhead { top: var(--tg-top); padding-top: 10px; }
 .in-telegram #ach-toasts { top: calc(12px + var(--tg-top)); }
 .in-telegram .portion-card { padding-bottom: calc(24px + max(var(--tg-bottom), env(safe-area-inset-bottom))); }
+
+/* поле с кодом переноса: моноширинный, выделяется целиком по тапу */
+.code-box{
+  width:100%; box-sizing:border-box; resize:vertical;
+  font-family:var(--font-mono); font-size:11px; line-height:1.45;
+  color:var(--bone); background:rgba(0,0,0,.35);
+  border:1px solid var(--line); border-radius:var(--r); padding:10px;
+  word-break:break-all; -webkit-user-select:text; user-select:text;
+}
+.code-box:focus{ outline:none; border-color:var(--line-strong); }
