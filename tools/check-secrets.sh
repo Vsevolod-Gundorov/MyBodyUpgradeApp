@@ -26,11 +26,27 @@ else echo "  ok  приватных ключей нет"; fi
 
 if [ "${1:-}" = "--history" ]; then
   echo "История коммитов:"
-  h=$(git log --all -p --no-color 2>/dev/null | grep -nIE "$TOKEN_RE" | head -5 || true)
-  if [ -n "$h" ]; then echo "  ОПАСНО: токен встречается в истории — смени токен в BotFather"; fail=1
-  else echo "  ok  в истории токенов нет"; fi
+  # Утечку нельзя «удалить» новым коммитом: старый остаётся доступен по ссылке навсегда.
+  # Поэтому известные и уже отозванные утечки перечислены в .secret-exposures,
+  # а падает проверка только на НОВОМ коммите с секретом.
+  known=""
+  [ -f .secret-exposures ] && known=$(grep -oE '^[0-9a-f]{40}' .secret-exposures || true)
+  found=$(git log --all --format='%H' -E -G"$TOKEN_RE" 2>/dev/null || true)
+  new_hits=""
+  for c in $found; do
+    printf '%s\n' "$known" | grep -qx "$c" || new_hits="$new_hits $c"
+  done
+  if [ -n "$new_hits" ]; then
+    echo "  ОПАСНО: секрет в новых коммитах —$new_hits"
+    echo "  Отзови токен в BotFather, затем впиши эти коммиты в .secret-exposures"
+    fail=1
+  elif [ -n "$found" ]; then
+    n=$(printf '%s\n' "$found" | grep -c . || true)
+    echo "  ok  новых утечек нет (известных и отозванных: $n — см. .secret-exposures)"
+  else
+    echo "  ok  в истории токенов нет"
+  fi
 fi
-
 echo
 if [ "$fail" = "0" ]; then echo "Чисто."; else echo "Есть находки — разберись до пуша."; fi
 exit "$fail"
