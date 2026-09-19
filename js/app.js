@@ -1377,6 +1377,7 @@ function showExerciseDetail(id, opts = {}) {
   const strength = poolWeight(ex, SCHEME.strength.acc.reps, SCHEME.strength.acc.rir);
   const volume = poolWeight(ex, SCHEME.volume.acc.reps, SCHEME.volume.acc.rir);
   const used = usedIn(ex.id);
+  const alts = similarTo(ex.id, 3);
   const o = document.createElement("div");
   o.className = "overlay portion-overlay";
   o.innerHTML = `
@@ -1416,6 +1417,18 @@ function showExerciseDetail(id, opts = {}) {
       <div class="eyebrow" style="margin:16px 0 6px">Техника</div>
       <ul class="ex-cues">${(ex.cues || []).map((c) => `<li>${c}</li>`).join("")}</ul>
 
+      ${alts.length ? `<div class="eyebrow" style="margin:16px 0 6px">Чем заменить</div>
+        <div class="ex-alts">${alts.map((a) => {
+          const aw = poolWeight(a);
+          return `<button class="ex-alt" data-alt="${a.id}">
+            <span class="ex-alt-ico">${icon(exerciseIcon(a))}</span>
+            <span class="ex-alt-body">
+              <span class="ex-alt-name">${a.name}</span>
+              <span class="ex-alt-meta dim">${EQUIP[a.equip]}${aw && aw.est1RM ? ` · ${fmt(aw.lo)}–${fmt(aw.hi)} кг` : ""}</span>
+            </span>
+            <span class="pool-chev">›</span>
+          </button>`; }).join("")}</div>` : ""}
+
       ${used.length ? `<div class="eyebrow" style="margin:16px 0 6px">В каких квестах</div>
         <div class="ex-used">${used.map((u) => `<span class="ex-used-chip ${u.type}">${u.boss} <span class="dim">· нед. ${u.week}</span></span>`).join("")}</div>` : ""}
 
@@ -1424,6 +1437,7 @@ function showExerciseDetail(id, opts = {}) {
     </div>`;
   overlayRoot.appendChild(o);
   if (opts.onPick) o.querySelector("#ex-pick").onclick = () => { o.remove(); opts.onPick(ex.id); };
+  o.querySelectorAll("[data-alt]").forEach((b) => b.onclick = () => { o.remove(); showExerciseDetail(b.dataset.alt, opts); });
   o.querySelector("#ex-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
