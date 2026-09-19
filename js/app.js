@@ -1,9 +1,11 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS } from "../data/program.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
+import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
+import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
 
 /* ================= иконки (game-icons.net, CC BY 3.0; fill = currentColor) ================= */
-const ICONS = Object.assign({}, GAME_ICONS);
+const ICONS = Object.assign({}, GAME_ICONS, ACHIEVEMENT_ICONS);
 // алиасы под имена, которые используются по приложению
 const alias = (a, b) => { if (GAME_ICONS[b]) ICONS[a] = GAME_ICONS[b]; };
 alias("hammer", "muscle");
@@ -158,7 +160,9 @@ const defaultState = () => ({
     recent: [],     // недавно использованные продукты (макс. 12)
     foodStats: {},  // id -> { food, count, last } — для «частое + недавнее»
   },
-  statuses: [],  // заработанные ситуационные статусы [{id,name,desc,icon,date}]
+  statuses: [],  // устарело: старые ситуационные статусы (переносятся в achievements при загрузке)
+  achievements: {}, // id -> { count, first, last } — знаки отличия (см. data/achievements.js)
+  meta: { exports: 0, imports: 0 }, // счётчики служебных действий (для достижений «Хроники»)
 });
 
 let S = load();
@@ -187,6 +191,10 @@ function load() {
       S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
       S2.nutrition.foodStats = (parsed.nutrition && parsed.nutrition.foodStats) || {};
       S2.statuses = Array.isArray(parsed.statuses) ? parsed.statuses : [];
+      // миграция: старые «статусы» → достижения (повторы схлопываются в счётчик)
+      S2.achievements = (parsed.achievements && typeof parsed.achievements === "object")
+        ? parsed.achievements : migrateLegacyStatuses(S2.statuses);
+      S2.meta = Object.assign({}, base.meta, parsed.meta);
       S2.settings = Object.assign({}, base.settings, parsed.settings);
       S2.cycleStart = Number.isInteger(parsed.cycleStart) ? parsed.cycleStart : 0;
       S2.questStart = (parsed.questStart && typeof parsed.questStart === "object") ? parsed.questStart : {};
@@ -545,7 +553,11 @@ function renderProfile() {
   const bw = S.hero.bodyweight;
 
   const c = h.cls;
-  const statuses = S.statuses || [];
+  const achievements = S.achievements || {};
+  const achSum = achSummary(achievements);
+  // полученные знаки: старшие ранги первыми, внутри ранга — свежие
+  const earnedList = ACHIEVEMENTS.filter((a) => achievements[a.id])
+    .sort((a, b) => (TIERS[b.tier].rank - TIERS[a.tier].rank) || ((achievements[b.id].last || "").localeCompare(achievements[a.id].last || "")));
   app.innerHTML = `
     <div class="hero-head gilded">
       <div class="eyebrow">SOLO WIN · прокачка персонажа</div>
@@ -586,14 +598,18 @@ function renderProfile() {
     </div>
 
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:10px">Знаки отличия${statuses.length ? ` · ${statuses.length}` : ""}</div>
-      ${statuses.length
-        ? `<div class="status-grid">${statuses.slice(0, 24).map((st, i) => `
-            <button class="status-badge" data-si="${i}" title="${st.name}: ${st.desc}">
-              <span class="medallion">${icon(st.icon || "gem")}</span>
-              <span class="sb-name">${st.name}</span>
-            </button>`).join("")}</div>`
-        : `<div class="empty">Пока пусто. Бей рекорды, закрывай нормативы и перевыполняй квесты — статусы придут сами.</div>`}
+      <div class="ach-head">
+        <div class="eyebrow">Знаки отличия · ${achSum.total} / ${achSum.of}</div>
+        <button class="ach-all-btn" id="ach-all">Все знаки</button>
+      </div>
+      <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}${achSum.byTier[t] ? "" : " none"}"><i></i>${achSum.byTier[t]}</span>`).join("")}</div>
+      ${earnedList.length
+        ? `<div class="status-grid">${earnedList.slice(0, 24).map((a) => { const g = achievements[a.id]; return `
+            <button class="status-badge" data-ach="${a.id}" title="${a.name}: ${a.desc}">
+              ${achMedallion(a)}${g.count > 1 ? `<span class="ach-count-badge">×${g.count}</span>` : ""}
+              <span class="sb-name">${a.name}</span>
+            </button>`; }).join("")}</div>${earnedList.length > 24 ? `<div class="dim small" style="margin-top:8px">и ещё ${earnedList.length - 24} — в полном списке</div>` : ""}`
+        : `<div class="empty">Пока пусто. Бей рекорды, закрывай нормативы и перевыполняй квесты — знаки придут сами.</div>`}
     </div>
 
     <div class="panel">
@@ -623,7 +639,8 @@ function renderProfile() {
 
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };
-  app.querySelectorAll(".status-badge").forEach((b) => b.onclick = () => showStatusDetail(statuses[+b.dataset.si]));
+  app.querySelectorAll(".status-badge").forEach((b) => b.onclick = () => showAchievementDetail(ACH_BY_ID[b.dataset.ach]));
+  document.getElementById("ach-all").onclick = showAllAchievements;
 
   document.getElementById("btn-export").onclick = () => {
     const blob = new Blob([JSON.stringify(S, null, 2)], { type: "application/json" });
@@ -632,6 +649,10 @@ function renderProfile() {
     a.download = `bodyupgrade-${today()}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+    S.meta = S.meta || { exports: 0, imports: 0 };
+    S.meta.exports = (S.meta.exports || 0) + 1;
+    save();
+    checkAchievements({ type: "chronicle" });
   };
   const fileInput = document.getElementById("file-import");
   document.getElementById("btn-import").onclick = () => fileInput.click();
@@ -639,7 +660,17 @@ function renderProfile() {
     const f = e.target.files[0]; if (!f) return;
     const rd = new FileReader();
     rd.onload = () => {
-      try { S = Object.assign(defaultState(), JSON.parse(rd.result)); save(); render(); }
+      try {
+        localStorage.setItem(DB_KEY, rd.result);
+        const parsed = JSON.parse(rd.result);
+        S = load();
+        if (!parsed || typeof parsed !== "object") throw new Error("bad");
+        S.meta = Object.assign({ exports: 0, imports: 0 }, S.meta);
+        S.meta.imports = (S.meta.imports || 0) + 1;
+        checkAchievements({ type: "silent" }, { silent: true });
+        save(); render();
+        checkAchievements({ type: "chronicle" });
+      }
       catch { alert("Свиток повреждён: это не JSON приложения."); }
     };
     rd.readAsText(f);
@@ -834,64 +865,140 @@ function renderWorkout(wid) {
     const firstClear = S.sessions.filter((s) => s.workoutId === wid).length === 0;
     let tonn = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => (tonn += (wt || 0) * (r || 0))));
     const durationSec = S.questStart && S.questStart[wid] ? Math.round((Date.now() - S.questStart[wid]) / 1000) : 0;
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, entries: e });
+    // пауза перед этим квестом (для «Возвращения») — по дате последней сессии
+    const lastDate = S.sessions.length ? [...S.sessions].sort((a, b) => a.date.localeCompare(b.date)).slice(-1)[0].date : null;
+    const gapDays = lastDate ? Math.round((new Date(today() + "T00:00:00Z") - new Date(lastDate + "T00:00:00Z")) / 864e5) : 0;
+    const now = new Date();
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, entries: e });
     S.xp += res.xp;
     delete S.drafts[wid];
     if (S.questStart) delete S.questStart[wid];
     clearInterval(questTimerId); stopRestSilent();
-    const cut = Date.now() - 7 * 864e5;
-    const recentCount = S.sessions.filter((s) => new Date(s.date).getTime() >= cut).length;
     const prAfter = {}; Object.keys(prBefore).forEach((l) => (prAfter[l] = bestE1RM(l)));
-    const awarded = awardStatuses({ res, prBefore, prAfter, tonn, firstClear, recentCount });
+    const prLifts = Object.keys(prAfter).filter((l) => prAfter[l] > (prBefore[l] || 0) + 0.4);
+    const mainEx = w.exercises.find((ex) => ex.main);
+    let totalReps = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => { if (wt && r) totalReps += r; }));
+    const awarded = checkAchievements({
+      type: "session",
+      session: { score: res.score, doneSets: res.doneSets, plannedSets: res.plannedSets, tonn, durationSec,
+        prLifts, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
+        hour: now.getHours(), feel: restFeel, totalReps, gapDays, workoutId: wid },
+    }, { silent: true });
     save();
     showVerdict(res, awarded, durationSec);
   };
 }
 
-/* ================= ситуационные статусы ================= */
-const LUCKY_STATUSES = [
-  { id: "grace", name: "Благодать Древа", desc: "Золотая благодать снизошла на героя", icon: "sun" },
-  { id: "emberlord", name: "Искра Предвестника", desc: "В крови вспыхнул древний огонь", icon: "flame" },
-  { id: "runegift", name: "Дар Рун", desc: "Руны сложились в счастливый узор", icon: "gem" },
-  { id: "moonblessed", name: "Лунное Благословение", desc: "Тёмная луна одарила силой", icon: "moon" },
-  { id: "tealtide", name: "Прилив Тумана", desc: "Сине-зелёная дымка укрыла усталость", icon: "droplet" },
-  { id: "grindsoul", name: "Душа Гринда", desc: "Ты слился с рутиной прокачки в одно целое", icon: "sigil" },
-  { id: "loothunter", name: "Охотник за Лутом", desc: "Из подхода выпал редкий трофей", icon: "gem" },
-  { id: "berserk", name: "Кровавый Раж", desc: "Ярость затопила мышцы", icon: "muscle" },
-  { id: "ironwill", name: "Стальная Хватка", desc: "Гриф будто прирос к ладоням", icon: "weight" },
-  { id: "phantom", name: "Второе Дыхание", desc: "Откуда-то взялись силы на последний рывок", icon: "wings" },
-  { id: "sage", name: "Мудрость Древних", desc: "Техника отточена до совершенства", icon: "scroll" },
-  { id: "titanblood", name: "Кровь Титанов", desc: "В жилах проснулась исполинская мощь", icon: "lightning" },
-];
-function awardStatuses({ res, prBefore, prAfter, tonn, firstClear, recentCount }) {
-  const out = [];
-  const add = (id, name, desc, ic) => out.push({ id, name, desc, icon: ic, date: today() });
-  const prLifts = Object.keys(prAfter).filter((l) => prAfter[l] > (prBefore[l] || 0) + 0.4);
-  if (prLifts.length) add("pr", "Новый Предел", `Личный рекорд: ${prLifts.map((l) => LIFT_NAMES[l]).join(", ")}`, "gem");
-  if (res.score >= 90) add("flawless", "Безупречный Квест", "Квест пройден на 90%+", "shield");
-  if (res.doneSets >= res.plannedSets && res.score >= 80) add("overkill", "Сверх Нормы", "Все подходы закрыты в полную силу", "muscle");
-  if (tonn >= 8000) add("ironmountain", "Гора Железа", `${(tonn / 1000).toFixed(1)} т поднято за квест`, "weight");
-  if (firstClear) add("firstblood", "Первопроходец", "Первое прохождение квеста", "sword");
-  if (recentCount >= 3) add("relentless", "Несокрушимая Воля", "3 квеста за 7 дней", "flame");
-  // вехи гринда — за каждые 10 закрытых квестов
-  const total = S.sessions.length;
-  if (total > 0 && total % 10 === 0) add("grindveteran", "Ветеран Гринда", `${total} квестов позади`, "sigil");
-  if (total === 1) add("awakened", "Пробуждённый", "Начало пути прокачки положено", "helm");
-  // случайная удача — редкий статус за интересное испытание
-  if (Math.random() < 0.22) { const l = LUCKY_STATUSES[Math.floor(Math.random() * LUCKY_STATUSES.length)]; add(l.id, l.name, l.desc, l.icon); }
-  if (out.length) { S.statuses = [...out, ...(S.statuses || [])].slice(0, 80); }
+/* ================= достижения (знаки отличия) ================= */
+// Правила и список — data/achievements.js. Здесь: сборка контекста из состояния и показ.
+const isoWeekStart = (iso) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+function sessionTonnage(sess) { let t = 0; Object.values(sess.entries || {}).forEach((sets) => sets.forEach(({ w, r }) => (t += (w || 0) * (r || 0)))); return t; }
+// недели подряд с ≥min квестов; текущая неполная неделя серию не рвёт
+function weekStreak(sessions, min = 3) {
+  const counts = {};
+  sessions.forEach((x) => { const k = isoWeekStart(x.date); counts[k] = (counts[k] || 0) + 1; });
+  let wk = isoWeekStart(today());
+  if ((counts[wk] || 0) < min) wk = addDays(wk, -7);
+  let n = 0;
+  while ((counts[wk] || 0) >= min) { n++; wk = addDays(wk, -7); }
+  return { streak: n, maxWeek: Math.max(0, ...Object.values(counts)) };
+}
+function nutritionStats() {
+  const log = (S.nutrition && S.nutrition.log) || {};
+  const out = { daysLogged: 0, proteinDays: 0, waterDays: 0, kcalDays: 0, fiberDays: 0, fullDays: 0, distinctFoods: 0 };
+  const foods = new Set();
+  Object.values(log).forEach((day) => {
+    if (!day || !((day.items && day.items.length) || day.water > 0)) return;
+    out.daysLogged++;
+    const t = nutTotals(day);
+    const target = NUTRITION.dayTypes[day.dayType] || NUTRITION.dayTypes.rest;
+    const protein = t.p >= target.protein;
+    const water = (day.water || 0) + drinkWaterOf(day) >= WATER_TARGET_ML;
+    const kcal = t.k > 0 && Math.abs(t.k - target.kcal) <= target.kcal * 0.07;
+    if (protein) out.proteinDays++;
+    if (water) out.waterDays++;
+    if (kcal) out.kcalDays++;
+    if (t.fb >= NUTRITION.constants.fiber[0]) out.fiberDays++;
+    if (protein && water && kcal) out.fullDays++;
+    (day.items || []).forEach((it) => foods.add((it.n || "").trim().toLowerCase()));
+  });
+  out.distinctFoods = foods.size;
   return out;
+}
+function buffStats() {
+  const b = S.buffs || {};
+  const log = b.log || {};
+  const active = Object.keys(b.active || {}).map(buffById).filter(Boolean);
+  let takenTotal = 0, fullDays = 0;
+  Object.values(log).forEach((day) => {
+    const keys = Object.keys(day || {});
+    takenTotal += keys.length;
+    if (active.length && active.every((bf) => buffTimes(bf).every((sl) => day[`${bf.id}@${sl}`]))) fullDays++;
+  });
+  return { takenTotal, fullDays, activeCount: active.length, customCount: (b.custom || []).length, checkedEver: !!b.checkedAt };
+}
+function buildAchievementCtx(event) {
+  const h = heroStats();
+  const cur = S.sessions.filter((x) => ORDER.includes(x.workoutId));
+  const perQuest = Object.fromEntries(ORDER.map((id) => [id, cur.filter((x) => x.workoutId === id).length]));
+  const weekIds = (type) => PROGRAM.weeks.filter((wk) => wk.type === type).flatMap((wk) => wk.workouts.map((w) => w.id));
+  let lifetime = 0; S.sessions.forEach((x) => (lifetime += sessionTonnage(x)));
+  let goldStreak = 0; for (let i = S.sessions.length - 1; i >= 0 && S.sessions[i].score >= 85; i--) goldStreak++;
+  const ws = weekStreak(S.sessions, 3);
+  const gains = Object.keys(BASELINES).map((k) => Math.max(0, (h.lifts[k].cur - BASELINES[k]) / BASELINES[k]));
+  return {
+    event, session: event.session || null,
+    hero: { level: h.level, xp: S.xp, stats: h.stats, cls: h.cls, bodyweight: S.hero.bodyweight || 90 },
+    lifts: h.lifts,
+    totals: {
+      sessions: S.sessions.length,
+      cycles: ORDER.length ? Math.min(...ORDER.map((id) => perQuest[id])) : 0,
+      sagaStrength: weekIds("силовая").every((id) => perQuest[id] > 0),
+      sagaVolume: weekIds("объёмная").every((id) => perQuest[id] > 0),
+      lifetimeT: lifetime / 1000,
+      big3: h.lifts.bench.cur + h.lifts.squat.cur + h.lifts.deadlift.cur,
+      avgGain: gains.reduce((a, v) => a + v, 0) / gains.length,
+      weekStreak: ws.streak, maxWeek: ws.maxWeek, goldStreak,
+    },
+    nutrition: nutritionStats(),
+    buffs: buffStats(),
+    meta: S.meta || {},
+  };
+}
+// Проверить достижения после события. Возвращает список новых/повторных; показывает тост, если не silent.
+function checkAchievements(event, { silent = false } = {}) {
+  const ctx = buildAchievementCtx(event || { type: "silent" });
+  const { earned, unlocked } = evaluateAchievements(ctx, S.achievements || {}, today());
+  S.achievements = earned;
+  if (unlocked.length && !silent) { save(); showAchievementToast(unlocked); }
+  return unlocked;
+}
+const tierName = (t) => (TIERS[t] ? TIERS[t].name : t);
+const achMedallion = (a, cls = "") => `<span class="medallion tiered tier-${a.tier} ${cls}">${icon(a.icon || "gem")}</span>`;
+function showAchievementToast(unlocked) {
+  let host = document.getElementById("ach-toasts");
+  if (!host) { host = document.createElement("div"); host.id = "ach-toasts"; document.body.appendChild(host); }
+  unlocked.slice(0, 3).forEach((u, i) => {
+    const el = document.createElement("button");
+    el.className = "ach-toast";
+    el.innerHTML = `${achMedallion(u.ach)}<span class="at-body"><span class="eyebrow">${u.isNew ? "Новый знак" : "Снова"} · ${tierName(u.ach.tier)}</span><b>${u.ach.name}${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}</b></span>`;
+    el.onclick = () => { el.remove(); showAchievementDetail(u.ach); };
+    setTimeout(() => { host.appendChild(el); requestAnimationFrame(() => el.classList.add("in")); setTimeout(() => { el.classList.remove("in"); setTimeout(() => el.remove(), 400); }, 3800); }, i * 350);
+  });
+  fxChime();
 }
 
 function showVerdict(res, awarded, durationSec) {
   const o = document.createElement("div");
-  o.className = "overlay";
+  o.className = "overlay verdict-overlay";
+  // старшие ранги — первыми
+  if (awarded && awarded.length) awarded = [...awarded].sort((a, b) => TIERS[b.ach.tier].rank - TIERS[a.ach.tier].rank);
   const gold = res.cls === "verdict-fail" ? "#c65b3c" : "#e0bd66";
   const bright = res.cls === "verdict-fail" ? "#e0805a" : "#f7dd94";
   const badges = (awarded && awarded.length)
     ? `<div class="v-statuses">
-         <div class="eyebrow" style="margin-bottom:8px">Получен статус${awarded.length > 1 ? "ы" : ""}</div>
-         ${awarded.map((st) => `<div class="v-status"><span class="medallion">${icon(st.icon || "gem")}</span><span><b>${st.name}</b><span class="dim small"> — ${st.desc}</span></span></div>`).join("")}
+         <div class="eyebrow" style="margin-bottom:8px">${awarded.length > 1 ? "Знаки отличия" : "Знак отличия"}</div>
+         ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${u.ach.name}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${u.ach.desc}</span></span></div>`).join("")}
        </div>`
     : "";
   o.innerHTML = `
@@ -944,21 +1051,61 @@ function showSessionDetail(sessionId) {
 }
 
 /* детали достижения (по тапу на значок) */
-function showStatusDetail(st) {
-  if (!st) return;
+function showAchievementDetail(a) {
+  if (!a) return;
+  const got = (S.achievements || {})[a.id];
   fxTap();
   const o = document.createElement("div");
   o.className = "overlay status-overlay";
   o.innerHTML = `
     <div class="status-detail">
-      <span class="medallion medallion--lg">${icon(st.icon || "gem")}</span>
-      <div class="sd-title display">${st.name}</div>
-      <div class="sd-desc">${st.desc || ""}</div>
-      ${st.date ? `<div class="dim small mono" style="margin-top:8px">получено ${fmtDate(st.date)}</div>` : ""}
+      ${achMedallion(a, "medallion--lg" + (got ? "" : " locked"))}
+      <div class="eyebrow tier-text tier-${a.tier}">${tierName(a.tier)} · ${CATEGORIES[a.cat] || ""}${a.repeat ? " · повторяемое" : ""}</div>
+      <div class="sd-title display">${a.name}</div>
+      <div class="sd-desc">${a.desc || ""}</div>
+      ${got
+        ? `<div class="dim small mono" style="margin-top:8px">${got.count > 1 ? `получено ${got.count} раз · впервые ${got.first ? fmtDate(got.first) : "—"} · последний ${got.last ? fmtDate(got.last) : "—"}` : `получено ${got.first ? fmtDate(got.first) : "—"}`}</div>`
+        : `<div class="dim small mono" style="margin-top:8px">ещё не получено</div>`}
       <button class="btn-ghost" id="st-close" style="margin-top:16px;max-width:200px">Закрыть</button>
     </div>`;
   overlayRoot.appendChild(o);
   o.querySelector("#st-close").onclick = () => o.remove();
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
+/* полный список всех достижений по разделам (закрытые — приглушены) */
+function showAllAchievements() {
+  fxTap();
+  const earned = S.achievements || {};
+  const sum = achSummary(earned);
+  const cats = Object.keys(CATEGORIES);
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay ach-overlay";
+  o.innerHTML = `
+    <div class="portion-card ach-card">
+      <div class="eyebrow">Знаки отличия · ${sum.total} / ${sum.of}</div>
+      <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}"><i></i>${tierName(t)} ${sum.byTier[t]}/${ACHIEVEMENTS.filter((a) => a.tier === t).length}</span>`).join("")}</div>
+      <div class="ach-list">
+        ${cats.map((cat) => {
+          const list = ACHIEVEMENTS.filter((a) => a.cat === cat);
+          if (!list.length) return "";
+          return `<div class="eyebrow ach-cat">${CATEGORIES[cat]} · ${list.filter((a) => earned[a.id]).length}/${list.length}</div>
+            ${list.map((a) => { const g = earned[a.id]; return `
+              <button class="ach-row ${g ? "" : "locked"}" data-ach="${a.id}">
+                ${achMedallion(a, g ? "" : "locked")}
+                <span class="ach-row-body">
+                  <span class="ach-row-name">${a.name}${g && g.count > 1 ? ` <span class="ach-count">×${g.count}</span>` : ""}</span>
+                  <span class="ach-row-desc dim small">${a.desc}</span>
+                </span>
+                <span class="ach-row-tier tier-text tier-${a.tier}">${tierName(a.tier)}</span>
+              </button>`; }).join("")}`;
+        }).join("")}
+      </div>
+      <button class="btn-ghost" id="ach-close">Закрыть</button>
+    </div>`;
+  overlayRoot.appendChild(o);
+  o.querySelectorAll(".ach-row").forEach((b) => b.onclick = () => showAchievementDetail(ACH_BY_ID[b.dataset.ach]));
+  o.querySelector("#ach-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
 
@@ -1108,21 +1255,21 @@ function renderBuffs() {
   // отметки приёма
   app.querySelectorAll(".dose-item").forEach((el) => el.onclick = () => {
     const [id, sl] = el.dataset.take.split("@");
-    toggleTaken(id, sl); fxTap(); save(); render();
+    toggleTaken(id, sl); fxTap(); save(); render(); checkAchievements({ type: "buffs" });
   });
   app.querySelectorAll(".ds-all").forEach((btn) => btn.onclick = () => {
     const sl = btn.dataset.slot;
     const items = bySlot[sl] || [];
     const allDone = items.every((b) => dayLog[`${b.id}@${sl}`]);
     items.forEach((b) => toggleTaken(b.id, sl, !allDone));
-    fxTap(); save(); render();
+    fxTap(); save(); render(); checkAchievements({ type: "buffs" });
   });
   const allday = document.getElementById("ds-allday");
   if (allday) allday.onclick = () => {
     const on = taken < total;
     slotsWith.forEach((sl) => bySlot[sl].forEach((b) => toggleTaken(b.id, sl, on)));
     if (on) fxChime(); else fxTap();
-    save(); render();
+    save(); render(); checkAchievements({ type: "buffs" });
   };
 
   // запасы: доза и пополнение
@@ -1259,7 +1406,7 @@ function openBuffEditor(buff) {
     if (i >= 0) S.buffs.custom[i] = rec; else S.buffs.custom.push(rec);
     const stk = parseInt(o.querySelector("#be-stock").value, 10);
     if (!isNaN(stk) && stk >= 0) S.buffs.stock[rec.id] = stk;
-    save(); o.remove(); render();
+    save(); o.remove(); render(); checkAchievements({ type: "buffs" });
   };
 }
 const DATALIST_SUPPS = ["Креатин моногидрат", "Сывороточный протеин", "Кофеин", "Цитруллин малат", "L-Аргинин", "Бета-аланин", "Омега-3 (рыбий жир)", "Витамин D3", "Магний", "Цинк", "Витамин C", "Мультивитамины", "Ашваганда", "Таурин", "BCAA", "EAA", "Глютамин", "Мелатонин", "Коллаген", "Казеин", "Гейнер", "Родиола", "Куркумин", "Железо", "Витамин B12", "Глюкозамин", "Пробиотик", "Клетчатка", "Электролиты", "Кальций", "L-Карнитин", "Гуарана", "Предтреник"];
@@ -1489,8 +1636,8 @@ function renderResources() {
   app.querySelectorAll(".cday").forEach((b) => { if (!b.disabled) b.onclick = () => { resDate = b.dataset.d; render(); }; });
 
   // тип дня, вода, удаление — пишем в постоянную запись выбранного дня
-  app.querySelectorAll(".dt").forEach((b) => b.onclick = () => { nutDay(date).dayType = b.dataset.dt; save(); render(); });
-  document.getElementById("water-plus").onclick = () => { nutDay(date).water += 250; save(); render(); };
+  app.querySelectorAll(".dt").forEach((b) => b.onclick = () => { nutDay(date).dayType = b.dataset.dt; save(); render(); checkAchievements({ type: "nutrition" }); });
+  document.getElementById("water-plus").onclick = () => { nutDay(date).water += 250; save(); render(); checkAchievements({ type: "nutrition" }); };
   document.getElementById("water-minus").onclick = () => { const d = nutDay(date); d.water = Math.max(0, d.water - 250); save(); render(); };
   app.querySelectorAll(".meal-del").forEach((b) => b.onclick = () => { nutDay(date).items.splice(+b.dataset.i, 1); save(); render(); });
   // клик по приёму — изменить порцию
@@ -1664,7 +1811,7 @@ function openPortion(food, date, editIndex) {
       d.items.push(rec);
       pushRecent({ id: food.id || ("man" + food.n), src: food.src, n: food.n, k: per.k, p: per.p, f: per.f, cb: per.cb, fb: per.fb, drink: food.drink, hy: food.hy });
     }
-    save(); o.remove(); render();
+    save(); o.remove(); render(); checkAchievements({ type: "nutrition" });
   };
   drawChips(); upd();
   setTimeout(() => gInput.select(), 50);
@@ -1915,4 +2062,6 @@ document.addEventListener("touchend", (e) => {
 }, { passive: false });
 
 /* ================= старт ================= */
+// тихая сверка знаков отличия: подхватывает уже заслуженное (в т.ч. после миграции и обновлений правил)
+checkAchievements({ type: "silent" }, { silent: true }); save();
 render();

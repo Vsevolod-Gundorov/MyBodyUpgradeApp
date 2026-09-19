@@ -828,3 +828,77 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 @media (prefers-reduced-motion: reduce) {
   .loader { display: none !important; }
 }
+
+/* ---------- знаки отличия: ранги, счётчики, список, тосты ---------- */
+.tier-bronze   { --tier: #c8814a; --tier-hi: #f3bd8a; --tier-glow: rgba(200,129,74,.45); }
+.tier-silver   { --tier: #c3ccd6; --tier-hi: #f4f7fb; --tier-glow: rgba(195,204,214,.4); }
+.tier-gold     { --tier: #e0bd66; --tier-hi: #f7dd94; --tier-glow: rgba(224,189,102,.5); }
+.tier-diamond  { --tier: #8fd8f5; --tier-hi: #e6fbff; --tier-glow: rgba(143,216,245,.5); }
+.tier-emerald  { --tier: #4fc98a; --tier-hi: #b8f5d1; --tier-glow: rgba(79,201,138,.5); }
+.tier-titanium { --tier: #a9b4c9; --tier-hi: #eef1fa; --tier-glow: rgba(169,180,201,.5); }
+.medallion.tiered {
+  color: var(--tier-hi); border-color: var(--tier);
+  background: radial-gradient(circle at 50% 30%, var(--tier-glow), rgba(14,12,8,.92) 76%);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.35), inset 0 -3px 6px rgba(0,0,0,.55),
+    inset 0 0 0 1px var(--tier-glow), 0 0 12px var(--tier-glow), 0 3px 10px rgba(0,0,0,.45);
+}
+/* титан — анодированный перелив по ободу */
+.medallion.tiered.tier-titanium { position: relative; }
+.medallion.tiered.tier-titanium::before {
+  content: ""; position: absolute; inset: -2px; border-radius: 50%; z-index: -1;
+  background: conic-gradient(from 20deg, #7d88a3, #c9b8e8, #7fc7d4, #e3d7a9, #7d88a3);
+  opacity: .8;
+}
+.medallion.tiered.tier-emerald { box-shadow: inset 0 1px 1px rgba(255,255,255,.35), inset 0 -3px 6px rgba(0,0,0,.55),
+  inset 0 0 0 1px var(--tier-glow), 0 0 16px var(--tier-glow), 0 3px 10px rgba(0,0,0,.45); }
+.medallion.tiered.locked { filter: grayscale(.9) brightness(.55); box-shadow: inset 0 -3px 6px rgba(0,0,0,.55); }
+.tier-text { color: var(--tier); }
+
+.ach-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.ach-all-btn { background: none; border: 1px solid var(--line); color: var(--gold); border-radius: 8px;
+  padding: 5px 11px; font: inherit; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.ach-all-btn:active { transform: scale(.96); }
+.ach-tiers { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.ach-tier-chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: .72rem;
+  color: var(--tier-hi); border: 1px solid var(--tier-glow); border-radius: 999px; padding: 3px 9px 3px 6px;
+  background: rgba(0,0,0,.25); }
+.ach-tier-chip i { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, var(--tier-hi), var(--tier) 60%, rgba(0,0,0,.6));
+  box-shadow: 0 0 6px var(--tier-glow); }
+.ach-tier-chip.none { opacity: .4; }
+
+.status-badge { position: relative; }
+.ach-count { font-family: var(--font-mono); font-size: .78em; color: var(--gold); font-weight: 600; }
+.ach-count-badge { position: absolute; top: -4px; right: calc(50% - 30px); font-family: var(--font-mono); font-size: .62rem;
+  color: var(--ink); background: var(--metal-gold); border-radius: 999px; padding: 1px 5px; box-shadow: 0 1px 3px rgba(0,0,0,.6); }
+
+/* полный список */
+.ach-card { max-height: 86vh; overflow-y: auto; }
+.ach-list { margin: 6px 0 14px; }
+.ach-cat { margin: 16px 0 6px; }
+.ach-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: none; border: 0;
+  border-top: 1px solid rgba(216,184,104,.12); padding: 9px 0; color: inherit; font: inherit; cursor: pointer; }
+.ach-row:active { background: rgba(255,255,255,.03); }
+.ach-row .medallion { width: 40px; height: 40px; }
+.ach-row .medallion .ico { width: 22px; height: 22px; }
+.ach-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ach-row-name { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; letter-spacing: .02em; line-height: 1.15; }
+.ach-row-desc { line-height: 1.3; }
+.ach-row-tier { font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.ach-row.locked .ach-row-name { color: var(--dim); }
+.ach-row.locked .ach-row-tier { opacity: .55; }
+
+/* тост о полученном знаке (вне вердикта: ресурсы, баффы, хроники) */
+#ach-toasts { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 60;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+.ach-toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; width: min(92vw, 380px);
+  background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 12px; padding: 10px 14px 10px 10px;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0,0,0,.6), inset 0 1px 0 rgba(247,221,148,.12);
+  opacity: 0; transform: translateY(-14px) scale(.97); transition: opacity .35s, transform .35s cubic-bezier(.2,.8,.2,1); }
+.ach-toast.in { opacity: 1; transform: none; }
+.ach-toast .at-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ach-toast .at-body b { font-family: var(--font-display); font-size: 1.1rem; color: var(--gold-bright); line-height: 1.15; }
+
+/* вердикт с длинным списком знаков — прокручивается, кнопка не уезжает за экран */
+.verdict-overlay { display: flex; flex-direction: column; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.verdict-overlay > div { margin: auto; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); max-width: 100%; }
