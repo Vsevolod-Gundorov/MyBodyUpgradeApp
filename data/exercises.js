@@ -447,3 +447,16 @@ export function similarTo(id, limit = 12) {
     .slice(0, limit)
     .map((r) => r.x);
 }
+
+/**
+ * Поиск по арсеналу. Ищем не только по названию: «блок», «грудь», «изоляция» —
+ * всё это то, как движение ищут в зале, а не как оно называется в программе.
+ * Регистр и раскладка кавычек не важны, пустой запрос возвращает весь пул.
+ */
+export function searchExercises(query, list = EXERCISES) {
+  const q = String(query || "").trim().toLowerCase().replace(/ё/g, "е");
+  if (!q) return list.slice();
+  const norm = (t) => String(t || "").toLowerCase().replace(/ё/g, "е");
+  return list.filter((ex) => [ex.name, ex.short, MUSCLES[ex.group], PATTERNS[ex.pattern], EQUIP[ex.equip]]
+    .some((t) => norm(t).includes(q)));
+}

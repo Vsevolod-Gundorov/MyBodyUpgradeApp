@@ -1,15 +1,17 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId } from "../data/program.js";
-import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
+import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo, searchExercises } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
 import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
+import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
+import { BODY_VIEWS, BODY_VIEWBOX, shapeSvg, coverLevel, coverLabel } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
 
 /* ================= иконки (game-icons.net, CC BY 3.0; fill = currentColor) ================= */
-const ICONS = Object.assign({}, GAME_ICONS, ACHIEVEMENT_ICONS);
+const ICONS = Object.assign({}, GAME_ICONS, ACHIEVEMENT_ICONS, UI_ICONS);
 // алиасы под имена, которые используются по приложению
 const alias = (a, b) => { if (GAME_ICONS[b]) ICONS[a] = GAME_ICONS[b]; };
 alias("hammer", "muscle");
@@ -1176,58 +1178,113 @@ function usedIn(id) {
 }
 const poolRow = (ex) => {
   const ww = poolWeight(ex);
-  const w = ww && ww.est1RM
-    ? `${fmt(ww.lo)}–${fmt(ww.hi)} кг${ww.source === "own" ? " ★" : " ◎"}`
-    : "—";
+  const w = ww && ww.est1RM ? `${fmt(ww.lo)}–${fmt(ww.hi)} кг` : null;
   return `<button class="pool-row" data-ex="${ex.id}">
+    <span class="pool-ico" title="${EQUIP[ex.equip] || ""}">${icon(EQUIP_ICON[ex.equip] || "machine")}</span>
     <span class="pool-body">
-      <span class="pool-name">${ex.name}${ex.stretch ? ' <span class="pool-flag" title="грузит мышцу в растянутой позиции">растяжение</span>' : ""}</span>
-      <span class="pool-meta dim small">${PATTERNS[ex.pattern] || ""} · ${EQUIP[ex.equip] || ""}${ex.lift ? " · базовый лифт" : ""}</span>
+      <span class="pool-name">${ex.name}</span>
+      <span class="badges">
+        ${w ? `<span class="badge b-weight">${w}${ww.source === "own" ? " ★" : " ◎"}</span>` : ""}
+        ${ex.lift ? `<span class="badge b-main">база</span>` : ""}
+        ${ex.stretch ? `<span class="badge b-ss">растяжение</span>` : ""}
+      </span>
     </span>
-    <span class="pool-w mono">${w}</span>
+    <span class="pool-chev">›</span>
   </button>`;
 };
 
 let poolFilter = "";
 const poolOpen = new Set();   // какие группы мышц раскрыты в арсенале
+let bodyPick = null;          // мышца, выбранная на карте тела
+
+// группы, которым цикл обязан давать два активных дня в неделю
+const CORE_MUSCLES = new Set(["chest", "back", "delts", "biceps", "triceps", "quads", "hams", "glutes", "calves", "abs"]);
+
+/** Карта мышц: две фигуры, подсветка по недельному покрытию, тап — подробности. */
+function bodyMap(cov) {
+  return BODY_VIEWS.map((v) => `
+    <div class="bm-wrap">
+      <svg viewBox="${BODY_VIEWBOX}" class="bm" role="img" aria-label="Мышцы ${v.title}">
+        <g class="bm-base">${v.base.map(shapeSvg).join("")}</g>
+        ${Object.entries(v.muscles).map(([g, shapes]) => `
+          <g class="bm-m lvl-${coverLevel(cov[g])} ${bodyPick === g ? "pick" : ""}" data-g="${g}"
+             tabindex="0" role="button" aria-label="${MUSCLES[g]}: ${coverLabel(cov[g])}">${shapes.map(shapeSvg).join("")}</g>`).join("")}
+      </svg>
+      <span class="bm-title">${v.title}</span>
+    </div>`).join("");
+}
+
+/** Итог по карте: сколько основных групп получают свои два дня, а каким не хватает. */
+function coverSummary(cov) {
+  const core = MUSCLE_ORDER.filter((g) => CORE_MUSCLES.has(g));
+  const low = core.filter((g) => coverLevel(cov[g]) !== "ok");
+  return low.length
+    ? `${core.length - low.length} из ${core.length} основных групп работают 2×/нед. Не хватает: ${low.map((g) => MUSCLES[g]).join(", ")}`
+    : `Все ${core.length} основных групп работают дважды в неделю — неделя собрана правильно`;
+}
+
 function renderPool() {
   cycleSub = "pool";
   const q = poolFilter.trim().toLowerCase();
-  const match = (ex) => !q || ex.name.toLowerCase().includes(q) || (ex.short || "").toLowerCase().includes(q) ||
-    (MUSCLES[ex.group] || "").toLowerCase().includes(q) || (PATTERNS[ex.pattern] || "").toLowerCase().includes(q);
-  const groups = MUSCLE_ORDER.map((g) => ({ g, list: EXERCISES.filter((e) => e.group === g && match(e)) })).filter((x) => x.list.length);
+  // поиск идёт по всей странице: и по движениям, и по приёмам интенсивности
+  const found = searchExercises(q);
+  const groups = MUSCLE_ORDER.map((g) => ({ g, list: found.filter((e) => e.group === g) })).filter((x) => x.list.length);
+  const methods = Object.entries(METHODS).filter(([, m]) => !q ||
+    [m.name, m.origin, m.desc].some((t) => (t || "").toLowerCase().includes(q)));
   const cov = weeklyCoverage(PROGRAM.weeks[0], S.plan || {});
-  const CORE = new Set(["chest", "back", "delts", "biceps", "triceps", "quads", "hams", "glutes", "calves", "abs"]);
+  const lvlBadge = (g) => ({ ok: "b-vol", low: "b-load", none: "b-dim" })[coverLevel(cov[g])];
+
   app.innerHTML = `
     <div class="qhead">
       <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
-      <span class="medallion medallion--sm">${icon("arsenal")}</span>
       <h2 class="qhead-title display">Арсенал движений</h2>
       <span class="badge">${EXERCISES.length}</span>
-      <button class="icon-btn" id="pool-help" aria-label="О арсенале">${icon("help")}</button>
+      <button class="icon-btn" id="pool-help" aria-label="Об арсенале">${icon("help")}</button>
     </div>
 
+    <div class="search-wrap">
+      <div class="search-bar">
+        <span class="search-ico">${icon("search")}</span>
+        <input class="search-input" id="pool-q" placeholder="Движение, мышца, снаряд, приём" value="${poolFilter}"
+               autocomplete="off" autocorrect="off" spellcheck="false" />
+        ${poolFilter ? `<button class="search-clear" id="pool-clear" aria-label="Очистить">${icon("close")}</button>` : ""}
+      </div>
+    </div>
+
+    ${q ? `<div class="search-count dim small">${found.length
+        ? plural3(found.length, "движение", "движения", "движений") + " найдено"
+        : "Движений не найдено"}${methods.length ? ` · ${plural3(methods.length, "приём", "приёма", "приёмов")}` : ""}</div>` : `
     <div class="panel">
       <div class="panel-head">
         <span class="eyebrow">Покрытие мышц за неделю</span>
-        <span class="badge b-dim">${PROGRAM.weeks[0].wave ? "волна " + PROGRAM.weeks[0].wave : ""}</span>
+        <span class="badge b-dim">неделя ${PROGRAM.weeks[0].n}</span>
       </div>
-      <div class="cov-grid">
-        ${MUSCLE_ORDER.filter((g) => cov[g]).map((g) => `
-          <span class="cov-chip ${cov[g].days >= 2 ? "ok" : (CORE.has(g) ? "low" : "")}">
-            <b>${MUSCLES[g]}</b><span class="mono">${cov[g].days ? `${cov[g].days}×/нед · ${cov[g].sets} сет.` : `косвенно · ${cov[g].sets} сет.`}</span>
-          </span>`).join("")}
+      <div class="bm-row">${bodyMap(cov)}</div>
+      <div class="bm-info ${bodyPick ? "on" : ""}">
+        ${bodyPick
+          ? `<span class="badge ${lvlBadge(bodyPick)}">${MUSCLES[bodyPick]}</span><span class="mono">${coverLabel(cov[bodyPick])}</span>`
+          : `<span class="dim small">${coverSummary(cov)}</span>`}
       </div>
-    </div>
+      <div class="bm-legend dim small">
+        <span><i class="dot lvl-ok"></i>2×/нед и больше</span>
+        <span><i class="dot lvl-low"></i>один день</span>
+        <span><i class="dot lvl-none"></i>не в плане</span>
+      </div>
+    </div>`}
 
+    ${methods.length ? `
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:8px">Приёмы интенсивности</div>
-      <div class="badges">
-        ${Object.entries(METHODS).map(([k, m]) => `<button class="badge b-method" data-method="${k}">${m.name}</button>`).join("")}
+      <div class="eyebrow" style="margin-bottom:10px">Приёмы интенсивности</div>
+      <div class="meth-grid">
+        ${methods.map(([k, m]) => `
+          <button class="meth" data-method="${k}">
+            <span class="meth-ico">${icon(METHOD_ICON(k))}</span>
+            <span class="meth-name">${m.name}</span>
+            <span class="meth-src dim">${m.origin}</span>
+          </button>`).join("")}
       </div>
-    </div>
+    </div>` : ""}
 
-    <input class="pool-search" id="pool-q" placeholder="Поиск: название, мышца, паттерн" value="${poolFilter}" />
     ${groups.map(({ g, list }) => {
       const open = !!q || poolOpen.has(g);
       return `
@@ -1237,25 +1294,42 @@ function renderPool() {
           <span class="ph-right"><span class="badge b-dim">${list.length}</span><span class="chev">›</span></span>
         </button>
         <div class="pool-list">${list.map(poolRow).join("")}</div>
-      </div>`; }).join("") || `<div class="empty">Ничего не найдено. Попробуй другое слово.</div>`}`;
+      </div>`; }).join("")}
+    ${!groups.length && !methods.length ? `<div class="empty">Ничего не найдено. Попробуй другое слово — например «блок» или «дроп».</div>` : ""}`;
 
   document.getElementById("pool-help").onclick = () => showInfo({
     title: "Арсенал движений", eyebrow: "как читать",
-    body: `<p>Здесь весь пул движений с рабочими весами под твои замеры. Любое можно поставить в квест заменой или добавить к нему.</p>
+    body: `<p>Весь пул движений с рабочими весами под твои замеры. Любое можно поставить в квест заменой или добавить к нему.</p>
       <div class="info-legend">
         <div><span class="badge b-weight">вес ★</span> посчитан по твоим замерам этого движения</div>
         <div><span class="badge b-weight">вес ◎</span> оценка от базовых лифтов — уточнится после первых подходов</div>
-        <div><span class="badge b-ss">растяжение</span> движение грузит мышцу в растянутой позиции, это приоритет по свежим данным</div>
-        <div><span class="cov-chip ok" style="padding:2px 7px"><b>2×/нед</b></span> группа активно работает дважды в неделю: напрямую или как вторичная в базовом движении</div>
-        <div><span class="cov-chip low" style="padding:2px 7px"><b>мало</b></span> группе не хватает активных дней — проверь свои замены</div>
+        <div><span class="badge b-main">база</span> опорный лифт: от него считаются веса остальных движений</div>
+        <div><span class="badge b-ss">растяжение</span> движение грузит мышцу в растянутой позиции: по свежим данным это приоритет</div>
       </div>
+      <p>На карте тела мышца подсвечена по числу активных дней за неделю. Тапни по мышце — покажу частоту и объём. Правило цикла: каждая группа работает дважды в неделю.</p>
       <p class="dim small">Приёмы интенсивности взяты у про-атлетов и урезаны под натурала: 1–2 за сессию, только на изоляции и тренажёрах.</p>`,
   });
-  const leavePool = () => { cycleSub = null; withLoader(() => { view = "cycle"; render(); }); };
+
+  const leavePool = () => { cycleSub = null; bodyPick = null; withLoader(() => { view = "cycle"; render(); }); };
   setBack(leavePool);
   document.getElementById("back").onclick = leavePool;
+
   const qi = document.getElementById("pool-q");
   qi.oninput = () => { poolFilter = qi.value; const at = qi.selectionStart; renderPool(); const n = document.getElementById("pool-q"); n.focus(); n.setSelectionRange(at, at); };
+  const clearBtn = document.getElementById("pool-clear");
+  if (clearBtn) clearBtn.onclick = () => { poolFilter = ""; fxTap(); renderPool(); document.getElementById("pool-q").focus(); };
+
+  // карта тела: тап по мышце — её частота и объём за неделю
+  app.querySelectorAll(".bm-m").forEach((g) => {
+    const pick = () => {
+      bodyPick = bodyPick === g.dataset.g ? null : g.dataset.g;
+      fxTap();
+      const y = window.scrollY; renderPool(); window.scrollTo(0, y);
+    };
+    g.onclick = pick;
+    g.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } };
+  });
+
   app.querySelectorAll(".pool-row").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.ex));
   app.querySelectorAll("[data-method]").forEach((b) => b.onclick = () => showMethod(b.dataset.method));
   app.querySelectorAll(".pool-toggle").forEach((b) => b.onclick = () => {
@@ -1265,6 +1339,7 @@ function renderPool() {
     const y = window.scrollY; renderPool(); window.scrollTo(0, y);
   });
 }
+
 
 /* разбор движения: техника, мышцы, рабочий вес и история атлета */
 function showExerciseDetail(id, opts = {}) {
