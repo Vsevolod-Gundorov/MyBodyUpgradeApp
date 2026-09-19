@@ -878,11 +878,14 @@ function renderWorkout(wid) {
     const prLifts = Object.keys(prAfter).filter((l) => prAfter[l] > (prBefore[l] || 0) + 0.4);
     const mainEx = w.exercises.find((ex) => ex.main);
     let totalReps = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => { if (wt && r) totalReps += r; }));
+    const prDetails = prLifts.map((l) => ({ lift: l, name: LIFT_NAMES[l] || l, before: prBefore[l] || 0, after: prAfter[l], main: !!(mainEx && mainEx.lift === l) }));
     const awarded = checkAchievements({
       type: "session",
       session: { score: res.score, doneSets: res.doneSets, plannedSets: res.plannedSets, tonn, durationSec,
-        prLifts, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
-        hour: now.getHours(), feel: restFeel, totalReps, gapDays, workoutId: wid },
+        prLifts, prDetails, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
+        hour: now.getHours(), feel: restFeel, totalReps, gapDays, workoutId: wid,
+        quest: w.boss, timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+        durationStr: durationSec ? fmtClock(durationSec) : "" },
     }, { silent: true });
     save();
     showVerdict(res, awarded, durationSec);
@@ -998,7 +1001,7 @@ function showVerdict(res, awarded, durationSec) {
   const badges = (awarded && awarded.length)
     ? `<div class="v-statuses">
          <div class="eyebrow" style="margin-bottom:8px">${awarded.length > 1 ? "Знаки отличия" : "Знак отличия"}</div>
-         ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${u.ach.name}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${u.ach.desc}</span></span></div>`).join("")}
+         ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${u.ach.name}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${u.note || u.ach.desc}</span></span></div>`).join("")}
        </div>`
     : "";
   o.innerHTML = `
@@ -1064,13 +1067,25 @@ function showAchievementDetail(a) {
       <div class="sd-title display">${a.name}</div>
       <div class="sd-desc">${a.desc || ""}</div>
       ${got
-        ? `<div class="dim small mono" style="margin-top:8px">${got.count > 1 ? `получено ${got.count} раз · впервые ${got.first ? fmtDate(got.first) : "—"} · последний ${got.last ? fmtDate(got.last) : "—"}` : `получено ${got.first ? fmtDate(got.first) : "—"}`}</div>`
+        ? `<div class="dim small mono" style="margin-top:8px">${got.count > 1 ? `получено ${got.count} раз · впервые ${got.first ? fmtDate(got.first) : "—"}` : `получено ${got.first ? fmtDate(got.first) : "—"}`}</div>
+           ${achLogHTML(got)}`
         : `<div class="dim small mono" style="margin-top:8px">ещё не получено</div>`}
       <button class="btn-ghost" id="st-close" style="margin-top:16px;max-width:200px">Закрыть</button>
     </div>`;
   overlayRoot.appendChild(o);
   o.querySelector("#st-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
+/* журнал получений знака: дата и причина каждого раза, свежие сверху */
+function achLogHTML(got) {
+  const log = (got.log || []).filter((e) => e && (e.date || e.note));
+  if (!log.length) return "";
+  const rows = [...log].reverse();
+  return `<div class="ach-log">
+    <div class="eyebrow" style="margin-bottom:6px">Журнал получений · ${rows.length}</div>
+    ${rows.map((e, i) => `<div class="ach-log-row"><span class="mono ach-log-n">${rows.length - i}</span><span class="mono ach-log-date">${e.date ? fmtDate(e.date) : "—"}</span><span class="ach-log-note">${e.note || "—"}</span></div>`).join("")}
+  </div>`;
 }
 
 /* полный список всех достижений по разделам (закрытые — приглушены) */

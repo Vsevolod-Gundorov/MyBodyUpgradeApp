@@ -168,7 +168,8 @@ test("миграция старых статусов: повторы схлоп�
     { id: "grace", date: "2026-08-02" }, { id: "berserk", date: "2026-08-03" }, { id: "unknown-id", date: "2026-08-04" },
   ];
   const m = migrateLegacyStatuses(legacy);
-  assert.deepEqual(m.pr, { count: 3, first: "2026-07-20", last: "2026-08-10" });
+  assert.equal(m.pr.count, 3); assert.equal(m.pr.first, "2026-07-20"); assert.equal(m.pr.last, "2026-08-10");
+  assert.equal(m.pr.log.length, 3);
   assert.equal(m.awakened.count, 1);
   assert.equal(m.grind10.count, 1, "уникальное не считается дважды");
   assert.equal(m.fate_grace.count, 2, "старые случайные статусы → Благодать Древа со счётчиком");
@@ -183,4 +184,51 @@ test("сводка по рангам", () => {
   assert.equal(s.byTier.bronze, 1);
   assert.equal(s.byTier.gold, 1);
   assert.equal(s.byTier.diamond, 1);
+});
+
+test("журнал получений: каждая выдача пишется с датой и причиной, порядок хронологический", () => {
+  const c1 = sessionCtx({ tonn: 8400, quest: "Столпы Земли", score: 70 });
+  const r1 = evaluate(c1, {}, "2026-09-01");
+  const c2 = sessionCtx({ tonn: 9100, quest: "Корни Титана", score: 70 });
+  const r2 = evaluate(c2, r1.earned, "2026-09-08");
+  const e = r2.earned.iron8;
+  assert.equal(e.count, 2);
+  assert.deepEqual(e.log.map((x) => x.date), ["2026-09-01", "2026-09-08"]);
+  assert.equal(e.log[0].note, "8,4 т · «Столпы Земли»");
+  assert.equal(e.log[1].note, "9,1 т · «Корни Титана»");
+  assert.equal(r2.unlocked.find((u) => u.ach.id === "iron8").note, "9,1 т · «Корни Титана»");
+});
+
+test("причины: рекорды с килограммами, время, длительность, уникальные — значение на момент получения", () => {
+  const ctx = sessionCtx({ score: 100, doneSets: 24, plannedSets: 24, durationSec: 1500, durationStr: "25:00", timeStr: "07:55", hour: 7, quest: "Пробуждение Стали",
+    prLifts: ["bench", "ohp"], prMain: true, prDetails: [{ lift: "bench", name: "Жим лёжа", before: 147, after: 152.3, main: true }, { lift: "ohp", name: "Швунг", before: 0, after: 106, main: false }] },
+    { lifts: { ...base().lifts, bench: { cur: 152.3, base: 147 } }, totals: { ...base().totals, sessions: 1 } });
+  const r = evaluate(ctx, {}, "2026-09-19");
+  const note = (id) => r.unlocked.find((u) => u.ach.id === id).note;
+  assert.equal(note("pr"), "Жим лёжа 152,3 кг (было 147), Швунг 106 кг · «Пробуждение Стали»");
+  assert.equal(note("pr_main"), "Жим лёжа 152,3 кг · «Пробуждение Стали»");
+  assert.equal(note("dawn"), "07:55 · «Пробуждение Стали»");
+  assert.equal(note("sprint"), "25:00 · 100% · «Пробуждение Стали»");
+  assert.equal(note("overkill"), "24/24 подходов · 100% · «Пробуждение Стали»");
+  assert.equal(note("bench150"), "жим 152,3 кг");
+  assert.equal(note("awakened"), "квестов: 1");
+});
+
+test("журнал переживает старые записи без log и ограничен по длине", () => {
+  const legacy = { flawless: { count: 3, first: "2026-08-01", last: "2026-08-20" } }; // без log
+  const r = evaluate(sessionCtx({ score: 95, quest: "Q" }), legacy, "2026-09-01");
+  assert.equal(r.earned.flawless.count, 4);
+  assert.deepEqual(r.earned.flawless.log, [{ date: "2026-09-01", note: "95% · «Q»" }]);
+  let earned = {};
+  for (let i = 0; i < 450; i++) earned = evaluate(sessionCtx({ score: 95 }), earned, "2026-01-01").earned;
+  assert.equal(earned.flawless.count, 450);
+  assert.equal(earned.flawless.log.length, 400, "журнал обрезается до 400 записей");
+});
+
+test("миграция переносит старые описания в журнал", () => {
+  const m = migrateLegacyStatuses([
+    { id: "ironmountain", desc: "9.2 т поднято за квест", date: "2026-08-10" },
+    { id: "ironmountain", desc: "8.1 т поднято за квест", date: "2026-08-03" },
+  ]);
+  assert.deepEqual(m.iron8.log, [{ date: "2026-08-03", note: "8.1 т поднято за квест" }, { date: "2026-08-10", note: "9.2 т поднято за квест" }]);
 });

@@ -902,3 +902,14 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 /* вердикт с длинным списком знаков — прокручивается, кнопка не уезжает за экран */
 .verdict-overlay { display: flex; flex-direction: column; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .verdict-overlay > div { margin: auto; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); max-width: 100%; }
+
+/* журнал получений знака (в раскрытии) */
+.status-overlay { display: flex; flex-direction: column; overflow-y: auto; }
+.status-overlay .status-detail { margin: auto; width: 100%; max-width: 380px; }
+.ach-log { width: 100%; margin-top: 14px; text-align: left; border-top: 1px solid var(--line); padding-top: 12px; }
+.ach-log-row { display: grid; grid-template-columns: 22px 62px 1fr; gap: 8px; align-items: baseline; padding: 6px 0;
+  border-bottom: 1px solid rgba(216,184,104,.1); font-size: .86rem; }
+.ach-log-row:last-child { border-bottom: 0; }
+.ach-log-n { color: var(--dim); font-size: .72rem; }
+.ach-log-date { color: var(--gold); font-size: .8rem; }
+.ach-log-note { color: var(--bone); line-height: 1.3; overflow-wrap: anywhere; }
