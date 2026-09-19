@@ -29,7 +29,7 @@ if [ -f .env ]; then
   done < .env
 fi
 
-: "${BOT_TOKEN:?Задай BOT_TOKEN в .env — токен от @BotFather}"
+: "${BOT_TOKEN:?Задай BOT_TOKEN в .env — токен от @BotFather. Никогда не вписывай его прямо в этот файл: он попадёт в git}"
 : "${APP_URL:?Задай APP_URL в .env — адрес приложения, например https://mybodyupgrade.vercel.app}"
 
 API="https://api.telegram.org/bot${BOT_TOKEN}"
