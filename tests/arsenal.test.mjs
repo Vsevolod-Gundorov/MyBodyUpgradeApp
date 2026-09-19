@@ -3,10 +3,11 @@
 // а у снаряда и приёма всегда есть значок — иначе строка списка молча теряет смысл.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MUSCLE_ORDER, MUSCLES, EQUIP, EXERCISES, searchExercises } from "../data/exercises.js";
+import { MUSCLE_ORDER, MUSCLES, PATTERNS, EQUIP, EXERCISES, exById, searchExercises } from "../data/exercises.js";
 import { METHODS } from "../data/program.js";
 import { BODY_VIEWS, MAPPED_GROUPS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
+import { EXERCISE_ICONS, exerciseIcon, ICON_RULES } from "../data/icons-exercise.js";
 
 /* ---------- карта тела ---------- */
 
@@ -174,5 +175,74 @@ test("поиск не выдумывает движений и не теряет
     assert.ok(res.length > 0, `по «${q}» должно что-то находиться`);
     for (const e of res) assert.ok(ids.has(e.id), `${q}: пришло движение не из пула`);
     assert.equal(new Set(res.map((e) => e.id)).size, res.length, `${q}: дубликаты в выдаче`);
+  }
+});
+
+/* ---------- значки движений ---------- */
+
+test("у каждого движения есть свой значок, и он нарисован", () => {
+  for (const ex of EXERCISES) {
+    const key = exerciseIcon(ex);
+    assert.ok(key, `${ex.name}: значок не подобран`);
+    assert.ok(EXERCISE_ICONS[key], `${ex.name}: значок ${key} не нарисован`);
+  }
+});
+
+test("значков движений не больше, чем нужно: лишних в наборе нет", () => {
+  const used = new Set(EXERCISES.map(exerciseIcon));
+  for (const key of Object.keys(EXERCISE_ICONS)) {
+    assert.ok(used.has(key), `значок ${key} не достаётся ни одному движению — либо лишний, либо забыли в раскладке`);
+  }
+});
+
+test("раскладка читает движение, а не снаряд: жим лёжа со штангой и с гантелями — один значок", () => {
+  const same = (a, b) => assert.equal(exerciseIcon(exById(a)), exerciseIcon(exById(b)), `${a} и ${b} должны делить значок`);
+  const diff = (a, b) => assert.notEqual(exerciseIcon(exById(a)), exerciseIcon(exById(b)), `${a} и ${b} — разные движения`);
+  same("bench", "flat-db");          // жим есть жим
+  same("row", "cable-row");          // тяга есть тяга
+  same("shrug", "shrug-db");
+  diff("bench", "cross-mid");        // жим и сведение телом делаются по-разному
+  diff("deadlift", "row");           // становая — не тяга в наклоне
+  diff("pullup", "row");             // вертикальная тяга — не горизонтальная
+  diff("squat", "legpress");         // присед — не упор ногами в платформу
+});
+
+test("изоляция подписана мышцей, которую грузит", () => {
+  const byGroup = { "curl-ez": "biceps", pushdown: "triceps", "rev-curl": "forearms", legext: "quads",
+    "legcurl-s": "hams", adduction: "adductors", "calf-standing": "calves", "pec-deck": "chest", "lat-raise": "delts" };
+  for (const [id, group] of Object.entries(byGroup)) {
+    const ex = exById(id);
+    assert.equal(ex.group, group, `${id}: тест рассинхронился со справочником`);
+    assert.equal(exerciseIcon(ex), ICON_RULES.BY_GROUP[group], `${ex.name}: изоляции положен значок своей мышцы`);
+  }
+});
+
+test("движения, где паттерн врёт, разобраны поимённо", () => {
+  assert.equal(exerciseIcon(exById("hip-thrust")), "ex-glutes", "ягодичный мост — не становая");
+  assert.equal(exerciseIcon(exById("hyper")), "ex-spine", "гиперэкстензия — разгибание спины");
+  assert.equal(exerciseIcon(exById("back-ext-45")), "ex-spine");
+  assert.equal(exerciseIcon(exById("upright")), "ex-delts", "тяга к подбородку — работа дельтовой");
+  assert.equal(exerciseIcon(exById("plank")), "ex-plank", "планка — статика, а не скручивание");
+  for (const id of Object.keys(ICON_RULES.BY_ID)) assert.ok(exById(id), `в раскладке есть лишнее движение: ${id}`);
+});
+
+test("у каждой мышцы и каждого паттерна есть свой значок — новое движение не останется без картинки", () => {
+  for (const g of MUSCLE_ORDER) assert.ok(EXERCISE_ICONS[ICON_RULES.BY_GROUP[g]], `нет значка для группы ${MUSCLES[g]}`);
+  for (const p of Object.keys(PATTERNS)) {
+    if (p === "iso") continue;  // изоляция всегда уходит в значок мышцы
+    assert.ok(EXERCISE_ICONS[ICON_RULES.BY_PATTERN[p]], `нет значка для паттерна ${PATTERNS[p]}`);
+  }
+  assert.equal(exerciseIcon(null), "ex-push", "без движения значок всё равно должен быть");
+  assert.ok(EXERCISE_ICONS[exerciseIcon({ id: "новое", group: "chest", pattern: "iso" })]);
+});
+
+test("значки движений — самодостаточный SVG без внешних ссылок и скриптов", () => {
+  for (const [name, g] of Object.entries(EXERCISE_ICONS)) {
+    assert.match(g.vb, /^0 0 \d+ \d+$/, `${name}: холст задан неверно`);
+    assert.match(g.inner, /^<path /, `${name}: пустой значок`);
+    assert.ok(!/https?:|url\(|<image|<script|on[a-z]+=/i.test(g.inner), `${name}: чужое содержимое внутри значка`);
+    assert.ok(!/fill="(?!currentColor)/.test(g.inner), `${name}: цвет должен наследоваться`);
+    assert.ok(!/NaN|undefined/.test(g.inner), `${name}: дырка в координатах`);
+    assert.ok(g.inner.length > 100, `${name}: подозрительно короткий контур`);
   }
 });
