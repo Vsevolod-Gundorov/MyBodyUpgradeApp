@@ -345,3 +345,15 @@ export function weekOfId(wid, weeks = PROGRAM.weeks) {
   const wk = (weeks || []).find((w) => (w.workouts || []).some((x) => x.id === wid));
   return wk ? wk.n : null;
 }
+
+/**
+ * Как одна мышца работает по всем неделям цикла. Нужно, чтобы не перещёлкивать
+ * четыре недели подряд: сразу видно, в какой именно неделе группа проседает.
+ * @returns [{ n, wave, sets, days }] — по неделе на запись, в порядке цикла
+ */
+export function muscleTrend(group, plans = {}, weeks = PROGRAM.weeks) {
+  return (weeks || []).map((wk) => {
+    const cov = weeklyCoverage(wk, plans)[group] || { sets: 0, days: 0 };
+    return { n: wk.n, wave: wk.wave || null, sets: cov.sets || 0, days: cov.days || 0 };
+  });
+}

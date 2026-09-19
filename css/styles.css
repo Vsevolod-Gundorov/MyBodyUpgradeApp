@@ -967,10 +967,33 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .bm-m.pick { stroke: var(--gold-bright); stroke-width: 6; filter: drop-shadow(0 0 6px rgba(224,189,102,.55)); }
 .bm-row:has(.pick) .bm-m:not(.pick) { opacity: .45; }
 
-.bm-info { display: flex; align-items: center; gap: 8px; min-height: 26px; margin-top: 8px;
+.bm-info { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 26px; margin-top: 8px;
   padding: 5px 8px; border-radius: 8px; border: 1px solid transparent; font-size: .78rem; }
 .bm-info.on { border-color: var(--line); background: rgba(0,0,0,.25); }
-.bm-info .mono { color: var(--bone); }
+.bm-info .mono { color: var(--bone); white-space: nowrap; }
+/* объём выбранной мышцы по неделям: столбик на неделю, высота — сеты */
+.trend { display: flex; align-items: flex-end; gap: 6px; margin-top: 10px; }
+.tr {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 0; background: none; border: 0; cursor: pointer; font: inherit; color: var(--dim);
+}
+/* дорожка фиксированной высоты: иначе процент у столбика схлопывается флексом */
+.tr-track { width: 100%; max-width: 34px; height: 54px; display: flex; align-items: flex-end; }
+.tr i { width: 100%; border-radius: 4px 4px 2px 2px; display: block; min-height: 4px; }
+.tr b { font-size: .64rem; font-weight: 600; color: var(--bone); font-variant-numeric: tabular-nums; }
+.tr-n { font-size: .58rem; letter-spacing: .1em; }
+.tr.on .tr-n { color: var(--gold); }
+.tr.on i { box-shadow: 0 0 0 1.5px var(--gold-bright); }
+.tr:active { transform: scale(.96); }
+.tr i.lvl-ok.vol-lo { background: #2f5b3a; }
+.tr i.lvl-ok.vol-mid { background: #62ab4e; }
+.tr i.lvl-ok.vol-hi { background: #b6ef6a; }
+.tr i.lvl-low.vol-lo { background: #6b5117; }
+.tr i.lvl-low.vol-mid { background: #c2932c; }
+.tr i.lvl-low.vol-hi { background: #ffd75e; }
+.tr i.lvl-miss { background: #b8372a; }
+.tr i.lvl-none { background: #2b3c42; }
+
 .cov-scale { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
 .cs-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .cs-t { flex: 0 0 52px; font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }

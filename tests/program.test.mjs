@@ -1,7 +1,7 @@
 // Тесты бизнес-логики программы и пула движений: node --test tests/program.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId } from "../data/program.js";
+import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, pctOf1RM, similarTo } from "../data/exercises.js";
 
 // группы, которые обязаны прорабатываться не реже 2 раз в неделю
@@ -485,4 +485,42 @@ test("неделя квеста находится — по ней раскры�
     for (const w of wk.workouts) assert.equal(weekOfId(w.id), wk.n, `${w.id} должен лежать в неделе ${wk.n}`);
   }
   assert.equal(weekOfId("t7"), null, "архивный квест ни в одной неделе текущего цикла не лежит");
+});
+
+/* ---------- объём мышцы по неделям цикла ---------- */
+
+test("тренд мышцы даёт запись на каждую неделю цикла", () => {
+  const t = muscleTrend("chest");
+  assert.equal(t.length, PROGRAM.weeks.length);
+  assert.deepEqual(t.map((x) => x.n), PROGRAM.weeks.map((w) => w.n));
+  for (const x of t) {
+    assert.ok(Number.isFinite(x.sets) && x.sets >= 0, "сеты должны быть числом");
+    assert.ok(Number.isInteger(x.days) && x.days >= 0, "дни должны быть целым числом");
+  }
+});
+
+test("тренд совпадает с недельным покрытием той же недели", () => {
+  for (const g of ["chest", "back", "hams", "lowback"]) {
+    const t = muscleTrend(g);
+    PROGRAM.weeks.forEach((wk, i) => {
+      const cov = weeklyCoverage(wk, {})[g] || { sets: 0, days: 0 };
+      assert.equal(t[i].sets, cov.sets || 0, `${g}, неделя ${wk.n}: сеты разошлись`);
+      assert.equal(t[i].days, cov.days || 0, `${g}, неделя ${wk.n}: дни разошлись`);
+    });
+  }
+});
+
+test("тренд показывает реальный разброс, а не ровную линию", () => {
+  // если бы объём был одинаков во всех неделях, полоска не несла бы смысла
+  const varying = MUSCLE_ORDER.filter((g) => new Set(muscleTrend(g).map((x) => x.sets)).size > 1);
+  assert.ok(varying.length >= 5, `по неделям гуляет всего ${varying.length} групп`);
+  // разгибатели спины проседают в третьей неделе — это и должно быть видно
+  const low = muscleTrend("lowback");
+  assert.ok(low[2].sets < low[0].sets, "в неделе 3 разгибателям достаётся меньше");
+});
+
+test("мышцы вне плана дают нули, а не дырки", () => {
+  const t = muscleTrend("нет-такой-мышцы");
+  assert.equal(t.length, PROGRAM.weeks.length);
+  assert.ok(t.every((x) => x.sets === 0 && x.days === 0));
 });
