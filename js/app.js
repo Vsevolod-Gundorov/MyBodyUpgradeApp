@@ -1,5 +1,6 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, workingWeight, similarTo } from "../data/exercises.js";
+import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUserName } from "./telegram.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
@@ -453,7 +454,11 @@ function tone(freq, dur, type = "sine", gain = 0.05, when = 0) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.03);
 }
-function haptic(p) { if (S.settings && S.settings.haptics && navigator.vibrate) { try { navigator.vibrate(p); } catch (e) {} } }
+function haptic(p) {
+  if (!S.settings || !S.settings.haptics) return;
+  if (tgHaptic(p)) return;                       // внутри Телеграма — системная отдача
+  if (navigator.vibrate) { try { navigator.vibrate(p); } catch (e) {} }
+}
 function fxTransition() { tone(300, 0.16, "triangle", 0.035); tone(470, 0.13, "sine", 0.025, 0.035); haptic(10); }
 function fxChime() { tone(660, 0.2, "sine", 0.05); tone(990, 0.24, "sine", 0.04, 0.07); tone(1320, 0.3, "sine", 0.03, 0.15); haptic([14, 40, 22]); }
 function fxTap() { tone(240, 0.05, "square", 0.02); haptic(7); }
@@ -583,7 +588,10 @@ function stopRestSilent() {
 }
 
 let cycleSub = null; // подстраница раздела квестов: null | "pool"
+let backHandler = null; // что делает «назад» на текущем экране (и системная кнопка Телеграма)
+function setBack(fn) { backHandler = fn; setBackButton(!!fn); }
 function render() {
+  setBack(null);
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
   updateBuffBadge();
   window.scrollTo(0, 0);
@@ -695,6 +703,12 @@ function renderProfile() {
 
     <div class="panel">
       <div class="eyebrow" style="margin-bottom:10px">Сохранение</div>
+      ${cloudAvailable() ? `
+        <div class="grid2">
+          <button class="btn-ghost" id="btn-cloud-save">В облако Telegram</button>
+          <button class="btn-ghost" id="btn-cloud-load">Из облака</button>
+        </div>
+        <div class="dim small mono" id="cloud-info" style="margin:8px 0 12px">проверяю облако…</div>` : ""}
       <div class="grid2">
         <button class="btn-ghost" id="btn-export">Экспорт JSON</button>
         <button class="btn-ghost" id="btn-import">Импорт JSON</button>
@@ -719,6 +733,43 @@ function renderProfile() {
     save();
     checkAchievements({ type: "chronicle" });
   };
+  if (cloudAvailable()) {
+    const info = document.getElementById("cloud-info");
+    const showInfoLine = (txt) => { if (info) info.textContent = txt; };
+    cloudInfo().then((m) => showInfoLine(m && m.at
+      ? `в облаке: ${fmtDate(m.at.slice(0, 10))} · ${Math.round((m.len || 0) / 1024)} КБ`
+      : "в облаке пока пусто")).catch(() => showInfoLine("облако недоступно"));
+    document.getElementById("btn-cloud-save").onclick = async () => {
+      showInfoLine("сохраняю…");
+      try {
+        const r = await cloudSave(JSON.stringify(S));
+        showInfoLine(`сохранено: ${fmtDate(today())} · ${Math.round(r.bytes / 1024)} КБ`);
+        fxChime();
+        S.meta = S.meta || { exports: 0, imports: 0 };
+        S.meta.exports = (S.meta.exports || 0) + 1;
+        save();
+        checkAchievements({ type: "chronicle" });
+      } catch (e) { showInfoLine("не вышло: " + e.message); alert("Не удалось сохранить в облако: " + e.message); }
+    };
+    document.getElementById("btn-cloud-load").onclick = async () => {
+      try {
+        const got = await cloudLoad();
+        if (!got) { alert("В облаке пока нет сохранения."); return; }
+        if (!confirm(`Заменить текущий журнал копией из облака${got.at ? ` от ${fmtDate(got.at.slice(0, 10))}` : ""}? Текущие данные будут перезаписаны.`)) return;
+        const parsed = JSON.parse(got.json);
+        if (!parsed || typeof parsed !== "object") throw new Error("копия повреждена");
+        localStorage.setItem(DB_KEY, got.json);
+        S = load();
+        invalidateE1RM();
+        S.meta = Object.assign({ exports: 0, imports: 0 }, S.meta);
+        S.meta.imports = (S.meta.imports || 0) + 1;
+        checkAchievements({ type: "silent" }, { silent: true });
+        save(); render();
+        checkAchievements({ type: "chronicle" });
+      } catch (e) { alert("Не удалось прочитать облако: " + e.message); }
+    };
+  }
+
   const fileInput = document.getElementById("file-import");
   document.getElementById("btn-import").onclick = () => fileInput.click();
   fileInput.onchange = (e) => {
@@ -935,7 +986,9 @@ function renderPool() {
       </div>
       <p class="dim small">Приёмы интенсивности взяты у про-атлетов и урезаны под натурала: 1–2 за сессию, только на изоляции и тренажёрах.</p>`,
   });
-  document.getElementById("back").onclick = () => { cycleSub = null; withLoader(() => { view = "cycle"; render(); }); };
+  const leavePool = () => { cycleSub = null; withLoader(() => { view = "cycle"; render(); }); };
+  setBack(leavePool);
+  document.getElementById("back").onclick = leavePool;
   const qi = document.getElementById("pool-q");
   qi.oninput = () => { poolFilter = qi.value; const at = qi.selectionStart; renderPool(); const n = document.getElementById("pool-q"); n.focus(); n.setSelectionRange(at, at); };
   app.querySelectorAll(".pool-row").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.ex));
@@ -1119,7 +1172,9 @@ function renderWorkout(wid) {
   document.getElementById("add-ex").onclick = () => openPoolPicker({ title: "Добавить движение", wid, exclude: w.exercises.map((x) => x.id),
     onPick: (id) => { const pl = planOf(wid); setPlan(wid, { add: [...(pl.add || []), id], hide: (pl.hide || []).filter((h) => h !== id) }); fxTap(); renderWorkout(wid); } });
 
-  document.getElementById("back").onclick = () => withLoader(() => { view = "cycle"; cycleSub = null; render(); });
+  const leaveQuest = () => withLoader(() => { view = "cycle"; cycleSub = null; render(); });
+  setBack(leaveQuest);
+  document.getElementById("back").onclick = leaveQuest;
 
   const questInfo = () => showInfo({
     title: w.boss, eyebrow: `${TYPE_NAMES[w.type]} · ${w.title}`,
@@ -2509,6 +2564,14 @@ document.addEventListener("touchend", (e) => {
 }, { passive: false });
 
 /* ================= старт ================= */
+// Telegram Mini App: системная кнопка «Назад», хаптика, безопасные зоны, облако
+initTelegram({ onBack: () => { if (backHandler) backHandler(); } });
+// первый запуск внутри Телеграма — берём имя героя из профиля
+if (inTelegram && !localStorage.getItem(DB_KEY)) {
+  const n = tgUserName();
+  if (n) { S.hero.name = n; save(); }
+}
+
 // тихая сверка знаков отличия: подхватывает уже заслуженное (в т.ч. после миграции и обновлений правил)
 checkAchievements({ type: "silent" }, { silent: true }); save();
 render();

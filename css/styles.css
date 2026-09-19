@@ -1110,3 +1110,11 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .pool-group.open .pool-toggle .chev { transform: rotate(90deg); }
 .pool-list { display: none; margin-top: 6px; }
 .pool-group.open .pool-list { display: block; }
+
+/* ---------- Telegram Mini App: системная шапка и безопасные зоны ---------- */
+:root { --tg-top: 0px; --tg-bottom: 0px; }
+.in-telegram #app { padding-top: calc(20px + var(--tg-top)); padding-bottom: calc(90px + var(--tg-bottom)); }
+.in-telegram .tabbar { padding-bottom: calc(8px + max(var(--tg-bottom), env(safe-area-inset-bottom))); }
+.in-telegram .qhead { top: var(--tg-top); padding-top: 10px; }
+.in-telegram #ach-toasts { top: calc(12px + var(--tg-top)); }
+.in-telegram .portion-card { padding-bottom: calc(24px + max(var(--tg-bottom), env(safe-area-inset-bottom))); }
