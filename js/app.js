@@ -1617,48 +1617,75 @@ function renderWorkout(wid) {
       return s.r >= ex.reps[1] ? "hit" : (s.r >= ex.reps[0] ? "mid" : "low");
     };
 
+    // Строки подходов живут долго: мы их не пересоздаём, а обновляем на месте.
+    // Иначе уход фокуса с поля (а он случается, как только палец коснулся соседнего)
+    // сносит узел из-под этого самого пальца — тап уходит в никуда, клавиатура
+    // закрывается, и её приходится вызывать заново.
+    function makeRow(si) {
+      const row = document.createElement("div");
+      row.className = "set-row";
+      row.innerHTML = `
+        <span class="idx mono"></span>
+        <input class="s-w mono" inputmode="decimal" enterkeyhint="done" aria-label="вес подхода ${si + 1}" />
+        <input class="s-r mono" inputmode="numeric" enterkeyhint="done" aria-label="повторы подхода ${si + 1}" />
+        <button class="s-clear" aria-label="очистить подход"></button>`;
+      const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
+      const cur = () => slots()[si] || { w: 0, r: 0 };
+      wi.oninput = () => {
+        const s = cur();
+        s.w = parseFloat(wi.value.replace(",", ".")) || 0;
+        // повесил другой рабочий вес — он поедет в оставшиеся подходы. Разминочный
+        // вес не тянем: иначе лесенка в первой строке обнулила бы весь план
+        if (!warmLook(s)) slots().forEach((x, k) => { if (k > si && !filled(x) && !warmLook(x)) x.w = s.w; });
+        markActivity(); save(); upd();
+      };
+      ri.oninput = () => { cur().r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
+      // умный отдых: запись подхода завершена (вес и повторы заданы)
+      const maybeRest = () => {
+        const s = cur();
+        if (filled(s) && !timedSets.has(s)) {
+          timedSets.add(s);
+          markActivity();
+          startRest(smartRest(ex, s, ex.wp), `${ex.name} · ${repZone(s.r)}`);
+        }
+      };
+      const done = () => { maybeRest(); drawSets(); };
+      ri.onchange = done;
+      wi.onchange = () => { if (cur().r > 0) done(); };
+      ri.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); ri.blur(); } };
+      wi.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); ri.focus(); } };
+      row.querySelector(".s-clear").onclick = () => {
+        const arr = slots(), s = arr[si];
+        if (!s) return;
+        timedSets.delete(s);
+        if (si >= ex.sets) arr.splice(si, 1); else { s.w = 0; s.r = 0; }
+        save(); drawSets(); upd();
+      };
+      return row;
+    }
     function drawSets() {
       const arr = slots();
       const active = arr.findIndex((s) => !filled(s));   // первый незакрытый подход
-      setsBox.innerHTML = "";
+      while (setsBox.children.length > arr.length) setsBox.lastChild.remove();
+      while (setsBox.children.length < arr.length) setsBox.appendChild(makeRow(setsBox.children.length));
       let no = 0;
       arr.forEach((s, si) => {
         const isWarm = warmLook(s);
         if (!isWarm) no++;
-        const row = document.createElement("div");
+        const row = setsBox.children[si];
         row.className = `set-row ${hitClass(s)} ${si === active ? "active" : ""} ${no > ex.sets && !isWarm ? "extra" : ""}`;
-        row.innerHTML = `
-          <span class="idx mono">${isWarm ? "≈" : no}</span>
-          <input class="s-w mono" inputmode="decimal" placeholder="${placeholderW(si)}" value="${s.w || (ex.bwOnly ? 0 : "")}" aria-label="вес подхода ${si + 1}" />
-          <input class="s-r mono" inputmode="numeric" placeholder="${s.hint || repTxt}" value="${s.r || ""}" aria-label="повторы подхода ${si + 1}" />
-          <button class="s-clear" aria-label="очистить подход">${filled(s) ? "✕" : ""}</button>`;
+        row.querySelector(".idx").textContent = isWarm ? "≈" : no;
         const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
-        wi.oninput = () => {
-          s.w = parseFloat(wi.value.replace(",", ".")) || 0;
-          // повесил другой рабочий вес — он поедет в оставшиеся подходы. Разминочный
-          // вес не тянем: иначе лесенка в первой строке обнулила бы весь план
-          if (!warmLook(s)) slots().forEach((x, k) => { if (k > si && !filled(x) && !warmLook(x)) x.w = s.w; });
-          markActivity(); save(); upd();
-        };
-        ri.oninput = () => { s.r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
-        // умный отдых: запись подхода завершена (вес и повторы заданы)
-        const maybeRest = () => {
-          if (filled(s) && !timedSets.has(s)) {
-            timedSets.add(s);
-            markActivity();
-            startRest(smartRest(ex, s, ex.wp), `${ex.name} · ${repZone(s.r)}`);
-          }
-        };
-        ri.onchange = () => { maybeRest(); drawSets(); };
-        // перерисовываем только когда подход дописан: иначе уход фокуса с веса
-        // сносит строку из-под пальца, который целится в поле повторов
-        wi.onchange = () => { if (s.r > 0) { maybeRest(); drawSets(); } };
-        row.querySelector(".s-clear").onclick = () => {
-          timedSets.delete(s);
-          if (si >= ex.sets) arr.splice(si, 1); else { s.w = 0; s.r = 0; }
-          save(); drawSets(); upd();
-        };
-        setsBox.appendChild(row);
+        // поле, в котором сейчас печатают, не трогаем — иначе курсор прыгает
+        if (document.activeElement !== wi) {
+          wi.value = s.w || (ex.bwOnly ? 0 : "");
+          wi.placeholder = placeholderW(si);
+        }
+        if (document.activeElement !== ri) {
+          ri.value = s.r || "";
+          ri.placeholder = s.hint || repTxt;
+        }
+        row.querySelector(".s-clear").textContent = filled(s) ? "✕" : "";
       });
     }
     function placeholderW(si) {
@@ -1807,50 +1834,80 @@ function renderWorkout(wid) {
       el.classList.toggle("done", n >= rounds);
       dotsBox.innerHTML = dots(n);
     }
+    // Круги, как и обычные подходы, живут долго: узлы не пересоздаются, а
+    // обновляются на месте — иначе тап по соседнему полю приходится на удалённый
+    // узел, и клавиатура закрывается сама
+    function makeRound(k) {
+      const wrap = document.createElement("div");
+      wrap.className = "ss-round";
+      wrap.innerHTML = `<div class="ssr-l"><span>круг ${k + 1}</span><i></i></div>`;
+      meta.forEach((m) => {
+        const row = document.createElement("div");
+        row.className = "set-row ss-row";
+        row.innerHTML = `
+          <span class="idx ss-idx">${icon(exerciseIcon(m.src))}</span>
+          <input class="s-w mono" inputmode="decimal" enterkeyhint="done" aria-label="вес ${m.ex.name}" />
+          <input class="s-r mono" inputmode="numeric" enterkeyhint="done" aria-label="повторы ${m.ex.name}" />
+          <button class="s-clear" aria-label="очистить"></button>`;
+        const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
+        const cur = () => rowsOf(m)[k] || { w: 0, r: 0 };
+        wi.oninput = () => {
+          const s = cur();
+          s.w = parseFloat(wi.value.replace(",", ".")) || 0;
+          if (!isWarmup(s, m.target)) rowsOf(m).forEach((x, kk) => { if (kk > k && !filledIn(m, x) && !isWarmup(x, m.target)) x.w = s.w; });
+          markActivity(); save(); upd();
+        };
+        ri.oninput = () => { cur().r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
+        // отдых один на пару: он начинается, когда круг закрыт целиком
+        const maybeRest = () => {
+          const s = cur();
+          if (!roundDone(k) || timedSets.has(s)) return;
+          meta.forEach((mm) => timedSets.add(rowsOf(mm)[k]));
+          markActivity();
+          startRest(smartRest(m.ex, s, m.ex.wp), `круг ${k + 1} · ${meta.map((mm) => mm.ex.short || mm.ex.name).join(" + ")}`);
+        };
+        const done = () => { maybeRest(); draw(); };
+        ri.onchange = done;
+        wi.onchange = () => { if (cur().r > 0) done(); };
+        ri.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); ri.blur(); } };
+        wi.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); ri.focus(); } };
+        row.querySelector(".s-clear").onclick = () => {
+          const s = cur();
+          timedSets.delete(s);
+          if (k >= rounds) meta.forEach((mm) => rowsOf(mm).splice(k, 1));
+          else { s.w = 0; s.r = 0; }
+          save(); draw(); upd();
+        };
+        wrap.appendChild(row);
+      });
+      return wrap;
+    }
     function draw() {
-      const total = rowsOf(meta[0]).length;
       meta.forEach(rowsOf);
+      const total = rowsOf(meta[0]).length;
       let active = 0;
       while (active < total && roundDone(active)) active++;
-      roundsBox.innerHTML = "";
+      while (roundsBox.children.length > total) roundsBox.lastChild.remove();
+      while (roundsBox.children.length < total) roundsBox.appendChild(makeRound(roundsBox.children.length));
       for (let k = 0; k < total; k++) {
-        const wrap = document.createElement("div");
+        const wrap = roundsBox.children[k];
         wrap.className = `ss-round ${roundDone(k) ? "done" : ""} ${k === active ? "active" : ""}`;
-        wrap.innerHTML = `<div class="ssr-l"><span>круг ${k + 1}</span>${roundDone(k) ? "<i>✓</i>" : ""}</div>`;
+        wrap.querySelector(".ssr-l i").textContent = roundDone(k) ? "✓" : "";
         meta.forEach((m, j) => {
           const s = rowsOf(m)[k];
-          const row = document.createElement("div");
+          const row = wrap.querySelectorAll(".set-row")[j];
           row.className = `set-row ss-row ${hitIn(m, s)}`;
-          row.innerHTML = `
-            <span class="idx ss-idx">${icon(exerciseIcon(m.src))}</span>
-            <input class="s-w mono" inputmode="decimal" placeholder="${m.target || (m.ex.bwOnly ? 0 : "")}" value="${s.w || (m.ex.bwOnly ? 0 : "")}" aria-label="вес ${m.ex.name}" />
-            <input class="s-r mono" inputmode="numeric" placeholder="${m.repTxt}" value="${s.r || ""}" aria-label="повторы ${m.ex.name}" />
-            <button class="s-clear" aria-label="очистить">${filledIn(m, s) ? "✕" : ""}</button>`;
           const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
-          wi.oninput = () => {
-            s.w = parseFloat(wi.value.replace(",", ".")) || 0;
-            if (!isWarmup(s, m.target)) rowsOf(m).forEach((x, kk) => { if (kk > k && !filledIn(m, x) && !isWarmup(x, m.target)) x.w = s.w; });
-            markActivity(); save(); upd();
-          };
-          ri.oninput = () => { s.r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
-          // отдых один на пару: он начинается, когда круг закрыт целиком
-          const maybeRest = () => {
-            if (!roundDone(k) || timedSets.has(s)) return;
-            meta.forEach((mm) => timedSets.add(rowsOf(mm)[k]));
-            markActivity();
-            startRest(smartRest(m.ex, s, m.ex.wp), `круг ${k + 1} · ${meta.map((mm) => mm.ex.short || mm.ex.name).join(" + ")}`);
-          };
-          ri.onchange = () => { maybeRest(); draw(); };
-          wi.onchange = () => { if (s.r > 0) { maybeRest(); draw(); } };
-          row.querySelector(".s-clear").onclick = () => {
-            timedSets.delete(s);
-            if (k >= rounds) meta.forEach((mm) => rowsOf(mm).splice(k, 1));
-            else { s.w = 0; s.r = 0; }
-            save(); draw(); upd();
-          };
-          wrap.appendChild(row);
+          if (document.activeElement !== wi) {
+            wi.value = s.w || (m.ex.bwOnly ? 0 : "");
+            wi.placeholder = m.target || (m.ex.bwOnly ? 0 : "");
+          }
+          if (document.activeElement !== ri) {
+            ri.value = s.r || "";
+            ri.placeholder = m.repTxt;
+          }
+          row.querySelector(".s-clear").textContent = filledIn(m, s) ? "✕" : "";
         });
-        roundsBox.appendChild(wrap);
       }
     }
 
@@ -3104,17 +3161,78 @@ function sparkline(values) {
 }
 
 /* ================= запрет зума на всех экранах ================= */
-// iOS Safari игнорирует user-scalable — глушим жесты вручную (пинч и двойной тап)
+// Двойной тап и так не зумит: за это отвечает touch-action: manipulation в CSS.
+// Раньше здесь висел ещё и перехват touchend с preventDefault на любое второе
+// касание за 350 мс — он глушил быстрые тапы целиком, вместе с фокусом и блюром.
+// Из-за него клавиатуру нельзя было быстро закрыть и открыть заново: тап просто
+// не доходил до страницы.
 document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
 document.addEventListener("gesturechange", (e) => e.preventDefault(), { passive: false });
 document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
-// добиваем двойной тап на iOS (два касания за <350 мс)
-let lastTouchEnd = 0;
-document.addEventListener("touchend", (e) => {
-  const now = Date.now();
-  if (now - lastTouchEnd <= 350) e.preventDefault();
-  lastTouchEnd = now;
-}, { passive: false });
+
+/* ================= клавиатура на телефоне ================= */
+// У цифровой клавиатуры iOS нет кнопки «готово»: закрыть её можно только тапом
+// мимо поля, а на экране квеста мимо поля — либо другое поле, либо кнопка.
+// Поэтому пока поле в фокусе, над клавиатурой висит своя полоска «Готово»,
+// и любой тап по пустому месту тоже снимает фокус.
+const isField = (el) => !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+// на десктопе клавиатуры нет — полоска там только мешала бы нижним кнопкам
+const hasTouch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+let kbdBar = null;
+let kbdGuard = 0;   // пока свежий тап по «Готово» — полоску не убираем: на ней ещё гасится призрачный клик
+function placeKbdBar() {
+  if (!kbdBar) return;
+  const vv = window.visualViewport;
+  if (vv) { kbdBar.style.top = `${Math.round(vv.offsetTop + vv.height)}px`; kbdBar.style.bottom = "auto"; }
+  else { kbdBar.style.top = "auto"; kbdBar.style.bottom = "0px"; }
+}
+function showKbdBar() {
+  if (!hasTouch) return;
+  if (!kbdBar) {
+    kbdBar = document.createElement("div");
+    kbdBar.className = "kbd-bar";
+    kbdBar.innerHTML = `<button type="button" class="kbd-done">Готово</button>`;
+    // pointerdown с preventDefault: поле не успевает потерять фокус до нажатия,
+    // и клавиатура закрывается с первого касания, а не со второго
+    // pointerdown с preventDefault: поле не успевает потерять фокус до нажатия,
+    // и клавиатура закрывается с первого касания, а не со второго
+    kbdBar.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      kbdGuard = Date.now();
+      const el = document.activeElement;
+      if (isField(el)) el.blur();
+      // прячем не сразу: iOS дошлёт сюда клик, и если полоски уже нет, он
+      // прилетит по тому, что под ней — например по вкладкам внизу
+      setTimeout(hideKbdBar, 450);
+    });
+    kbdBar.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
+    document.body.appendChild(kbdBar);
+  }
+  kbdBar.classList.add("on");
+  placeKbdBar();
+}
+function hideKbdBar() {
+  if (!kbdBar || Date.now() - kbdGuard < 400) return;
+  kbdBar.classList.remove("on");
+}
+
+document.addEventListener("focusin", (e) => { if (isField(e.target)) showKbdBar(); });
+document.addEventListener("focusout", (e) => {
+  if (!isField(e.target)) return;
+  // фокус мог уехать в соседнее поле — полоску прячем, только если ушли совсем
+  setTimeout(() => { if (!isField(document.activeElement)) hideKbdBar(); }, 120);
+});
+// тап по пустому месту снимает фокус: на телефоне это главный способ убрать клавиатуру
+document.addEventListener("pointerdown", (e) => {
+  const el = document.activeElement;
+  if (!isField(el) || el === e.target) return;
+  if (e.target.closest && e.target.closest("input, textarea, .kbd-bar")) return;
+  el.blur();
+}, true);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", placeKbdBar);
+  window.visualViewport.addEventListener("scroll", placeKbdBar);
+}
 
 /* ================= старт ================= */
 // Telegram Mini App: системная кнопка «Назад», хаптика, безопасные зоны, облако
