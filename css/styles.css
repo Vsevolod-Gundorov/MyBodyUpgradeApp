@@ -235,6 +235,20 @@ h2.display { font-size: 1.4rem; }
 .feel.on { color: var(--gold-bright); border-color: var(--line-strong); background: linear-gradient(180deg, rgba(224,189,102,.12), var(--panel)); }
 
 /* панель таймера отдыха (над таббаром, поверх экранов) */
+/* полоска «Готово» над клавиатурой: у цифровой клавиатуры iOS своей кнопки нет */
+.kbd-bar {
+  position: fixed; left: 0; right: 0; z-index: 70; transform: translateY(-100%);
+  display: none; justify-content: flex-end; padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(10,18,21,.98), rgba(10,18,21,.94));
+  border-top: 1px solid var(--line-strong); backdrop-filter: blur(10px);
+}
+.kbd-bar.on { display: flex; }
+.kbd-done {
+  background: rgba(224,189,102,.1); border: 1px solid var(--line-strong); color: var(--gold-bright);
+  border-radius: 8px; padding: 7px 18px; font: inherit; font-size: .9rem; cursor: pointer;
+}
+.kbd-done:active { background: rgba(224,189,102,.2); }
+
 .rest-bar {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 46;
   bottom: calc(78px + env(safe-area-inset-bottom));
