@@ -3,7 +3,7 @@
 // а у снаряда и приёма всегда есть значок — иначе строка списка молча теряет смысл.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MUSCLE_ORDER, MUSCLES, PATTERNS, EQUIP, EXERCISES, exById, searchExercises } from "../data/exercises.js";
+import { MUSCLE_ORDER, MUSCLES, PATTERNS, EQUIP, EXERCISES, exById, searchExercises, setDone } from "../data/exercises.js";
 import { METHODS } from "../data/program.js";
 import { BODY_VIEWS, MAPPED_GROUPS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
@@ -245,4 +245,23 @@ test("значки движений — самодостаточный SVG бе�
     assert.ok(!/NaN|undefined/.test(g.inner), `${name}: дырка в координатах`);
     assert.ok(g.inner.length > 100, `${name}: подозрительно короткий контур`);
   }
+});
+
+/* ---------- запись подхода ---------- */
+
+test("подход со своим весом записывается нулём, со штангой — нет", () => {
+  const bench = exById("bench"), plank = exById("plank"), pullup = exById("pullup");
+  assert.equal(setDone({ w: 100, r: 5 }, bench), true);
+  assert.equal(setDone({ w: 0, r: 5 }, bench), false, "штанга без веса — это незаполненная строка");
+  assert.equal(setDone({ w: 0, r: 60 }, plank), true, "планка идёт своим весом");
+  assert.equal(setDone({ w: 0, r: 12 }, pullup), true, "подтягивания без пояса — тоже подход");
+  assert.equal(setDone({ w: 20, r: 8 }, pullup), true, "и с поясом");
+});
+
+test("подход без повторов не считается ни для одного снаряда", () => {
+  for (const id of ["bench", "plank", "pullup", "legext"]) {
+    assert.equal(setDone({ w: 50, r: 0 }, exById(id)), false, `${id}: нет повторов — нет подхода`);
+  }
+  assert.equal(setDone(null, exById("bench")), false);
+  assert.equal(setDone({ w: 100, r: 5 }, null), true, "без справочника вес решает сам за себя");
 });

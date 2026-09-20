@@ -262,3 +262,19 @@ test("вилка одинаково разворачивается вперёд 
   const back = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(back.hi, 100, "та же схема возвращает тот же вес — без дрейфа от пересчётов");
 });
+
+test("подход со своим весом записывается: нулевой довесок — это не пустая строка", () => {
+  // планка, подъём ног в висе, подтягивания без пояса: вес в журнале ноль по делу
+  const plan = { sets: 3, reps: [10, 12], rir: 1 };
+  const hist = [sess(d(1), [{ w: 0, r: 12 }, { w: 0, r: 12 }, { w: 0, r: 12 }], plan)];
+  const o = { reps: [10, 12], rir: 1, equip: "bwp", bw: true, bodyweight: 90 };
+  assert.equal(judge(hist[0].sets, plan, true).verdict, "up", "три подхода по верхней границе — это прибавка");
+  assert.equal(judge(hist[0].sets, plan, false), null, "для штанги ноль в весе по-прежнему «не заполнено»");
+  const p = progressionOf(hist, o);
+  assert.equal(p.source, "work");
+  assert.equal(p.sessions, 1);
+  assert.equal(p.hi, 0, "первый заход без пояса — и дальше пока без пояса");
+  const next = progressionOf([...hist, sess(d(4), [{ w: 0, r: 12 }, { w: 0, r: 12 }, { w: 0, r: 12 }], plan)], o);
+  assert.equal(next.hi, 2.5, "два чистых квеста подряд — пора вешать пояс");
+  assert.ok(p.oneRM > 90, "личный максимум считается по системе: тело плюс довесок");
+});
