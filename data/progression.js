@@ -29,7 +29,7 @@ import { pctOf1RM, EQUIP_STEP } from "./exercises.js";
 
 export const PROG = {
   REP_CAP: 10,    // выше 10 повторов формулы 1ПМ врут
-  WORKSET: 0.8,   // подход рабочий, если вес ≥80% топового: разминка и лесенка отсекаются
+  WORKSET: 0.8,   // подход рабочий, если вес ≥80% рабочего: ниже — разминка или лесенка
   FLOOR: 0.9,     // глубже 10% от своего же лучшего рабочий максимум не проседает
   LIGHT: 0.9,     // топ ниже 90% назначенного — это лёгкий день, рабочий вес он не двигает
   STALL: 3,       // столько сессий подряд без прибавки — застой
@@ -56,6 +56,14 @@ export function weightFor(one, reps) {
 export const asMax = (w, reps, rir = 0) => (w > 0 ? w / pctOf1RM(reps, rir) : 0);
 /** Обратно: максимум → вес, который кладём на снаряд под эту схему. */
 export const asWeight = (one, reps, rir = 0) => (one > 0 ? one * pctOf1RM(reps, rir) : 0);
+
+/**
+ * Разминочный подход: заметно легче рабочего веса.
+ * Двадцать килограммов при рабочих ста — это не упавшие силовые, а разминка:
+ * такой подход не занимает слот плана, не красится недобором и не двигает вес.
+ */
+export const isWarmup = (set, working) =>
+  !!(set && set.w > 0 && working > 0 && set.w <= working * PROG.WORKSET);
 
 /** Переводы между журнальным весом (что повесил) и системным (по чему считаем проценты). */
 export function spaceOf({ perHand = false, bw = false, bodyweight = 0 } = {}) {
@@ -84,7 +92,7 @@ export function judge(sets, plan = {}, bw = false) {
   const top = Math.max(...(inRange.length ? inRange : good).map((s) => s.w));
   const topSets = good.filter((s) => s.w === top);
   const topReps = Math.min(...topSets.map((s) => s.r));
-  const work = good.filter((s) => s.w >= top * PROG.WORKSET && s.w <= top).length;
+  const work = good.filter((s) => !isWarmup(s, top) && s.w <= top).length;   // разминка слот не занимает
   const planned = plan.sets || topSets.length;
   let verdict;
   if (!inRange.length) verdict = "down";                                    // не добрал коридор повторов

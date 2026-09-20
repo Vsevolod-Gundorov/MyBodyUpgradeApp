@@ -4,7 +4,7 @@
 // «потолок» и «пол» — два числа, из которых не следовало, что ставить сегодня.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, PROG } from "../data/progression.js";
+import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, isWarmup, PROG } from "../data/progression.js";
 
 const d = (n) => `2026-0${Math.floor(n / 28) + 1}-${String((n % 28) + 1).padStart(2, "0")}`;
 const plan4x46 = { sets: 4, reps: [4, 6], rir: 1 };
@@ -301,4 +301,35 @@ test("без веса пола не бывает", () => {
     { reps: [10, 12], rir: 1, equip: "bwp", bw: true, bodyweight: 90 });
   assert.equal(bw.target, 0, "подтягивания без пояса");
   assert.equal(bw.floor, 0, "и пола у них нет — падать некуда");
+});
+
+/* ---------- разминка ---------- */
+
+test("двадцать килограммов при рабочих ста — это разминка, а не упавшие силовые", () => {
+  assert.equal(isWarmup({ w: 20, r: 10 }, 100), true);
+  assert.equal(isWarmup({ w: 60, r: 8 }, 100), true);
+  assert.equal(isWarmup({ w: 80, r: 5 }, 100), true, "последняя ступень лесенки — тоже разминка");
+  assert.equal(isWarmup({ w: 82.5, r: 5 }, 100), false, "выше 80% рабочего — уже рабочий подход, пусть и слабый");
+  assert.equal(isWarmup({ w: 95, r: 5 }, 100), false);
+  assert.equal(isWarmup({ w: 0, r: 10 }, 100), false, "свой вес разминкой не объявляем");
+  assert.equal(isWarmup({ w: 60, r: 8 }, 0), false, "без рабочего веса сравнивать не с чем");
+  assert.equal(isWarmup(null, 100), false);
+});
+
+test("разминочная лесенка не занимает слоты плана и не мешает прибавке", () => {
+  const sets = [{ w: 20, r: 10 }, { w: 40, r: 8 }, { w: 60, r: 5 }, { w: 80, r: 3 }, ...same(4, 100, 6)];
+  const j = judge(sets, plan4x46);
+  assert.equal(j.verdict, "up", "план закрыт по верхней границе — лесенка тут ни при чём");
+  assert.equal(j.work, 4, "рабочих подходов четыре, а не восемь");
+  assert.equal(j.top, 100);
+});
+
+test("квест из одной разминки не роняет рабочий вес", () => {
+  // рабочий 100, а сегодня всё ушло в 20–80: сил это не отнимает и веса не двигает
+  const hist = [sess(d(1), same(4, 100, 6))];
+  const before = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
+  const after = progressionOf([...hist, sess(d(4), [{ w: 20, r: 10 }, { w: 40, r: 8 }, { w: 60, r: 6 }, { w: 80, r: 6 }])],
+    { reps: [4, 6], rir: 1, equip: "bb" });
+  assert.equal(after.move, "light", "лёгкий квест, а не откат");
+  assert.equal(after.target, before.target, "рабочий вес остался на месте");
 });
