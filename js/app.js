@@ -434,9 +434,10 @@ function scoreSession(workout, entries) {
       weightMax += weight;
       if (sets.length) {
         const top = Math.max(...sets.map((s) => s.w));
+        const floor = (ex.wp && ex.wp.floor) || ex.w * PROG.FLOOR;
         if (top >= ex.w) weightPts += weight;               // вышел на рабочий вес
-        else if (top >= ex.w * 0.85) weightPts += weight * 0.6;    // ниже рабочего
-        else weightPts += weight * 0.3;                     // сильно ниже
+        else if (top >= floor) weightPts += weight * 0.6;   // между полом и рабочим
+        else weightPts += weight * 0.3;                     // ниже пола
       }
     }
   });
@@ -606,6 +607,7 @@ function fxTap() { tone(240, 0.05, "square", 0.02); haptic(7); }
 /* ================= таймеры квеста и умного отдыха ================= */
 const fmtClock = (sec) => { sec = Math.max(0, Math.round(sec)); const m = Math.floor(sec / 60); return `${m}:${String(sec % 60).padStart(2, "0")}`; };
 let questTimerId = null;         // интервал часов квеста (перерисовывается на каждый render)
+let pinScroll = null;            // слежение за закреплённым движением на экране квеста
 let restIntervalId = null;       // интервал таймера отдыха (живёт поверх экранов)
 let restState = null;            // { endAt, total, note }
 const timedSets = new WeakSet(); // подходы, для которых отдых уже запускался
@@ -1601,6 +1603,7 @@ function renderWorkout(wid) {
       ${[["fresh", "Свежий"], ["norm", "Норма"], ["tired", "Устал"]].map(([k, t]) =>
         `<button class="feel ${restFeel === k ? "on" : ""}" data-feel="${k}">${t}</button>`).join("")}
     </div>
+    <button class="ex-pin" id="ex-pin" hidden></button>
     <div id="ex-list"></div>
     <button class="btn-ghost add-ex-btn" id="add-ex">+ движение</button>
     <button class="finish-btn" id="finish">Завершить квест</button>`;
@@ -1655,6 +1658,58 @@ function renderWorkout(wid) {
   };
 
   const list = document.getElementById("ex-list");
+  // Закреп под шапкой: движение, в котором записан последний подход. Пока его
+  // карточка на экране — закрепа нет, ушла из вида — он подхватывает.
+  // Так на длинном квесте всегда понятно, где ты сейчас, и есть путь назад.
+  const pin = document.getElementById("ex-pin");
+  let pinFor = null;              // id движения, за которым следим
+  const cardOf = (id) => list.querySelector(`.ex[data-ex="${id}"]`);
+  const setPin = (id) => { pinFor = id; drawPin(); };
+  function drawPin() {
+    if (!pin) return;
+    const ex = pinFor && w.exercises.find((x) => x.id === pinFor);
+    const card = ex && cardOf(ex.id);
+    if (!ex || !card) { pin.hidden = true; return; }
+    const top = card.getBoundingClientRect().top;
+    const head = document.querySelector(".qhead");
+    const line = head ? head.getBoundingClientRect().bottom : 56;
+    // карточка на виду — закреп не нужен и не мешает
+    if (top >= line - 2 && top < window.innerHeight * 0.75) { pin.hidden = true; return; }
+    const src = exById(ex.id) || ex;
+    const done = (S.drafts[wid] && S.drafts[wid][ex.id] || []).filter((x) => setDone(x, src)).length;
+    const repTxt = ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`;
+    pin.innerHTML = `
+      <span class="ex-ico">${icon(exerciseIcon(src))}</span>
+      <span class="ex-pin-body">
+        <span class="ex-pin-name">${ex.name}</span>
+        <span class="ex-pin-goal">${ex.w ? `<b>${fmt(ex.w)}</b> кг × ` : ""}<b>${repTxt}</b> повт</span>
+      </span>
+      <span class="ex-pin-count">${done}<i>/${ex.sets}</i></span>
+      <span class="ex-pin-back">↑</span>`;
+    pin.hidden = false;
+  }
+  pin.onclick = () => {
+    const card = pinFor && cardOf(pinFor);
+    if (!card) return;
+    if (!card.classList.contains("open")) {
+      card.classList.add("open");
+      const h = card.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "true");
+    }
+    fxTap();
+    // ставим карточку ровно под шапку, а не под неё: иначе её собственный
+    // заголовок окажется за шапкой и закреп останется висеть
+    const head = document.querySelector(".qhead");
+    const line = head ? head.getBoundingClientRect().height : 56;
+    window.scrollTo({ top: Math.max(0, window.scrollY + card.getBoundingClientRect().top - line - 6), behavior: "smooth" });
+    setTimeout(drawPin, 500);
+  };
+  if (pinScroll) window.removeEventListener("scroll", pinScroll);
+  pinScroll = () => { if (document.getElementById("ex-pin")) drawPin(); else { window.removeEventListener("scroll", pinScroll); pinScroll = null; } };
+  window.addEventListener("scroll", pinScroll, { passive: true });
+  // высота шапки — чтобы закреп встал ровно под ней
+  const qh = document.querySelector(".qhead");
+  if (qh) document.documentElement.style.setProperty("--qhead-h", `${Math.round(qh.getBoundingClientRect().height)}px`);
+
   // суперсет — одна сцепка: партнёры встают рядом, в общей рамке и с буквами А/Б,
   // чтобы с одного взгляда было видно, что с чем чередовать
   const groups = [];
@@ -1666,15 +1721,17 @@ function renderWorkout(wid) {
     groups.push(pair);
   });
 
-  const addCard = (ex, i, parent, letter) => {
+  const addCard = (ex, i, parent) => {
     const el = document.createElement("div");
     el.className = `ex ${ex.main ? "main-ex" : ""}`;
+    el.dataset.ex = ex.id;
     const saved = entries[ex.id] || [];
     const src = exById(ex.id) || ex;
     // что делать: один вес на подход и коридор повторов
     const target = ex.w || 0;
     const repTxt = ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`;
     const wNoteShort = { "на каждую руку": "на руку", "довесок к своему весу": "довесок" }[ex.wNote] || "";
+    const floor = (ex.wp && ex.wp.floor) || 0;
     const tag = (SCHEME[w.type] && SCHEME[w.type][ex.role] && SCHEME[w.type][ex.role].tag) || "";
     const prev = lastDone(ex);
     const mv = moveLabel(ex.wp);
@@ -1682,7 +1739,7 @@ function renderWorkout(wid) {
 
     el.innerHTML = `
       <button class="ex-head" aria-expanded="false">
-        <span class="ex-ico">${letter ? `<b class="ss-letter">${letter}</b>` : icon(exerciseIcon(src))}</span>
+        <span class="ex-ico">${icon(exerciseIcon(src))}</span>
         <span class="ex-main">
           <span class="ex-title">
             <span class="name">${ex.name}</span>
@@ -1710,6 +1767,7 @@ function renderWorkout(wid) {
             <span class="eg-x">×</span>
             <b class="mono">${repTxt}</b><span class="eg-u">повт</span>
           </div>
+          ${floor ? `<div class="eg-floor">пол <b class="mono">${fmt(floor)}</b> кг — ниже подход уже не рабочий</div>` : ""}
           ${mv ? `<div class="eg-line ${{ "▲": "up", "▼": "down" }[mv.icon] || ""}"><i class="mono">${mv.icon}</i>${prev ? mv.text.split(":")[0] : mv.text}</div>` : ""}
           ${prev ? `<details class="eg-prev"><summary>прошлый раз</summary><span>${fmtDate(prev.date)}: <b class="mono">${prev.txt}</b></span></details>` : ""}
           ${ex.method && METHODS[ex.method] ? `<div class="eg-line note" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))} ${METHODS[ex.method].name} на последнем подходе — как делать</div>` : ""}
@@ -1746,7 +1804,11 @@ function renderWorkout(wid) {
     }
     const filled = (s) => setDone(s, src);
     // попал ли подход в коридор повторов: видно сразу, не пересчитывая в уме
-    const hitClass = (s) => !filled(s) ? "" : (s.r >= ex.reps[1] ? "hit" : (s.r >= ex.reps[0] ? "mid" : "low"));
+    const hitClass = (s) => {
+      if (!filled(s)) return "";
+      if (floor && s.w < floor) return "low";               // вес ниже пола — подход не рабочий
+      return s.r >= ex.reps[1] ? "hit" : (s.r >= ex.reps[0] ? "mid" : "low");
+    };
 
     function drawSets() {
       const arr = slots();
@@ -1796,6 +1858,7 @@ function renderWorkout(wid) {
       status.innerHTML = `${n >= ex.sets ? "✓ " : ""}${n}<i>/${ex.sets}</i>`;
       status.classList.toggle("ok", n >= ex.sets);
       el.classList.toggle("done", n >= ex.sets);
+      if (n) setPin(ex.id);                 // последний записанный подход — здесь
       if (dotsBox) dotsBox.innerHTML = dots(n);
     }
     el.querySelector(".add-set").onclick = () => {
@@ -1840,14 +1903,17 @@ function renderWorkout(wid) {
 
   let idx = 0;
   groups.forEach((pair) => {
-    if (pair.length < 2) { addCard(pair[0], idx++, list, null); return; }
+    if (pair.length < 2) { addCard(pair[0], idx++, list); return; }
     const box = document.createElement("div");
     box.className = "ss-group";
     box.innerHTML = `<div class="ss-head">${icon(METHOD_ICON("superset"))}<b>Суперсет</b>
-      <span class="dim">${pair.map((_, k) => "АБВГ"[k]).join(" → ")} без отдыха, отдых после пары</span></div>`;
+      <span class="dim">отдых после пары</span></div>`;
     list.appendChild(box);
-    pair.forEach((x, k) => addCard(x, idx++, box, "АБВГ"[k]));
+    pair.forEach((x) => addCard(x, idx++, box));
   });
+  // ничего ещё не записано — держимся за первое движение квеста
+  if (!pinFor && w.exercises.length) setPin(w.exercises[0].id);
+  drawPin();
 
   // вернуть состав по умолчанию, если атлет что-то менял
   const pl = planOf(wid);
@@ -2942,7 +3008,7 @@ function renderProgress() {
           </div>
         </div>
         <div class="lc-target mono dim small">${slot
-          ? `Следующий раз — ${slot.boss}: ${scheme}, ставим ${fmt(p.target)} кг${note}`
+          ? `Следующий раз — ${slot.boss}: ${scheme}, ставим ${fmt(p.target)} кг${note}${p.floor ? ` · пол ${fmt(p.floor)}` : ""}`
           : `В текущем цикле движения нет — вилка показана для схемы ${SCHEME.strength.acc.reps[0]}–${SCHEME.strength.acc.reps[1]}`}</div>
         <div class="lc-meta dim small">${p.last
           ? `Прошлый квест: ${fmt(p.last.top)} × ${p.last.topReps} в ${plural3(p.last.sets, "подходе", "подходах", "подходах")} · ${plural3(p.sessions, "квест", "квеста", "квестов")} в журнале`
