@@ -23,18 +23,18 @@ import { EX_BY_ID } from "./exercises.js";
 // не добавляет гипертрофии, но сильно бьёт по восстановлению. Изоляция — ближе к отказу.
 export const SCHEME = {
   strength: {
-    main:     { sets: 4, reps: [4, 6],   rir: 1, tag: "RPE 8–9" },
-    heavy:    { sets: 4, reps: [6, 8],   rir: 2, tag: "RPE 8" },
-    acc:      { sets: 3, reps: [8, 10],  rir: 2, tag: "RIR 2" },
-    iso:      { sets: 3, reps: [10, 12], rir: 1, tag: "RIR 1" },
-    finisher: { sets: 3, reps: [15, 20], rir: 0, tag: "до отказа" },
+    main:     { sets: 4, reps: [4, 6],   rir: 1 },
+    heavy:    { sets: 4, reps: [6, 8],   rir: 2 },
+    acc:      { sets: 3, reps: [8, 10],  rir: 2 },
+    iso:      { sets: 3, reps: [10, 12], rir: 1 },
+    finisher: { sets: 3, reps: [15, 20], rir: 0 },
   },
   volume: {
-    main:     { sets: 4, reps: [8, 10],  rir: 2, tag: "RIR 1–2" },
-    heavy:    { sets: 4, reps: [10, 12], rir: 2, tag: "RIR 1–2" },
-    acc:      { sets: 3, reps: [12, 15], rir: 1, tag: "RIR 1" },
-    iso:      { sets: 3, reps: [15, 20], rir: 1, tag: "RIR 0–1" },
-    finisher: { sets: 3, reps: [20, 30], rir: 0, tag: "до отказа" },
+    main:     { sets: 4, reps: [8, 10],  rir: 2 },
+    heavy:    { sets: 4, reps: [10, 12], rir: 2 },
+    acc:      { sets: 3, reps: [12, 15], rir: 1 },
+    iso:      { sets: 3, reps: [15, 20], rir: 1 },
+    finisher: { sets: 3, reps: [20, 30], rir: 0 },
   },
 };
 export const ROLE_NAMES = { main: "движение дня", heavy: "вторая база", acc: "вспомогательное", iso: "изоляция", finisher: "добивающее" };
@@ -193,7 +193,6 @@ export function buildExercises(workout, plan = {}) {
       role: slot.role, main: slot.role === "main",
       lift: ex.lift, tier: ex.tier, equip: ex.equip, group: ex.group, pattern: ex.pattern,
       sets: sc.sets, reps: sc.reps, rir: sc.rir,
-      scheme: `${sc.sets} × ${sc.reps[0]}${sc.reps[1] !== sc.reps[0] ? "–" + sc.reps[1] : ""} · ${sc.tag}`,
       method, ss: slot.ss || null,
       prog: workout.prog || 0,
       swappedFrom: slot.from || null, added: !!slot.added,

@@ -201,7 +201,7 @@ test("сборка квеста: состав, роли и схемы", () => {
   assert.equal(list[0].main, true);
   assert.equal(list[0].sets, SCHEME.strength.main.sets);
   assert.deepEqual(list[0].reps, SCHEME.strength.main.reps);
-  assert.match(list[0].scheme, /RPE/);
+  assert.equal(list[0].rir, SCHEME.strength.main.rir, "запас нужен движку прогрессии, даже если на экране его нет");
   // тот же шаблон в объёмную неделю даёт другие схемы
   const volW = PROGRAM.weeks[1].workouts[0];
   const volList = buildExercises(volW);

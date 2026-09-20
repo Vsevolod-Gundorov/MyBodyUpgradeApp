@@ -1,7 +1,6 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, similarTo, searchExercises, setDone } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
-import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
 import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
 import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber } from "../data/nutrition.js";
 import { GAME_ICONS } from "../data/icons.js";
@@ -279,22 +278,6 @@ function applyCloudJson(json) {
   localStorage.setItem(DB_KEY, JSON.stringify(S));
   invalidateE1RM();
 }
-/** Принять журнал с другого устройства: слить с текущим, ничего не потеряв. */
-async function applyTransfer(json) {
-  const incoming = JSON.parse(json);
-  if (!incoming || typeof incoming !== "object" || !Array.isArray(incoming.sessions)) {
-    throw new Error("это не журнал приложения");
-  }
-  const { state, stats } = mergeState(S, incoming);
-  localStorage.setItem(DB_KEY, JSON.stringify(state));
-  S = load();
-  invalidateE1RM();
-  checkAchievements({ type: "silent" }, { silent: true });
-  save();                      // save() поднимет ревизию и отправит слитый журнал в облако
-  render();
-  return stats;
-}
-
 /** Старт внутри Телеграма: решаем, чья копия свежее, и подтягиваем облако. */
 async function initCloudSync() {
   if (!cloudAvailable()) { setCloudState("off"); return; }
@@ -607,7 +590,7 @@ function fxTap() { tone(240, 0.05, "square", 0.02); haptic(7); }
 /* ================= таймеры квеста и умного отдыха ================= */
 const fmtClock = (sec) => { sec = Math.max(0, Math.round(sec)); const m = Math.floor(sec / 60); return `${m}:${String(sec % 60).padStart(2, "0")}`; };
 let questTimerId = null;         // интервал часов квеста (перерисовывается на каждый render)
-let pinScroll = null;            // слежение за закреплённым движением на экране квеста
+let stickWatchers = [];          // следят, прилипла ли раскрытая карточка к шапке
 let restIntervalId = null;       // интервал таймера отдыха (живёт поверх экранов)
 let restState = null;            // { endAt, total, note }
 const timedSets = new WeakSet(); // подходы, для которых отдых уже запускался
@@ -851,18 +834,6 @@ function renderProfile() {
       <button class="toggle-row" id="tg-off"><span>Поиск продуктов в открытой базе<span class="dim small" style="display:block">запрос уходит в Open Food Facts</span></span><span class="tg ${S.settings?.offSearch ? "on" : ""}"><i></i></span></button>
     </div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <span class="eyebrow">Приватность</span>
-        <button class="icon-btn" id="privacy-help" aria-label="Подробнее">${icon("help")}</button>
-      </div>
-      <div class="badges">
-        <span class="badge b-vol">журнал только у тебя</span>
-        <span class="badge b-vol">шрифты локальные</span>
-        <span class="badge ${S.settings?.offSearch ? "" : "b-vol"}">${S.settings?.offSearch ? "поиск продуктов: внешний" : "поиск продуктов: свой"}</span>
-      </div>
-    </div>
-
     ${inTelegram ? `
     <div class="panel">
       <div class="panel-head">
@@ -874,59 +845,14 @@ function renderProfile() {
       <button class="btn-ghost" id="btn-sync" style="margin-top:12px">Синхронизировать сейчас</button>
     </div>` : ""}
 
-    <div class="panel">
-      <div class="eyebrow" style="margin-bottom:10px">Сохранение</div>
-      ${cloudAvailable() ? `
-        <div class="grid2">
-          <button class="btn-ghost" id="btn-cloud-save">В облако Telegram</button>
-          <button class="btn-ghost" id="btn-cloud-load">Из облака</button>
-        </div>
-        <div class="dim small mono" id="cloud-info" style="margin:8px 0 12px">проверяю облако…</div>` : ""}
-      <div class="grid2">
-        <button class="btn-ghost" id="btn-export">Экспорт JSON</button>
-        <button class="btn-ghost" id="btn-import">Импорт JSON</button>
-      </div>
-      <input type="file" id="file-import" accept="application/json" hidden />
-      <div class="bar" style="margin-top:16px">
-        <span class="eyebrow">Перенос между устройствами</span>
-        <button class="icon-btn" id="transfer-help" aria-label="Как переносить">?</button>
-      </div>
-      <div class="grid2" style="margin-top:10px">
-        <button class="btn-ghost" id="btn-code-out">Создать код</button>
-        <button class="btn-ghost" id="btn-code-in">Вставить код</button>
-      </div>
-    </div>`;
+`;
 
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };
   document.getElementById("tg-off").onclick = () => { S.settings.offSearch = !S.settings.offSearch; fxTap(); save(); render(); };
-  document.getElementById("privacy-help").onclick = () => showInfo({
-    title: "Куда уходят данные", eyebrow: "приватность",
-    body: `<div class="info-legend">
-        <div><span class="badge b-vol">журнал</span> тренировки, веса, питание и баффы лежат в памяти телефона${inTelegram ? " и в твоём облаке Telegram, куда нет доступа ни у кого, кроме тебя" : ""}. Своего сервера у приложения нет</div>
-        <div><span class="badge b-vol">шрифты</span> лежат в самом приложении: Google не видит, кто и когда его открыл</div>
-        <div><span class="badge">Telegram</span> из профиля берутся только имя и id — чтобы отделить твой журнал от чужого</div>
-        <div><span class="badge ${S.settings?.offSearch ? "b-load" : "b-vol"}">продукты</span> ${S.settings?.offSearch
-          ? "при поиске еды введённое слово уходит в открытую базу Open Food Facts. Выключи переключатель выше — останется свой справочник"
-          : "внешний поиск выключен: ничего не уходит, работает свой справочник"}</div>
-      </div>
-      <p class="dim small">Страница может обращаться только к telegram.org и Open Food Facts — это зашито в политику безопасности на сервере, любой другой адрес браузер заблокирует.</p>`,
-  });
   app.querySelectorAll(".status-badge").forEach((b) => b.onclick = () => showAchievementDetail(ACH_BY_ID[b.dataset.ach]));
   document.getElementById("ach-all").onclick = showAllAchievements;
 
-  document.getElementById("btn-export").onclick = () => {
-    const blob = new Blob([JSON.stringify(S, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `bodyupgrade-${today()}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    S.meta = S.meta || { exports: 0, imports: 0 };
-    S.meta.exports = (S.meta.exports || 0) + 1;
-    save();
-    checkAchievements({ type: "chronicle" });
-  };
   // живой статус синхронизации в шапке блока аккаунта
   const syncBadge = document.getElementById("sync-badge");
   if (syncBadge) {
@@ -941,137 +867,6 @@ function renderProfile() {
   }
   const syncBtn = document.getElementById("btn-sync");
   if (syncBtn) syncBtn.onclick = async () => { fxTap(); await initCloudSync(); renderProfile(); };
-
-  if (cloudAvailable()) {
-    const info = document.getElementById("cloud-info");
-    const showInfoLine = (txt) => { if (info) info.textContent = txt; };
-    cloudInfo().then((m) => showInfoLine(m && m.at
-      ? `в облаке: ${fmtDate(m.at.slice(0, 10))} · ${Math.round((m.len || 0) / 1024)} КБ`
-      : "в облаке пока пусто")).catch(() => showInfoLine("облако недоступно"));
-    document.getElementById("btn-cloud-save").onclick = async () => {
-      showInfoLine("сохраняю…");
-      try {
-        const r = await cloudSave(JSON.stringify(S), { rev: S.rev || 0 });
-        S.sync = { ...(S.sync || {}), syncedRev: S.rev || 0, at: new Date().toISOString() };
-        showInfoLine(`сохранено: ${fmtDate(today())} · ${Math.round(r.bytes / 1024)} КБ`);
-        fxChime();
-        S.meta = S.meta || { exports: 0, imports: 0 };
-        S.meta.exports = (S.meta.exports || 0) + 1;
-        save();
-        checkAchievements({ type: "chronicle" });
-      } catch (e) { showInfoLine("не вышло: " + e.message); alert("Не удалось сохранить в облако: " + e.message); }
-    };
-    document.getElementById("btn-cloud-load").onclick = async () => {
-      try {
-        const got = await cloudLoad();
-        if (!got) { alert("В облаке пока нет сохранения."); return; }
-        if (!confirm(`Заменить текущий журнал копией из облака${got.at ? ` от ${fmtDate(got.at.slice(0, 10))}` : ""}? Текущие данные будут перезаписаны.`)) return;
-        const parsed = JSON.parse(got.json);
-        if (!parsed || typeof parsed !== "object") throw new Error("копия повреждена");
-        applyCloudJson(got.json);
-        S.meta = Object.assign({ exports: 0, imports: 0 }, S.meta);
-        S.meta.imports = (S.meta.imports || 0) + 1;
-        checkAchievements({ type: "silent" }, { silent: true });
-        save(); render();
-        checkAchievements({ type: "chronicle" });
-      } catch (e) { alert("Не удалось прочитать облако: " + e.message); }
-    };
-  }
-
-  document.getElementById("transfer-help").onclick = () => showInfo({
-    title: "Перенос журнала", eyebrow: "между устройствами",
-    body: `<div class="info-legend">
-        <div><span class="badge b-main">1</span> открой приложение там, где журнал уже есть (браузер), профиль → <b>Создать код</b> → скопировать</div>
-        <div><span class="badge b-main">2</span> отправь код себе в «Избранное» в Telegram — он переживает любой мессенджер</div>
-        <div><span class="badge b-main">3</span> открой приложение в Telegram, профиль → <b>Вставить код</b> → журнал сольётся</div>
-      </div>
-      <p class="dim small">Память браузера привязана к конкретному браузеру, а мини-приложение Telegram открывается в своём — само ничего не увидит. Слияние не затирает: квесты опознаются по номеру, повторный перенос того же кода ничего не задвоит.</p>`,
-  });
-
-  document.getElementById("btn-code-out").onclick = async () => {
-    fxTap();
-    try {
-      const code = await encodeTransfer(JSON.stringify(S));
-      const o = showInfo({
-        title: "Код переноса", eyebrow: `${plural3(S.sessions.length, "квест", "квеста", "квестов")} · ${Math.round(code.length / 1024)} КБ`,
-        body: `<textarea class="code-box" id="code-out" readonly rows="5">${code}</textarea>
-          <div class="grid2" style="margin-top:10px">
-            <button class="btn-ghost" id="code-copy">Скопировать</button>
-            <button class="btn-ghost" id="code-file">Файлом</button>
-          </div>
-          <p class="dim small">Отправь код себе в «Избранное», открой приложение в Telegram и вставь его там.</p>`,
-      });
-      const box = o.querySelector("#code-out");
-      o.querySelector("#code-copy").onclick = async () => {
-        box.select(); box.setSelectionRange(0, code.length);
-        try { await navigator.clipboard.writeText(code); } catch (e) { document.execCommand("copy"); }
-        o.querySelector("#code-copy").textContent = "Скопировано";
-        fxChime();
-      };
-      o.querySelector("#code-file").onclick = () => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
-        a.download = `bodyupgrade-code-${today()}.txt`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      };
-      S.meta = S.meta || { exports: 0, imports: 0 };
-      S.meta.exports = (S.meta.exports || 0) + 1;
-      save();
-      checkAchievements({ type: "chronicle" });
-    } catch (e) { alert("Не вышло собрать код: " + e.message); }
-  };
-
-  document.getElementById("btn-code-in").onclick = () => {
-    fxTap();
-    const o = showInfo({
-      title: "Вставить код", eyebrow: "перенос",
-      body: `<textarea class="code-box" id="code-in" rows="5" placeholder="BU1..." spellcheck="false"></textarea>
-        <button class="btn-ghost" id="code-apply" style="margin-top:10px">Перенести</button>
-        <p class="dim small" id="code-msg">Журналы сольются: свои квесты останутся, чужие добавятся по датам.</p>`,
-    });
-    const box = o.querySelector("#code-in");
-    const msg = o.querySelector("#code-msg");
-    box.focus();
-    o.querySelector("#code-apply").onclick = async () => {
-      const code = box.value.trim();
-      if (!code) { msg.textContent = "Вставь код — он начинается с BU1."; return; }
-      msg.textContent = "разбираю…";
-      try {
-        const stats = await applyTransfer(await decodeTransfer(code));
-        o.remove();
-        fxChime();
-        const parts = [
-          stats.sessions ? plural3(stats.sessions, "квест", "квеста", "квестов") : "",
-          stats.achievements ? plural3(stats.achievements, "знак", "знака", "знаков") : "",
-          stats.nutritionDays ? `${plural3(stats.nutritionDays, "день", "дня", "дней")} питания` : "",
-        ].filter(Boolean);
-        alert(parts.length ? `Перенесено: ${parts.join(", ")}.` : "Всё это уже было в журнале — ничего не задвоилось.");
-      } catch (e) { msg.textContent = "Не вышло: " + e.message; }
-    };
-  };
-
-  const fileInput = document.getElementById("file-import");
-  document.getElementById("btn-import").onclick = () => fileInput.click();
-  fileInput.onchange = (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      try {
-        localStorage.setItem(DB_KEY, rd.result);
-        const parsed = JSON.parse(rd.result);
-        S = load();
-        if (!parsed || typeof parsed !== "object") throw new Error("bad");
-        S.meta = Object.assign({ exports: 0, imports: 0 }, S.meta);
-        S.meta.imports = (S.meta.imports || 0) + 1;
-        checkAchievements({ type: "silent" }, { silent: true });
-        save(); render();
-        checkAchievements({ type: "chronicle" });
-      }
-      catch { alert("Свиток повреждён: это не JSON приложения."); }
-    };
-    rd.readAsText(f);
-  };
 }
 
 /* ================= КВЕСТЫ (цикл) ================= */
@@ -1603,7 +1398,6 @@ function renderWorkout(wid) {
       ${[["fresh", "Свежий"], ["norm", "Норма"], ["tired", "Устал"]].map(([k, t]) =>
         `<button class="feel ${restFeel === k ? "on" : ""}" data-feel="${k}">${t}</button>`).join("")}
     </div>
-    <button class="ex-pin" id="ex-pin" hidden></button>
     <div id="ex-list"></div>
     <button class="btn-ghost add-ex-btn" id="add-ex">+ движение</button>
     <button class="finish-btn" id="finish">Завершить квест</button>`;
@@ -1658,57 +1452,12 @@ function renderWorkout(wid) {
   };
 
   const list = document.getElementById("ex-list");
-  // Закреп под шапкой: движение, в котором записан последний подход. Пока его
-  // карточка на экране — закрепа нет, ушла из вида — он подхватывает.
-  // Так на длинном квесте всегда понятно, где ты сейчас, и есть путь назад.
-  const pin = document.getElementById("ex-pin");
-  let pinFor = null;              // id движения, за которым следим
-  const cardOf = (id) => list.querySelector(`.ex[data-ex="${id}"]`);
-  const setPin = (id) => { pinFor = id; drawPin(); };
-  function drawPin() {
-    if (!pin) return;
-    const ex = pinFor && w.exercises.find((x) => x.id === pinFor);
-    const card = ex && cardOf(ex.id);
-    if (!ex || !card) { pin.hidden = true; return; }
-    const top = card.getBoundingClientRect().top;
-    const head = document.querySelector(".qhead");
-    const line = head ? head.getBoundingClientRect().bottom : 56;
-    // карточка на виду — закреп не нужен и не мешает
-    if (top >= line - 2 && top < window.innerHeight * 0.75) { pin.hidden = true; return; }
-    const src = exById(ex.id) || ex;
-    const done = (S.drafts[wid] && S.drafts[wid][ex.id] || []).filter((x) => setDone(x, src)).length;
-    const repTxt = ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`;
-    pin.innerHTML = `
-      <span class="ex-ico">${icon(exerciseIcon(src))}</span>
-      <span class="ex-pin-body">
-        <span class="ex-pin-name">${ex.name}</span>
-        <span class="ex-pin-goal">${ex.w ? `<b>${fmt(ex.w)}</b> кг × ` : ""}<b>${repTxt}</b> повт</span>
-      </span>
-      <span class="ex-pin-count">${done}<i>/${ex.sets}</i></span>
-      <span class="ex-pin-back">↑</span>`;
-    pin.hidden = false;
-  }
-  pin.onclick = () => {
-    const card = pinFor && cardOf(pinFor);
-    if (!card) return;
-    if (!card.classList.contains("open")) {
-      card.classList.add("open");
-      const h = card.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "true");
-    }
-    fxTap();
-    // ставим карточку ровно под шапку, а не под неё: иначе её собственный
-    // заголовок окажется за шапкой и закреп останется висеть
-    const head = document.querySelector(".qhead");
-    const line = head ? head.getBoundingClientRect().height : 56;
-    window.scrollTo({ top: Math.max(0, window.scrollY + card.getBoundingClientRect().top - line - 6), behavior: "smooth" });
-    setTimeout(drawPin, 500);
-  };
-  if (pinScroll) window.removeEventListener("scroll", pinScroll);
-  pinScroll = () => { if (document.getElementById("ex-pin")) drawPin(); else { window.removeEventListener("scroll", pinScroll); pinScroll = null; } };
-  window.addEventListener("scroll", pinScroll, { passive: true });
-  // высота шапки — чтобы закреп встал ровно под ней
+  // высота шапки — по ней раскрытая карточка встаёт ровно под неё
   const qh = document.querySelector(".qhead");
-  if (qh) document.documentElement.style.setProperty("--qhead-h", `${Math.round(qh.getBoundingClientRect().height)}px`);
+  const headLine = qh ? Math.round(qh.getBoundingClientRect().height) : 56;
+  document.documentElement.style.setProperty("--qhead-h", `${headLine}px`);
+  stickWatchers.forEach((o) => o.disconnect());
+  stickWatchers = [];
 
   // суперсет — одна сцепка: партнёры встают рядом, в общей рамке и с буквами А/Б,
   // чтобы с одного взгляда было видно, что с чем чередовать
@@ -1732,7 +1481,6 @@ function renderWorkout(wid) {
     const repTxt = ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`;
     const wNoteShort = { "на каждую руку": "на руку", "довесок к своему весу": "довесок" }[ex.wNote] || "";
     const floor = (ex.wp && ex.wp.floor) || 0;
-    const tag = (SCHEME[w.type] && SCHEME[w.type][ex.role] && SCHEME[w.type][ex.role].tag) || "";
     const prev = lastDone(ex);
     const mv = moveLabel(ex.wp);
     const dots = (n) => Array.from({ length: ex.sets }, (_, k) => `<i class="${k < n ? "on" : ""}"></i>`).join("");
@@ -1759,7 +1507,6 @@ function renderWorkout(wid) {
       </button>
       <div class="ex-body">
         <div class="ex-goal">
-          <div class="eg-head"><span class="eyebrow">Цель подхода</span>${tag ? `<span class="badge b-dim">${tag}</span>` : ""}</div>
           <div class="eg-nums">
             ${target
               ? `<b class="mono">${fmt(target)}</b><span class="eg-u">кг${wNoteShort ? ` <i>${wNoteShort}</i>` : ""}</span>`
@@ -1767,8 +1514,10 @@ function renderWorkout(wid) {
             <span class="eg-x">×</span>
             <b class="mono">${repTxt}</b><span class="eg-u">повт</span>
           </div>
-          ${floor ? `<div class="eg-floor">пол <b class="mono">${fmt(floor)}</b> кг — ниже подход уже не рабочий</div>` : ""}
-          ${mv ? `<div class="eg-line ${{ "▲": "up", "▼": "down" }[mv.icon] || ""}"><i class="mono">${mv.icon}</i>${prev ? mv.text.split(":")[0] : mv.text}</div>` : ""}
+          <div class="eg-side">
+            ${floor ? `<span class="eg-floor">пол <b class="mono">${fmt(floor)}</b> кг</span>` : ""}
+            ${mv ? `<span class="eg-line ${{ "▲": "up", "▼": "down" }[mv.icon] || ""}"><i class="mono">${mv.icon}</i>${prev ? mv.text.split(":")[0] : mv.text}</span>` : ""}
+          </div>
           ${prev ? `<details class="eg-prev"><summary>прошлый раз</summary><span>${fmtDate(prev.date)}: <b class="mono">${prev.txt}</b></span></details>` : ""}
           ${ex.method && METHODS[ex.method] ? `<div class="eg-line note" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))} ${METHODS[ex.method].name} на последнем подходе — как делать</div>` : ""}
         </div>
@@ -1783,12 +1532,36 @@ function renderWorkout(wid) {
           <button class="ex-tool danger" data-drop="${ex.id}">✕<span>убрать</span></button>
         </div>
       </div>`;
+    const mark = document.createElement("div");
+    mark.className = "ex-mark";
+    parent.appendChild(mark);
     parent.appendChild(el);
+    // пока карточка на своём месте — она полная; прилипла к шапке — ужимается
+    // до главного: название, цель и подходы. Иначе закреп съедает пол-экрана
+    if (window.IntersectionObserver) {
+      const io = new IntersectionObserver(
+        ([e]) => el.classList.toggle("stuck", !e.isIntersecting),
+        { rootMargin: `-${headLine + 2}px 0px 0px 0px`, threshold: 0 });
+      io.observe(mark);
+      stickWatchers.push(io);
+    }
 
     const head = el.querySelector(".ex-head");
     head.onclick = () => {
-      const open = el.classList.toggle("open");
+      const open = !el.classList.contains("open");
+      // раскрытая карточка висит под шапкой, поэтому раскрытой может быть только одна
+      if (open) list.querySelectorAll(".ex.open").forEach((x) => {
+        x.classList.remove("open");
+        const h = x.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "false");
+      });
+      el.classList.toggle("open", open);
       head.setAttribute("aria-expanded", open);
+      if (open) {
+        const line = (document.querySelector(".qhead") || {}).getBoundingClientRect
+          ? document.querySelector(".qhead").getBoundingClientRect().height : 56;
+        const y = window.scrollY + el.getBoundingClientRect().top - line - 6;
+        if (el.getBoundingClientRect().top < line + 4) window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+      }
     };
 
     const setsBox = el.querySelector(".sets");
@@ -1858,7 +1631,6 @@ function renderWorkout(wid) {
       status.innerHTML = `${n >= ex.sets ? "✓ " : ""}${n}<i>/${ex.sets}</i>`;
       status.classList.toggle("ok", n >= ex.sets);
       el.classList.toggle("done", n >= ex.sets);
-      if (n) setPin(ex.id);                 // последний записанный подход — здесь
       if (dotsBox) dotsBox.innerHTML = dots(n);
     }
     el.querySelector(".add-set").onclick = () => {
@@ -1911,9 +1683,6 @@ function renderWorkout(wid) {
     list.appendChild(box);
     pair.forEach((x) => addCard(x, idx++, box));
   });
-  // ничего ещё не записано — держимся за первое движение квеста
-  if (!pinFor && w.exercises.length) setPin(w.exercises[0].id);
-  drawPin();
 
   // вернуть состав по умолчанию, если атлет что-то менял
   const pl = planOf(wid);
@@ -3031,7 +2800,7 @@ function renderProgress() {
           <p><b>Двойная прогрессия.</b> Вес в квесте стоит на месте, пока ты добираешь повторы. Закрыл все подходы по <b>верхней</b> границе повторов — в следующий раз тот же квест даёт <b>+один шаг снаряда</b> (штанга 2,5 кг, гантели 2 кг, тренажёр 5 кг). Не добрал <b>нижнюю</b> границу — шаг назад. Попал в коридор — вес держим.</p>
           <p><b>Рабочий вес</b> — вес на следующий раз: верх это цель подхода, низ — шаг назад, ниже опускаться незачем. Её же квест подставляет в подходы, поэтому в зале считать нечего.</p>
           <p><b>Личный максимум</b> — расчётный 1ПМ лучшего подхода за всю историю (среднее формул <b>Эпли</b> и <b>Бжицки</b>, повторы капаются на 10). Он живёт отдельно и вес в квесте не задаёт: рекорд одного удачного дня не должен задирать рабочую неделю.</p>
-          <p>Схемы цикла чередуются, поэтому рабочий вес хранится как максимум на <b>эффективных повторах</b> (повторы плана + запас RIR). Прибавка, взятая на объёмной неделе, не теряется на силовой.</p>
+          <p>Схемы цикла чередуются, поэтому рабочий вес хранится как максимум на <b>эффективных повторах</b> (повторы плана плюс запас до отказа). Прибавка, взятая на объёмной неделе, не теряется на силовой.</p>
           <p><b>Застой</b> — ${PROG.STALL} квеста подряд без прибавки: пора делоад, смена движения или разбор сна и еды. Квест, отработанный заметно легче назначенного, рабочий вес не двигает вовсе.</p>
         </div>
       </details>
