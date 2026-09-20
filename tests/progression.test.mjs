@@ -4,7 +4,7 @@
 // «потолок» и «пол» — два числа, из которых не следовало, что ставить сегодня.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, isWarmup, PROG } from "../data/progression.js";
+import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, PROG } from "../data/progression.js";
 
 const d = (n) => `2026-0${Math.floor(n / 28) + 1}-${String((n % 28) + 1).padStart(2, "0")}`;
 const plan4x46 = { sets: 4, reps: [4, 6], rir: 1 };
@@ -332,4 +332,63 @@ test("квест из одной разминки не роняет рабочи
     { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(after.move, "light", "лёгкий квест, а не откат");
   assert.equal(after.target, before.target, "рабочий вес остался на месте");
+});
+
+/* ---------- ручная правка ---------- */
+
+test("ручная правка начинает отсчёт заново и отменяет старую историю", () => {
+  const hist = [];
+  let w = 100;
+  for (let i = 0; i < 6; i++) { hist.push(sess(d(i * 3), same(4, w, 6))); w += 2.5; }
+  const grown = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
+  assert.ok(grown.target >= 115, `история довела вес до ${grown.target}`);
+  // вернулся после болезни: рабочий стал 90
+  const reset = { date: d(30), one: asMax(90, 6, 1) };
+  const after = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb", reset });
+  assert.equal(after.target, 90, "вес встал туда, куда его поставили");
+  assert.equal(after.source, "manual");
+  assert.equal(after.sessions, 0, "старые квесты в расчёт больше не идут");
+  assert.equal(moveLabel(after).text, "вес задан вручную");
+  assert.equal(stateOf(after).key, "manual");
+});
+
+test("после правки вес снова ведут подходы", () => {
+  const reset = { date: d(1), one: asMax(90, 6, 1) };
+  const p = progressionOf([sess(d(4), same(4, 90, 6))], { reps: [4, 6], rir: 1, equip: "bb", reset });
+  assert.equal(p.source, "work", "появились подходы — ручная метка уступает журналу");
+  assert.equal(p.target, 92.5, "закрыл план на заданном весе — плюс шаг");
+  assert.equal(p.move, "up");
+});
+
+test("правка не воскрешает квесты, которые были до неё", () => {
+  const hist = [sess(d(1), same(4, 140, 6)), sess(d(40), same(4, 90, 6))];
+  const reset = { date: d(30), one: asMax(90, 6, 1) };
+  const p = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb", reset });
+  assert.equal(p.sessions, 1, "в расчёт пошёл только квест после правки");
+  assert.equal(p.target, 92.5);
+});
+
+test("лесенка к тяжёлой базе: 40/60/80% на 5/3/1", () => {
+  const l = warmupLadder(100, 2.5);
+  assert.deepEqual(l, [{ w: 40, r: 5 }, { w: 60, r: 3 }, { w: 80, r: 1 }]);
+  for (const s of l) assert.equal(isWarmup(s, 100), true, `${s.w} кг при рабочих 100 — разминка`);
+});
+
+test("лесенка округляется по шагу снаряда и не плодит одинаковые ступени", () => {
+  for (const [w, step] of [[142.5, 2.5], [30, 2], [85, 5]]) {
+    const l = warmupLadder(w, step);
+    assert.ok(l.length && l.length <= 3);
+    for (const s of l) assert.equal(s.w % step, 0, `${s.w} не по шагу ${step}`);
+    for (let i = 1; i < l.length; i++) assert.ok(l[i].w > l[i - 1].w, "ступени только вверх");
+  }
+  assert.deepEqual(warmupLadder(5, 2.5), [{ w: 2.5, r: 3 }], "с лёгкого веса лесенка короче — ступеням негде встать");
+  assert.deepEqual(warmupLadder(0, 2.5), [], "без рабочего веса лесенки нет");
+});
+
+test("верхняя ступень лесенки остаётся разминкой, а не становится рабочим подходом", () => {
+  for (const w of [100, 102.5, 142.5, 87.5]) {
+    for (const s of warmupLadder(w, 2.5)) {
+      assert.equal(isWarmup(s, w), true, `${s.w} кг при рабочих ${w} должно считаться разминкой`);
+    }
+  }
 });
