@@ -1,5 +1,5 @@
 import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend } from "../data/program.js";
-import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, similarTo, searchExercises } from "../data/exercises.js";
+import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, similarTo, searchExercises, setDone } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { encodeTransfer, decodeTransfer, mergeState } from "./transfer.js";
 import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
@@ -350,7 +350,8 @@ function movementHistory() {
   const out = {};
   [...S.sessions].sort((a, b) => a.date.localeCompare(b.date)).forEach((sess) => {
     sessionExercises(sess).forEach((ex) => {
-      const sets = (sess.entries[ex.id] || []).filter((x) => x.w > 0 && x.r > 0);
+      const src = exById(ex.id) || ex;
+      const sets = (sess.entries[ex.id] || []).filter((x) => setDone(x, src));
       if (!sets.length) return;
       const key = ex.lift || ex.id;
       (out[key] ||= []).push({ date: sess.date, sets, plan: { sets: ex.sets, reps: ex.reps, rir: ex.rir != null ? ex.rir : 1 } });
@@ -380,9 +381,12 @@ function progressOf(src, { reps = [8, 10], rir = 1, prog = 0 } = {}) {
 function withWeights(ex) {
   const src = exById(ex.id);
   const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0 });
-  if (!p || !p.hi) return { ...ex, w: [0, 0], wSource: "none", wNote: src && src.equip === "bw" ? "свой вес" : "задай вес сам" };
-  const note = src.bw ? "довесок к своему весу" : (src.perHand ? "на каждую руку" : null);
-  return { ...ex, w: [p.lo, p.hi], wSource: p.source, prog1RM: p.work1RM, wp: p, wNote: note };
+  const own = src && (src.equip === "bw" || src.bw);
+  if (!p || p.source === "none") return { ...ex, w: [0, 0], wSource: "none", wp: p || null, bwOnly: !!own,
+    wNote: own ? "свой вес" : "задай вес сам" };
+  // подтягивания и брусья без пояса: вилка честно нулевая, но подход всё равно записывается
+  const note = src.bw ? (p.hi > 0 ? "довесок к своему весу" : "свой вес, без довеска") : (src.perHand ? "на каждую руку" : null);
+  return { ...ex, w: [p.lo, p.hi], wSource: p.source, prog1RM: p.work1RM, wp: p, bwOnly: !!own && !p.hi, wNote: note };
 }
 // собранный квест текущего цикла (или архивный — там список зашит)
 function workoutOf(wid) {
@@ -422,7 +426,7 @@ const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${d}.${m}.$
 function scoreSession(workout, entries) {
   let plannedSets = 0, doneSets = 0, weightPts = 0, weightMax = 0;
   workout.exercises.forEach((ex) => {
-    const sets = (entries[ex.id] || []).filter((s) => s.w > 0 && s.r > 0);
+    const sets = (entries[ex.id] || []).filter((s) => setDone(s, exById(ex.id) || ex));
     plannedSets += ex.sets;
     doneSets += Math.min(sets.length, ex.sets);
     if (ex.w && ex.w[0] > 0) {
@@ -687,6 +691,7 @@ function ensureRestBar() {
 function startRest(sec, note) {
   restState = { endAt: Date.now() + sec * 1000, total: sec, note: note || "" };
   const b = ensureRestBar(); b.classList.remove("done");
+  document.body.classList.add("resting");
   const noteEl = b.querySelector("#rest-note"); if (noteEl) noteEl.textContent = note ? ` · ${note}` : "";
   fxTap();
   clearInterval(restIntervalId);
@@ -708,7 +713,11 @@ function finishRest() {
     b.classList.add("done");
     b.querySelector("#rest-time").textContent = "готово";
     b.querySelector(".rest-prog i").style.width = "0%";
-    setTimeout(() => { const x = document.getElementById("rest-bar"); if (x) x.remove(); }, 1400);
+    setTimeout(() => {
+      const x = document.getElementById("rest-bar");
+      if (x) x.remove();
+      document.body.classList.remove("resting");
+    }, 1400);
   }
   restState = null;
   fxChime(); haptic([25, 60, 25]);
@@ -716,11 +725,13 @@ function finishRest() {
 function stopRest() {
   clearInterval(restIntervalId); restState = null;
   const b = document.getElementById("rest-bar"); if (b) b.remove();
+  document.body.classList.remove("resting");
   fxTap();
 }
 function stopRestSilent() {
   clearInterval(restIntervalId); restState = null;
   const b = document.getElementById("rest-bar"); if (b) b.remove();
+  document.body.classList.remove("resting");
 }
 
 let cycleSub = null; // подстраница раздела квестов: null | "pool"
@@ -1648,34 +1659,65 @@ function renderWorkout(wid) {
     const el = document.createElement("div");
     el.className = `ex ${ex.main ? "main-ex" : ""}`;
     const saved = entries[ex.id] || [];
+    const src = exById(ex.id) || ex;
+    // что делать: вес сверху вилки — это и есть цель подхода, повторы — коридор
+    const target = ex.w && ex.w[1] ? ex.w[1] : 0;
+    const repTxt = ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`;
+    const wNoteShort = { "на каждую руку": "на руку", "довесок к своему весу": "довесок" }[ex.wNote] || "";
+    const tag = (SCHEME[w.type] && SCHEME[w.type][ex.role] && SCHEME[w.type][ex.role].tag) || "";
+    const prev = lastDone(ex);
+    const mv = moveLabel(ex.wp);
+    // повторы в один тап: коридор разворачивается в кнопки, если он не слишком широкий
+    const chips = ex.reps[1] - ex.reps[0] <= 7
+      ? Array.from({ length: ex.reps[1] - ex.reps[0] + 1 }, (_, k) => ex.reps[0] + k) : [];
+    const dots = (n) => Array.from({ length: ex.sets }, (_, k) => `<i class="${k < n ? "on" : ""}"></i>`).join("");
+
     el.innerHTML = `
       <button class="ex-head" aria-expanded="false">
-        <span class="ex-ico">${icon(exerciseIcon(exById(ex.id) || ex))}</span>
+        <span class="ex-ico">${icon(exerciseIcon(src))}</span>
         <span class="ex-main">
           <span class="ex-title">
             <span class="name">${ex.name}</span>
-            ${ex.main ? '<span class="badge b-main">движение дня</span>' : ""}${ex.added ? '<span class="badge b-alt">добавлено</span>' : ""}${ex.swappedFrom ? '<span class="badge b-alt">замена</span>' : ""}
+            ${ex.main ? '<span class="badge b-main">движение дня</span>' : ""}${ex.added ? '<span class="badge b-alt">добавлено</span>' : ""}${ex.swappedFrom ? '<span class="badge b-alt">замена</span>' : ""}${ex.ssWith ? '<span class="badge b-ss">суперсет</span>' : ""}${ex.method && METHODS[ex.method] ? `<span class="badge b-method">${METHODS[ex.method].name}</span>` : ""}
           </span>
-          <span class="badges">
-            <span class="badge b-plan">${ex.sets} × ${ex.reps[0]}${ex.reps[1] !== ex.reps[0] ? "–" + ex.reps[1] : ""}</span>
-            <span class="badge">${SCHEME[w.type] && SCHEME[w.type][ex.role] ? SCHEME[w.type][ex.role].tag : ""}</span>
-            ${weightLabel(ex)}
-            ${ex.ssWith ? `<span class="badge b-ss">суперсет: ${ex.ssWith}</span>` : ""}
-            ${ex.method && METHODS[ex.method] ? `<span class="badge b-method" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))}${METHODS[ex.method].name}</span>` : ""}
+          <span class="ex-brief">
+            ${target
+              ? `<b class="mono">${fmt(target)}</b><span class="u">кг${wNoteShort ? " " + wNoteShort : ""}</span>`
+              : `<b class="own-w">${ex.bwOnly ? "свой вес" : (ex.wNote || "вес по ощущениям")}</b>`}
+            <i>×</i><b class="mono">${repTxt}</b><span class="u">повт</span>
+            <span class="u">· ${plural3(ex.sets, "подход", "подхода", "подходов")}</span>
           </span>
-          ${exTargetHTML(ex)}
         </span>
-        <span class="ex-status ${saved.length ? "ok" : ""}">${saved.length}<i>/${ex.sets}</i></span>
+        <span class="ex-count">
+          <span class="ex-status ${saved.filter((x) => setDone(x, src)).length >= ex.sets ? "ok" : ""}">${saved.filter((x) => setDone(x, src)).length}<i>/${ex.sets}</i></span>
+          <span class="ex-dots">${dots(saved.filter((x) => setDone(x, src)).length)}</span>
+        </span>
       </button>
-      <div class="ex-tools">
-        <button class="ex-tool" data-swap="${ex.id}">⇄<span>замена</span></button>
-        <button class="ex-tool" data-info="${ex.id}">◎<span>разбор</span></button>
-        <button class="ex-tool danger" data-drop="${ex.id}">✕<span>убрать</span></button>
-      </div>
       <div class="ex-body">
-        <div class="set-labels" hidden><span>#</span><span>Вес, кг</span><span>Повторы</span><span></span></div>
+        <div class="ex-goal">
+          <div class="eg-head"><span class="eyebrow">Цель подхода</span>${tag ? `<span class="badge b-dim">${tag}</span>` : ""}</div>
+          <div class="eg-nums">
+            ${target
+              ? `<b class="mono">${fmt(target)}</b><span class="eg-u">кг${wNoteShort ? ` <i>${wNoteShort}</i>` : ""}</span>`
+              : `<b class="eg-noweight">${ex.bwOnly ? "свой вес" : (ex.wNote || "вес по ощущениям")}</b>`}
+            <span class="eg-x">×</span>
+            <b class="mono">${repTxt}</b><span class="eg-u">повт</span>
+          </div>
+          ${mv ? `<div class="eg-line ${{ "▲": "up", "▼": "down" }[mv.icon] || ""}"><i class="mono">${mv.icon}</i>${prev ? mv.text.split(":")[0] : mv.text}</div>` : ""}
+          ${prev ? `<div class="eg-line dim">Прошлый раз ${fmtDate(prev.date)}: <b class="mono">${prev.txt}</b></div>` : ""}
+          ${ex.ssWith ? `<div class="eg-line note">Суперсет с «${ex.ssWith}» — подход сразу следом, без отдыха</div>` : ""}
+          ${ex.method && METHODS[ex.method] ? `<div class="eg-line note" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))} ${METHODS[ex.method].name} на последнем подходе — как делать</div>` : ""}
+        </div>
+
+        <div class="set-head"><span>#</span><span>вес, кг</span><span>повторы</span><span></span></div>
         <div class="sets"></div>
-        <button class="add-set">+ подход</button>
+        <button class="add-set">+ ещё подход</button>
+
+        <div class="ex-tools">
+          <button class="ex-tool" data-swap="${ex.id}">⇄<span>замена</span></button>
+          <button class="ex-tool" data-info="${ex.id}">◎<span>разбор</span></button>
+          <button class="ex-tool danger" data-drop="${ex.id}">✕<span>убрать</span></button>
+        </div>
       </div>`;
     list.appendChild(el);
 
@@ -1687,59 +1729,82 @@ function renderWorkout(wid) {
 
     const setsBox = el.querySelector(".sets");
     const status = el.querySelector(".ex-status");
+    const dotsBox = el.querySelector(".ex-dots");
 
     function ensure(id) { if (!S.drafts[wid]) S.drafts[wid] = {}; if (!S.drafts[wid][id]) S.drafts[wid][id] = []; return S.drafts[wid][id]; }
-
-    const labels = el.querySelector(".set-labels");
-    const syncLabels = () => { if (labels) labels.hidden = !(((S.drafts[wid] || {})[ex.id] || []).length); };
-    function drawSets() {
+    // подходы плана всегда на экране: видно, сколько осталось, и вес уже подставлен
+    function slots() {
       const arr = ensure(ex.id);
+      while (arr.length < ex.sets) arr.push({ w: 0, r: 0 });
+      return arr;
+    }
+    const filled = (s) => setDone(s, src);
+    // попал ли подход в коридор повторов: видно сразу, не пересчитывая в уме
+    const hitClass = (s) => !filled(s) ? "" : (s.r >= ex.reps[1] ? "hit" : (s.r >= ex.reps[0] ? "mid" : "low"));
+
+    function drawSets() {
+      const arr = slots();
+      const active = arr.findIndex((s) => !filled(s));   // первый незакрытый подход
       setsBox.innerHTML = "";
       arr.forEach((s, si) => {
         const row = document.createElement("div");
-        row.className = "set-row";
+        row.className = `set-row ${hitClass(s)} ${si === active ? "active" : ""} ${si >= ex.sets ? "extra" : ""}`;
         row.innerHTML = `
           <span class="idx mono">${si + 1}</span>
-          <input inputmode="decimal" placeholder="${placeholderW(si)}" value="${s.w || ""}" aria-label="вес" />
-          <input inputmode="numeric" placeholder="${ex.reps[0]}–${ex.reps[1]}" value="${s.r || ""}" aria-label="повторы" />
-          <button class="del" aria-label="удалить">✕</button>`;
-        const [wi, ri] = row.querySelectorAll("input");
+          <input class="s-w mono" inputmode="decimal" placeholder="${placeholderW(si)}" value="${s.w || ""}" aria-label="вес подхода ${si + 1}" />
+          <input class="s-r mono" inputmode="numeric" placeholder="${repTxt}" value="${s.r || ""}" aria-label="повторы подхода ${si + 1}" />
+          <button class="s-clear" aria-label="очистить подход">${filled(s) ? "✕" : ""}</button>
+          ${si === active && chips.length ? `<div class="rep-chips"><span class="rc-l">сделал</span>${
+            chips.map((n) => `<button class="rc" data-reps="${n}">${n}</button>`).join("")}</div>` : ""}`;
+        const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
         wi.oninput = () => { s.w = parseFloat(wi.value.replace(",", ".")) || 0; markActivity(); save(); upd(); };
         ri.oninput = () => { s.r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
-        // умный отдых: запись подхода завершена (ушёл фокус с повторов, вес и повторы заданы)
+        // умный отдых: запись подхода завершена (вес и повторы заданы)
         const maybeRest = () => {
-          if (s.w > 0 && s.r > 0 && !timedSets.has(s)) {
+          if (filled(s) && !timedSets.has(s)) {
             timedSets.add(s);
             markActivity();
             startRest(smartRest(ex, s, ex.wp), `${ex.name} · ${repZone(s.r)}`);
           }
         };
-        ri.onchange = maybeRest;
+        ri.onchange = () => { maybeRest(); drawSets(); };
         wi.onchange = () => { if (s.r > 0) maybeRest(); };
-        row.querySelector(".del").onclick = () => { timedSets.delete(s); arr.splice(si, 1); save(); drawSets(); upd(); syncLabels(); };
+        // тап по числу повторов — готовый подход: вес берётся из цели
+        row.querySelectorAll(".rc").forEach((c) => c.onclick = () => {
+          s.w = s.w || parseFloat(wi.value.replace(",", ".")) || target;
+          s.r = Number(c.dataset.reps);
+          markActivity(); save(); upd(); maybeRest(); drawSets();
+        });
+        row.querySelector(".s-clear").onclick = () => {
+          timedSets.delete(s);
+          if (si >= ex.sets) arr.splice(si, 1); else { s.w = 0; s.r = 0; }
+          save(); drawSets(); upd();
+        };
         setsBox.appendChild(row);
       });
     }
     function placeholderW(si) {
-      // подсказка: прошлый раз или нижняя граница вилки
-      const prev = lastSession?.entries?.[ex.id]?.[si]?.w;
-      return prev || ex.w[0] || "";
+      // подсказка: цель на сегодня, иначе прошлый раз
+      const was = lastSession && lastSession.entries && lastSession.entries[ex.id] && lastSession.entries[ex.id][si];
+      return target || (was && was.w) || (ex.bwOnly ? "0" : "");
     }
     function upd() {
-      const n = ensure(ex.id).filter((s) => s.w && s.r).length;
-      status.textContent = n ? `${n} / ${ex.sets}` : `0 / ${ex.sets}`;
+      const n = slots().filter(filled).length;
+      status.innerHTML = `${n >= ex.sets ? "✓ " : ""}${n}<i>/${ex.sets}</i>`;
       status.classList.toggle("ok", n >= ex.sets);
+      el.classList.toggle("done", n >= ex.sets);
+      if (dotsBox) dotsBox.innerHTML = dots(n);
     }
     el.querySelector(".add-set").onclick = () => {
-      const arr = ensure(ex.id);
-      const prevSet = arr[arr.length - 1];
-      arr.push({ w: prevSet ? prevSet.w : 0, r: 0 });
-      markActivity(); save(); drawSets(); upd(); syncLabels();
+      const arr = slots();
+      const last = [...arr].reverse().find(filled);
+      arr.push({ w: last ? last.w : 0, r: 0 });
+      markActivity(); save(); drawSets(); upd();
       const inputs = setsBox.querySelectorAll(".set-row:last-child input");
       if (inputs[1]) inputs[1].focus();
     };
 
-    drawSets(); upd(); syncLabels();
+    drawSets(); upd();
 
     // инструменты: заменить / разбор / убрать
     el.querySelector("[data-swap]").onclick = () => openPoolPicker({
@@ -1781,9 +1846,13 @@ function renderWorkout(wid) {
   }
 
   document.getElementById("finish").onclick = () => {
-    const e = S.drafts[wid] || {};
-    const anySets = Object.values(e).some((arr) => arr.some((s) => s.w && s.r));
-    if (!anySets) { alert("Квест пуст: запиши хотя бы один подход."); return; }
+    // пустые слоты плана в журнал не идут: подход есть, только если он записан
+    const e = {};
+    for (const [id, arr] of Object.entries(S.drafts[wid] || {})) {
+      const done = (arr || []).filter((s) => setDone(s, exById(id)));
+      if (done.length) e[id] = done;
+    }
+    if (!Object.keys(e).length) { alert("Квест пуст: запиши хотя бы один подход."); return; }
     const res = scoreSession(w, e);
     // рекорды: лучший расчётный 1ПМ по движениям квеста ДО этой сессии
     const prBefore = {};
@@ -2769,6 +2838,22 @@ function openPortion(food, date, editIndex) {
 
 /* ================= ХРОНИКИ (прогресс) ================= */
 /* ================= анализ пределов силы (потолки/полы, тренды) ================= */
+// Что было в прошлый раз по этому движению — главный ориентир двойной прогрессии.
+function lastDone(ex) {
+  const h = movementHistory()[ex.lift || ex.id];
+  if (!h || !h.length) return null;
+  const last = h[h.length - 1];
+  const sets = last.sets.filter((x) => setDone(x, exById(ex.id) || ex));
+  if (!sets.length) return null;
+  const top = Math.max(...sets.map((x) => x.w));
+  const same = sets.every((x) => x.w === top);
+  // одинаковый вес во всех подходах — печатаем один раз: «102,5 × 6 · 6 · 5»
+  const txt = same
+    ? `${fmt(top)} × ${sets.map((x) => x.r).join(" · ")}`
+    : sets.map((x) => `${fmt(x.w)}×${x.r}`).join(" · ");
+  return { date: last.date, txt, top, sets };
+}
+
 // Ближайший квест цикла, где встречается движение: оттуда и схема, и вилка.
 function nextSlotFor(key) {
   const start = Math.max(0, ORDER.indexOf(nextWorkoutId()));

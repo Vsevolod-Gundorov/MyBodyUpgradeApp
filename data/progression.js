@@ -69,10 +69,11 @@ export function spaceOf({ perHand = false, bw = false, bodyweight = 0 } = {}) {
  * Что показала одна сессия движения.
  * @param sets  подходы из журнала: [{ w, r }] в журнальном весе
  * @param plan  что было назначено: { sets, reps: [низ, верх], rir }
+ * @param bw    движение со своим весом: нулевой довесок — это тоже подход
  * @returns { top, topReps, topSets, work, planned, verdict, lo, hi, record } либо null
  */
-export function judge(sets, plan = {}) {
-  const good = (sets || []).filter((s) => s && s.w > 0 && s.r > 0);
+export function judge(sets, plan = {}, bw = false) {
+  const good = (sets || []).filter((s) => s && s.r > 0 && (s.w > 0 || (bw && s.w >= 0)));
   if (!good.length) return null;
   const lo = (plan.reps && plan.reps[0]) || 1;
   const hi = (plan.reps && plan.reps[1]) || lo;
@@ -104,10 +105,11 @@ export function workMax(history, o = {}) {
   let anchor = 0, best = 0;
   const moves = [];
   for (const h of history || []) {
-    const j = judge(h.sets, h.plan);
+    const j = judge(h.sets, h.plan, !!o.bw);
     if (!j) continue;
     const rir = (h.plan && h.plan.rir != null) ? h.plan.rir : 0;
-    const at = (w) => asMax(toSys(Math.max(step, w)), j.hi, rir);  // вес → якорь на языке этой схемы
+    const floor = o.bw ? 0 : step;                                  // без пояса довесок нулевой — это нормально
+    const at = (w) => asMax(toSys(Math.max(floor, w)), j.hi, rir);  // вес → якорь на языке этой схемы
     const prev = anchor;
     const due = prev ? toBar(asWeight(prev, j.hi, rir)) : 0;       // что вилка назначала на этот квест
     let verdict = j.verdict;
@@ -135,7 +137,7 @@ export function bestSet(history, o = {}) {
   let out = null;
   for (const h of history || []) {
     for (const s of h.sets || []) {
-      if (!(s && s.w > 0 && s.r > 0)) continue;
+      if (!(s && s.r > 0 && (s.w > 0 || (o.bw && s.w >= 0)))) continue;
       const one = e1rm(toSys(s.w), s.r);
       if (one > (out ? out.one : 0)) out = { one, w: s.w, r: s.r, date: h.date };
     }
@@ -195,7 +197,8 @@ export function progressionOf(history, o = {}) {
   } else {
     return empty;
   }
-  if (!(hi > 0)) return empty;
+  // вилка в ноль осмысленна только для своего веса: подтягивания пока без пояса
+  if (!(hi >= 0) || (hi === 0 && !o.bw)) return empty;
 
   const last = moves.length ? moves[moves.length - 1] : null;
   const shift = (v) => round(toBar(asWeight(v, reps[1], rir)));
