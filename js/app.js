@@ -6,7 +6,7 @@ import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber 
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
-import { progressionOf, stateOf, moveLabel, e1rm as e1rmAvg, PROG } from "../data/progression.js";
+import { progressionOf, stateOf, moveLabel, isWarmup, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
@@ -409,14 +409,15 @@ const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${d}.${m}.$
 function scoreSession(workout, entries) {
   let plannedSets = 0, doneSets = 0, weightPts = 0, weightMax = 0;
   workout.exercises.forEach((ex) => {
-    const sets = (entries[ex.id] || []).filter((s) => setDone(s, exById(ex.id) || ex));
+    const all = (entries[ex.id] || []).filter((s) => setDone(s, exById(ex.id) || ex));
+    const sets = all.filter((s) => !isWarmup(s, ex.w));   // разминка слот плана не занимает
     plannedSets += ex.sets;
     doneSets += Math.min(sets.length, ex.sets);
     if (ex.w > 0) {
       const weight = ex.main ? 2 : 1;
       weightMax += weight;
-      if (sets.length) {
-        const top = Math.max(...sets.map((s) => s.w));
+      if (all.length) {
+        const top = Math.max(...all.map((s) => s.w));
         const floor = (ex.wp && ex.wp.floor) || ex.w * PROG.FLOOR;
         if (top >= ex.w) weightPts += weight;               // вышел на рабочий вес
         else if (top >= floor) weightPts += weight * 0.6;   // между полом и рабочим
@@ -1421,6 +1422,7 @@ function renderWorkout(wid) {
         <div><span class="badge b-weight">вес ★</span> посчитан по твоим подходам в этом движении; ◎ — оценка от базовых лифтов, пока журнал пуст</div>
         <div><span class="ex-prog up"><i class="mono">▲</i>+2,5 кг</span> двойная прогрессия: закрыл все подходы по верхней границе повторов — в следующий раз шаг вверх. Не добрал нижнюю — шаг вниз. Попал в коридор — вес держим и добираем повторы</div>
         <div><span class="badge b-weight">105 кг</span> рабочий вес движения: столько надо повесить. У движения нет «от и до» — есть база, которую надо сделать</div>
+        <div><span class="badge b-dim">≈</span> разминка: подход легче 80% рабочего веса. Он не занимает слот плана, не считается недобором и вес движения не двигает — двадцать килограммов при рабочих ста это не упавшие силовые</div>
       </div>`,
   });
   document.getElementById("q-help").onclick = questInfo;
@@ -1501,8 +1503,8 @@ function renderWorkout(wid) {
           </span>
         </span>
         <span class="ex-count">
-          <span class="ex-status ${saved.filter((x) => setDone(x, src)).length >= ex.sets ? "ok" : ""}">${saved.filter((x) => setDone(x, src)).length}<i>/${ex.sets}</i></span>
-          <span class="ex-dots">${dots(saved.filter((x) => setDone(x, src)).length)}</span>
+          <span class="ex-status ${saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w)).length >= ex.sets ? "ok" : ""}">${saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w)).length}<i>/${ex.sets}</i></span>
+          <span class="ex-dots">${dots(saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w)).length)}</span>
         </span>
       </button>
       <div class="ex-body">
@@ -1524,7 +1526,10 @@ function renderWorkout(wid) {
 
         <div class="set-head"><span>#</span><span>вес, кг</span><span>повторы</span><span></span></div>
         <div class="sets"></div>
-        <button class="add-set">+ ещё подход</button>
+        <div class="set-add">
+          ${target ? `<button class="add-warm">+ разминка</button>` : ""}
+          <button class="add-set">+ ещё подход</button>
+        </div>
 
         <div class="ex-tools">
           <button class="ex-tool" data-swap="${ex.id}">⇄<span>замена</span></button>
@@ -1572,13 +1577,22 @@ function renderWorkout(wid) {
     // подходы плана всегда на экране: видно, сколько осталось, и вес уже подставлен
     function slots() {
       const arr = ensure(ex.id);
-      while (arr.length < ex.sets) arr.push({ w: target, r: 0 });
+      // строк ровно столько, чтобы осталось место под все рабочие подходы:
+      // записал разминку — план не съелся, появилась ещё одна пустая строка
+      const need = ex.sets + arr.filter(warm).length;
+      while (arr.length < need) arr.push({ w: target, r: 0 });
       return arr;
     }
     const filled = (s) => setDone(s, src);
+    // разминка: заметно легче рабочего веса. Слот плана не занимает, недобором не считается.
+    // По виду строки разминку видно сразу по весу, в счёт идут только записанные
+    const warmLook = (s) => isWarmup(s, target);
+    const warm = (s) => filled(s) && warmLook(s);
+    const workDone = (list) => list.filter((s) => filled(s) && !warm(s)).length;
     // попал ли подход в коридор повторов: видно сразу, не пересчитывая в уме
     const hitClass = (s) => {
       if (!filled(s)) return "";
+      if (warm(s)) return "warm";                           // разминка — не про силу
       if (floor && s.w < floor) return "low";               // вес ниже пола — подход не рабочий
       return s.r >= ex.reps[1] ? "hit" : (s.r >= ex.reps[0] ? "mid" : "low");
     };
@@ -1587,19 +1601,23 @@ function renderWorkout(wid) {
       const arr = slots();
       const active = arr.findIndex((s) => !filled(s));   // первый незакрытый подход
       setsBox.innerHTML = "";
+      let no = 0;
       arr.forEach((s, si) => {
+        const isWarm = warmLook(s);
+        if (!isWarm) no++;
         const row = document.createElement("div");
-        row.className = `set-row ${hitClass(s)} ${si === active ? "active" : ""} ${si >= ex.sets ? "extra" : ""}`;
+        row.className = `set-row ${hitClass(s)} ${si === active ? "active" : ""} ${no > ex.sets && !isWarm ? "extra" : ""}`;
         row.innerHTML = `
-          <span class="idx mono">${si + 1}</span>
+          <span class="idx mono">${isWarm ? "≈" : no}</span>
           <input class="s-w mono" inputmode="decimal" placeholder="${placeholderW(si)}" value="${s.w || (ex.bwOnly ? 0 : "")}" aria-label="вес подхода ${si + 1}" />
           <input class="s-r mono" inputmode="numeric" placeholder="${repTxt}" value="${s.r || ""}" aria-label="повторы подхода ${si + 1}" />
           <button class="s-clear" aria-label="очистить подход">${filled(s) ? "✕" : ""}</button>`;
         const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
         wi.oninput = () => {
           s.w = parseFloat(wi.value.replace(",", ".")) || 0;
-          // повесил другой вес — он же поедет в оставшиеся подходы, пока их не закрыли
-          slots().forEach((x, k) => { if (k > si && !filled(x)) x.w = s.w; });
+          // повесил другой рабочий вес — он поедет в оставшиеся подходы. Разминочный
+          // вес не тянем: иначе лесенка в первой строке обнулила бы весь план
+          if (!warmLook(s)) slots().forEach((x, k) => { if (k > si && !filled(x) && !warmLook(x)) x.w = s.w; });
           markActivity(); save(); upd();
         };
         ri.oninput = () => { s.r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
@@ -1612,7 +1630,9 @@ function renderWorkout(wid) {
           }
         };
         ri.onchange = () => { maybeRest(); drawSets(); };
-        wi.onchange = () => { if (s.r > 0) maybeRest(); drawSets(); };
+        // перерисовываем только когда подход дописан: иначе уход фокуса с веса
+        // сносит строку из-под пальца, который целится в поле повторов
+        wi.onchange = () => { if (s.r > 0) { maybeRest(); drawSets(); } };
         row.querySelector(".s-clear").onclick = () => {
           timedSets.delete(s);
           if (si >= ex.sets) arr.splice(si, 1); else { s.w = 0; s.r = 0; }
@@ -1627,12 +1647,24 @@ function renderWorkout(wid) {
       return target || (was && was.w) || (ex.bwOnly ? "0" : "");
     }
     function upd() {
-      const n = slots().filter(filled).length;
+      const n = workDone(slots());
       status.innerHTML = `${n >= ex.sets ? "✓ " : ""}${n}<i>/${ex.sets}</i>`;
       status.classList.toggle("ok", n >= ex.sets);
       el.classList.toggle("done", n >= ex.sets);
       if (dotsBox) dotsBox.innerHTML = dots(n);
     }
+    // разминочная ступень: половина рабочего веса, встаёт на место текущего подхода
+    const warmBtn = el.querySelector(".add-warm");
+    if (warmBtn) warmBtn.onclick = () => {
+      const arr = slots();
+      const at = arr.findIndex((s) => !filled(s));
+      const step = ex.wp && ex.wp.step ? ex.wp.step : 2.5;
+      const w = Math.max(step, Math.round((target * 0.5) / step) * step);
+      arr.splice(at < 0 ? arr.length : at, 0, { w, r: 0 });
+      markActivity(); save(); drawSets(); upd();
+      const inputs = setsBox.querySelectorAll(".set-row")[at < 0 ? arr.length - 1 : at].querySelectorAll("input");
+      if (inputs[1]) inputs[1].focus();
+    };
     el.querySelector(".add-set").onclick = () => {
       const arr = slots();
       const last = [...arr].reverse().find(filled);
@@ -2692,7 +2724,10 @@ function lastDone(ex) {
   const h = movementHistory()[ex.lift || ex.id];
   if (!h || !h.length) return null;
   const last = h[h.length - 1];
-  const sets = last.sets.filter((x) => setDone(x, exById(ex.id) || ex));
+  const done = last.sets.filter((x) => setDone(x, exById(ex.id) || ex));
+  if (!done.length) return null;
+  const peak = Math.max(...done.map((x) => x.w));
+  const sets = done.filter((x) => !isWarmup(x, peak));   // разминку в сводке не показываем
   if (!sets.length) return null;
   const top = Math.max(...sets.map((x) => x.w));
   const same = sets.every((x) => x.w === top);

@@ -389,10 +389,21 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .set-row.low input { border-color: rgba(198,91,60,.45); color: var(--ember); }
 .set-row.hit .idx { color: var(--moss); }
 .set-row.low .idx { color: var(--ember); }
+/* разминка: записана, но силовые по ней не судят — и слот плана она не занимает */
+.set-row.warm input { border-color: var(--line); color: var(--dim); background: rgba(255,255,255,.015); }
+.set-row.warm .idx { color: var(--teal); }
 /* активный подход — тот, который сейчас делаешь */
 .set-row.active input { border-color: rgba(201,169,97,.45); }
 .set-row.active .idx::before { content: "▸"; position: absolute; left: -7px; color: var(--gold); font-size: .7rem; }
 
+.set-add { display: flex; gap: 7px; margin-top: 8px; }
+.set-add .add-set, .set-add .add-warm { margin-top: 0; flex: 1 1 0; }
+.add-warm {
+  background: none; border: 1px dashed rgba(79,154,168,.4); color: var(--teal);
+  padding: 8px 6px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .8rem; white-space: nowrap;
+}
+.add-warm:active { border-color: var(--teal); }
+.ex.open.stuck .set-add { display: none; }
 .add-set {
   margin-top: 8px; width: 100%; background: none; border: 1px dashed var(--line);
   color: var(--dim); padding: 8px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .8rem;
