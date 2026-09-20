@@ -6,7 +6,7 @@ import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber 
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
-import { progressionOf, stateOf, moveLabel, isWarmup, e1rm as e1rmAvg, PROG } from "../data/progression.js";
+import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
@@ -190,6 +190,7 @@ const defaultState = () => ({
   statuses: [],  // устарело: старые ситуационные статусы (переносятся в achievements при загрузке)
   achievements: {}, // id -> { count, first, last } — знаки отличия (см. data/achievements.js)
   plan: {},      // wid -> { swap: {origId:newId}, add: [id], hide: [id] } — правки состава квеста
+  workReset: {}, // движение -> { date, one } — рабочий максимум, поправленный руками
   meta: { exports: 0, imports: 0 }, // счётчики служебных действий (для достижений «Хроники»)
   rev: 0,        // ревизия журнала — растёт с каждым сохранением
   updatedAt: null,
@@ -355,9 +356,11 @@ function seed1RM(src) {
 /** Вилка рабочего веса движения: из журнала, а без журнала — от базовых лифтов. */
 function progressOf(src, { reps = [8, 10], rir = 1, prog = 0 } = {}) {
   if (!src) return null;
-  return progressionOf(movementHistory()[src.lift || src.id] || [], {
+  const key = src.lift || src.id;
+  return progressionOf(movementHistory()[key] || [], {
     reps, rir, equip: src.equip, prog, seed: seed1RM(src),
     bodyweight: S.hero.bodyweight || 90, bw: !!src.bw, perHand: !!src.perHand,
+    reset: (S.workReset || {})[key] || null,
   });
 }
 // добавить к упражнению рабочий вес под атлета (с учётом прогрессии недели)
@@ -1250,11 +1253,20 @@ function showExerciseDetail(id, opts = {}) {
       </div>
       <div class="dim small ex-w-note">
         ${ww && ww.est1RM
-          ? `${ww.source === "work"
-              ? `★ вес посчитан по твоим подходам: ${plural3(ww.sessions, "квест", "квеста", "квестов")} в журнале, ${stateOf(ww).text.toLowerCase()}`
-              : `◎ оценка от базовых лифтов — уточнится после первых подходов`}${ex.bw ? " · вес указан как довесок к своему" : (ex.perHand ? " · на каждую руку" : "")}`
+          ? `${{ work: `★ вес посчитан по твоим подходам: ${plural3(ww.sessions, "квест", "квеста", "квестов")} в журнале, ${stateOf(ww).text.toLowerCase()}`,
+                manual: "✎ вес задан вручную — дальше его поведут подходы",
+              }[ww.source] || "◎ оценка от базовых лифтов — уточнится после первых подходов"}${ex.bw ? " · вес указан как довесок к своему" : (ex.perHand ? " · на каждую руку" : "")}`
           : "Вес не оценивается — работа со своим весом или на время"}
       </div>
+      ${ww && ww.est1RM ? `<div class="ex-fix">
+        <span class="ex-fix-l">Поправить рабочий вес <i class="dim">после перерыва или болезни</i></span>
+        <div class="ex-fix-row">
+          <button class="ex-fix-b" data-fix="0.9">−10%</button>
+          <button class="ex-fix-b" data-fix="0.95">−5%</button>
+          <button class="ex-fix-b" data-fix="1.05">+5%</button>
+          <button class="ex-fix-b ${ww.source === "manual" || (S.workReset || {})[ex.lift || ex.id] ? "on" : ""}" data-fix="0">↺ расчёт</button>
+        </div>
+      </div>` : ""}
       ${ww && ww.best ? `<div class="ex-1rm">
         <span class="ex-1rm-l">Личный максимум <i class="dim">расчётный 1ПМ</i></span>
         <span class="ex-1rm-v mono">${fmt(ww.oneRMBar)} <i>кг</i></span>
@@ -1285,6 +1297,12 @@ function showExerciseDetail(id, opts = {}) {
   overlayRoot.appendChild(o);
   if (opts.onPick) o.querySelector("#ex-pick").onclick = () => { o.remove(); opts.onPick(ex.id); };
   o.querySelectorAll("[data-alt]").forEach((b) => b.onclick = () => { o.remove(); showExerciseDetail(b.dataset.alt, opts); });
+  // правка рабочего веса: множителем к текущему, с мгновенной перерисовкой карточки
+  o.querySelectorAll("[data-fix]").forEach((b) => b.onclick = () => {
+    const k = Number(b.dataset.fix);
+    if (k) scaleWorkMax(ex.id, k); else clearWorkMax(ex.id);
+    fxTap(); o.remove(); showExerciseDetail(ex.id, opts);
+  });
   o.querySelector("#ex-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
@@ -1483,6 +1501,8 @@ function renderWorkout(wid) {
     const repTxt = ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`;
     const wNoteShort = { "на каждую руку": "на руку", "довесок к своему весу": "довесок" }[ex.wNote] || "";
     const floor = (ex.wp && ex.wp.floor) || 0;
+    // к тяжёлой базе подходят лесенкой, к изоляции — одной ступенью, если вообще
+    const heavy = src.tier === 1 || (src.cns || 0) >= 2;
     const prev = lastDone(ex);
     const mv = moveLabel(ex.wp);
     const dots = (n) => Array.from({ length: ex.sets }, (_, k) => `<i class="${k < n ? "on" : ""}"></i>`).join("");
@@ -1527,7 +1547,7 @@ function renderWorkout(wid) {
         <div class="set-head"><span>#</span><span>вес, кг</span><span>повторы</span><span></span></div>
         <div class="sets"></div>
         <div class="set-add">
-          ${target ? `<button class="add-warm">+ разминка</button>` : ""}
+          ${target ? `<button class="add-warm">+ ${heavy ? "лесенка" : "разминка"}</button>` : ""}
           <button class="add-set">+ ещё подход</button>
         </div>
 
@@ -1610,7 +1630,7 @@ function renderWorkout(wid) {
         row.innerHTML = `
           <span class="idx mono">${isWarm ? "≈" : no}</span>
           <input class="s-w mono" inputmode="decimal" placeholder="${placeholderW(si)}" value="${s.w || (ex.bwOnly ? 0 : "")}" aria-label="вес подхода ${si + 1}" />
-          <input class="s-r mono" inputmode="numeric" placeholder="${repTxt}" value="${s.r || ""}" aria-label="повторы подхода ${si + 1}" />
+          <input class="s-r mono" inputmode="numeric" placeholder="${s.hint || repTxt}" value="${s.r || ""}" aria-label="повторы подхода ${si + 1}" />
           <button class="s-clear" aria-label="очистить подход">${filled(s) ? "✕" : ""}</button>`;
         const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
         wi.oninput = () => {
@@ -1653,17 +1673,20 @@ function renderWorkout(wid) {
       el.classList.toggle("done", n >= ex.sets);
       if (dotsBox) dotsBox.innerHTML = dots(n);
     }
-    // разминочная ступень: половина рабочего веса, встаёт на место текущего подхода
+    // разминка встаёт на место текущего подхода: лесенка 40/60/80% под тяжёлую базу,
+    // одна ступень в половину рабочего — под остальное
     const warmBtn = el.querySelector(".add-warm");
     if (warmBtn) warmBtn.onclick = () => {
       const arr = slots();
       const at = arr.findIndex((s) => !filled(s));
       const step = ex.wp && ex.wp.step ? ex.wp.step : 2.5;
-      const w = Math.max(step, Math.round((target * 0.5) / step) * step);
-      arr.splice(at < 0 ? arr.length : at, 0, { w, r: 0 });
+      const rows = heavy ? warmupLadder(target, step)
+        : [{ w: Math.max(step, Math.round((target * 0.5) / step) * step), r: 0 }];
+      arr.splice(at < 0 ? arr.length : at, 0, ...rows.map((x) => ({ w: x.w, r: 0, hint: x.r || 0 })));
       markActivity(); save(); drawSets(); upd();
-      const inputs = setsBox.querySelectorAll(".set-row")[at < 0 ? arr.length - 1 : at].querySelectorAll("input");
-      if (inputs[1]) inputs[1].focus();
+      const row = setsBox.querySelectorAll(".set-row")[at < 0 ? arr.length - rows.length : at];
+      const input = row && row.querySelector(".s-r");
+      if (input) input.focus();
     };
     el.querySelector(".add-set").onclick = () => {
       const arr = slots();
@@ -1705,15 +1728,183 @@ function renderWorkout(wid) {
     if (i === 0 && !saved.length) { el.classList.add("open"); head.setAttribute("aria-expanded", "true"); }
   };
 
+  // Суперсет — одна карточка на пару, а не две рядом: работают их кругами,
+  // и счётчик должен считать круги, а не подходы по отдельности.
+  const addSuperCard = (pair, i, parent) => {
+    const el = document.createElement("div");
+    el.className = "ex ss-card";
+    el.dataset.ex = pair.map((x) => x.id).join("+");
+    const rounds = Math.max(...pair.map((x) => x.sets));
+    const meta = pair.map((ex) => {
+      const src = exById(ex.id) || ex;
+      return {
+        ex, src,
+        target: ex.w || 0,
+        floor: (ex.wp && ex.wp.floor) || 0,
+        repTxt: ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`,
+        note: { "на каждую руку": "на руку", "довесок к своему весу": "довесок" }[ex.wNote] || "",
+      };
+    });
+    const dots = (n) => Array.from({ length: rounds }, (_, k) => `<i class="${k < n ? "on" : ""}"></i>`).join("");
+    const filledIn = (m, s) => setDone(s, m.src);
+    const warmIn = (m, s) => filledIn(m, s) && isWarmup(s, m.target);
+    const hitIn = (m, s) => {
+      if (!filledIn(m, s)) return "";
+      if (warmIn(m, s)) return "warm";
+      if (m.floor && s.w < m.floor) return "low";
+      return s.r >= m.ex.reps[1] ? "hit" : (s.r >= m.ex.reps[0] ? "mid" : "low");
+    };
+    const rowsOf = (m) => {
+      if (!S.drafts[wid]) S.drafts[wid] = {};
+      const arr = (S.drafts[wid][m.ex.id] ||= []);
+      while (arr.length < rounds) arr.push({ w: m.target, r: 0 });
+      return arr;
+    };
+    // круг закрыт, когда оба движения пары записаны рабочим подходом
+    const roundDone = (k) => meta.every((m) => { const s = rowsOf(m)[k]; return s && filledIn(m, s) && !warmIn(m, s); });
+    const roundsDone = () => { let n = 0; const total = rowsOf(meta[0]).length; for (let k = 0; k < total; k++) if (roundDone(k)) n++; return n; };
+
+    el.innerHTML = `
+      <button class="ex-head" aria-expanded="false">
+        <span class="ss-duo">${meta.map((m) => `<span class="ex-ico">${icon(exerciseIcon(m.src))}</span>`).join("")}</span>
+        <span class="ex-main">
+          <span class="ex-title"><span class="name">Суперсет</span><span class="badge b-ss">без отдыха внутри</span></span>
+          <span class="ex-brief"><span class="u">${meta.map((m) => m.ex.short || m.ex.name).join(" + ")}</span></span>
+        </span>
+        <span class="ex-count">
+          <span class="ex-status">0<i>/${rounds}</i></span>
+          <span class="ex-dots">${dots(0)}</span>
+        </span>
+      </button>
+      <div class="ex-body">
+        <div class="ss-legend">
+          ${meta.map((m) => `<button class="ss-leg" data-info="${m.ex.id}">
+            <span class="ss-leg-ico">${icon(exerciseIcon(m.src))}</span>
+            <span class="ss-leg-body">
+              <span class="ss-leg-name">${m.ex.name}</span>
+              <span class="ss-leg-goal">${m.target ? `<b class="mono">${fmt(m.target)}</b> кг${m.note ? " " + m.note : ""} × ` : ""}<b class="mono">${m.repTxt}</b> повт${m.floor ? ` · пол ${fmt(m.floor)}` : ""}</span>
+            </span>
+            <span class="pool-chev">›</span>
+          </button>`).join("")}
+        </div>
+        <div class="ss-rounds"></div>
+        <button class="add-set">+ ещё круг</button>
+        <div class="ex-tools">
+          ${meta.map((m) => `<button class="ex-tool" data-swap="${m.ex.id}">⇄<span>${m.ex.short || m.ex.name}</span></button>`).join("")}
+        </div>
+      </div>`;
+    parent.appendChild(el);
+
+    const head = el.querySelector(".ex-head");
+    const status = el.querySelector(".ex-status");
+    const dotsBox = el.querySelector(".ex-dots");
+    const roundsBox = el.querySelector(".ss-rounds");
+
+    function upd() {
+      const n = roundsDone();
+      status.innerHTML = `${n >= rounds ? "✓ " : ""}${n}<i>/${rounds}</i>`;
+      status.classList.toggle("ok", n >= rounds);
+      el.classList.toggle("done", n >= rounds);
+      dotsBox.innerHTML = dots(n);
+    }
+    function draw() {
+      const total = rowsOf(meta[0]).length;
+      meta.forEach(rowsOf);
+      let active = 0;
+      while (active < total && roundDone(active)) active++;
+      roundsBox.innerHTML = "";
+      for (let k = 0; k < total; k++) {
+        const wrap = document.createElement("div");
+        wrap.className = `ss-round ${roundDone(k) ? "done" : ""} ${k === active ? "active" : ""}`;
+        wrap.innerHTML = `<div class="ssr-l"><span>круг ${k + 1}</span>${roundDone(k) ? "<i>✓</i>" : ""}</div>`;
+        meta.forEach((m, j) => {
+          const s = rowsOf(m)[k];
+          const row = document.createElement("div");
+          row.className = `set-row ss-row ${hitIn(m, s)}`;
+          row.innerHTML = `
+            <span class="idx ss-idx">${icon(exerciseIcon(m.src))}</span>
+            <input class="s-w mono" inputmode="decimal" placeholder="${m.target || (m.ex.bwOnly ? 0 : "")}" value="${s.w || (m.ex.bwOnly ? 0 : "")}" aria-label="вес ${m.ex.name}" />
+            <input class="s-r mono" inputmode="numeric" placeholder="${m.repTxt}" value="${s.r || ""}" aria-label="повторы ${m.ex.name}" />
+            <button class="s-clear" aria-label="очистить">${filledIn(m, s) ? "✕" : ""}</button>`;
+          const wi = row.querySelector(".s-w"), ri = row.querySelector(".s-r");
+          wi.oninput = () => {
+            s.w = parseFloat(wi.value.replace(",", ".")) || 0;
+            if (!isWarmup(s, m.target)) rowsOf(m).forEach((x, kk) => { if (kk > k && !filledIn(m, x) && !isWarmup(x, m.target)) x.w = s.w; });
+            markActivity(); save(); upd();
+          };
+          ri.oninput = () => { s.r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
+          // отдых один на пару: он начинается, когда круг закрыт целиком
+          const maybeRest = () => {
+            if (!roundDone(k) || timedSets.has(s)) return;
+            meta.forEach((mm) => timedSets.add(rowsOf(mm)[k]));
+            markActivity();
+            startRest(smartRest(m.ex, s, m.ex.wp), `круг ${k + 1} · ${meta.map((mm) => mm.ex.short || mm.ex.name).join(" + ")}`);
+          };
+          ri.onchange = () => { maybeRest(); draw(); };
+          wi.onchange = () => { if (s.r > 0) { maybeRest(); draw(); } };
+          row.querySelector(".s-clear").onclick = () => {
+            timedSets.delete(s);
+            if (k >= rounds) meta.forEach((mm) => rowsOf(mm).splice(k, 1));
+            else { s.w = 0; s.r = 0; }
+            save(); draw(); upd();
+          };
+          wrap.appendChild(row);
+        });
+        roundsBox.appendChild(wrap);
+      }
+    }
+
+    head.onclick = () => {
+      const open = !el.classList.contains("open");
+      if (open) list.querySelectorAll(".ex.open").forEach((x) => {
+        x.classList.remove("open");
+        const h = x.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "false");
+      });
+      el.classList.toggle("open", open);
+      head.setAttribute("aria-expanded", open);
+      if (open && el.getBoundingClientRect().top < headLine + 4) {
+        window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - headLine - 6), behavior: "smooth" });
+      }
+    };
+    el.querySelector(".add-set").onclick = () => {
+      meta.forEach((m) => { const arr = rowsOf(m); const last = [...arr].reverse().find((x) => filledIn(m, x)); arr.push({ w: last ? last.w : m.target, r: 0 }); });
+      markActivity(); save(); draw(); upd();
+    };
+    el.querySelectorAll("[data-info]").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.info));
+    el.querySelectorAll("[data-swap]").forEach((b) => b.onclick = () => {
+      const id = b.dataset.swap;
+      const cur = pair.find((x) => x.id === id);
+      openPoolPicker({
+        title: `Замена: ${cur.name}`, wid, suggest: similarTo(id), exclude: w.exercises.map((x) => x.id),
+        onPick: (nid) => {
+          const pl2 = planOf(wid);
+          const orig = cur.swappedFrom || id;
+          const swap = { ...(pl2.swap || {}) };
+          if (nid === orig) delete swap[orig]; else swap[orig] = nid;
+          setPlan(wid, { swap });
+          fxTap(); renderWorkout(wid);
+        },
+      });
+    });
+
+    if (window.IntersectionObserver) {
+      const mark = document.createElement("div");
+      mark.className = "ex-mark";
+      parent.insertBefore(mark, el);
+      const io = new IntersectionObserver(([e]) => el.classList.toggle("stuck", !e.isIntersecting),
+        { rootMargin: `-${headLine + 2}px 0px 0px 0px`, threshold: 0 });
+      io.observe(mark);
+      stickWatchers.push(io);
+    }
+
+    draw(); upd();
+    if (i === 0 && !roundsDone()) { el.classList.add("open"); head.setAttribute("aria-expanded", "true"); }
+  };
+
   let idx = 0;
   groups.forEach((pair) => {
-    if (pair.length < 2) { addCard(pair[0], idx++, list); return; }
-    const box = document.createElement("div");
-    box.className = "ss-group";
-    box.innerHTML = `<div class="ss-head">${icon(METHOD_ICON("superset"))}<b>Суперсет</b>
-      <span class="dim">отдых после пары</span></div>`;
-    list.appendChild(box);
-    pair.forEach((x) => addCard(x, idx++, box));
+    if (pair.length < 2) addCard(pair[0], idx++, list);
+    else addSuperCard(pair, idx++, list);
   });
 
   // вернуть состав по умолчанию, если атлет что-то менял
@@ -1730,7 +1921,7 @@ function renderWorkout(wid) {
     // пустые слоты плана в журнал не идут: подход есть, только если он записан
     const e = {};
     for (const [id, arr] of Object.entries(S.drafts[wid] || {})) {
-      const done = (arr || []).filter((s) => setDone(s, exById(id)));
+      const done = (arr || []).filter((s) => setDone(s, exById(id))).map(({ w: wt, r }) => ({ w: wt, r }));
       if (done.length) e[id] = done;
     }
     if (!Object.keys(e).length) { alert("Квест пуст: запиши хотя бы один подход."); return; }
@@ -2719,6 +2910,26 @@ function openPortion(food, date, editIndex) {
 
 /* ================= ХРОНИКИ (прогресс) ================= */
 /* ================= анализ пределов силы (потолки/полы, тренды) ================= */
+/** Поправить рабочий максимум движения: множитель к тому, что есть сейчас. */
+function scaleWorkMax(id, k) {
+  const src = exById(id);
+  if (!src) return;
+  const key = src.lift || src.id;
+  const p = progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir });
+  const base = p && p.work1RM ? p.work1RM : 0;
+  if (!base) return;
+  S.workReset = S.workReset || {};
+  S.workReset[key] = { date: today(), one: base * k };
+  invalidateE1RM(); save();
+}
+/** Вернуть расчёт по журналу: ручная правка снимается. */
+function clearWorkMax(id) {
+  const src = exById(id);
+  if (!src || !S.workReset) return;
+  delete S.workReset[src.lift || src.id];
+  invalidateE1RM(); save();
+}
+
 // Что было в прошлый раз по этому движению — главный ориентир двойной прогрессии.
 function lastDone(ex) {
   const h = movementHistory()[ex.lift || ex.id];

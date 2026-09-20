@@ -65,6 +65,21 @@ export const asWeight = (one, reps, rir = 0) => (one > 0 ? one * pctOf1RM(reps, 
 export const isWarmup = (set, working) =>
   !!(set && set.w > 0 && working > 0 && set.w <= working * PROG.WORKSET);
 
+/**
+ * Разминочная лесенка под рабочий вес: 40/60/80% на 5/3/1 повтор.
+ * Так к тяжёлой базе и подходят — не ради объёма, а чтобы разогнать связки
+ * и нервную систему. Ступени ниже шага снаряда выкидываем: пустой гриф и так пустой.
+ */
+export function warmupLadder(working, step = 2.5) {
+  if (!(working > 0)) return [];
+  const out = [];
+  for (const [pct, reps] of [[0.4, 5], [0.6, 3], [0.8, 1]]) {
+    const w = Math.floor((working * pct) / step) * step;   // вниз: ступень должна остаться разминкой
+    if (w >= step && (!out.length || w > out[out.length - 1].w)) out.push({ w, r: reps });
+  }
+  return out;
+}
+
 /** Переводы между журнальным весом (что повесил) и системным (по чему считаем проценты). */
 export function spaceOf({ perHand = false, bw = false, bodyweight = 0 } = {}) {
   return {
@@ -106,13 +121,18 @@ export function judge(sets, plan = {}, bw = false) {
  * Рабочий максимум движения: идём по истории вперёд и двигаем якорь двойной прогрессией.
  * Каждый шаг — ровно один шаг снаряда в журнальном весе, поэтому вес всегда объясним.
  * @param history [{ date, sets, plan }] по возрастанию даты
+ * @param o.reset { date, one } — ручная правка: с этой даты отсчёт начинается заново
+ *        от заданного максимума, всё, что было раньше, в расчёт не идёт. Нужна после
+ *        болезни или перерыва: догонять шагами по 2,5 кг оттуда, где ты уже не стоишь,
+ *        — это месяц зря потраченных квестов
  */
 export function workMax(history, o = {}) {
-  const { step = 2.5 } = o;
+  const { step = 2.5, reset = null } = o;
   const { toSys, toBar } = spaceOf(o);
-  let anchor = 0, best = 0;
+  let anchor = reset && reset.one > 0 ? reset.one : 0, best = anchor;
   const moves = [];
-  for (const h of history || []) {
+  const since = reset && reset.date ? reset.date : null;
+  for (const h of (history || []).filter((x) => !since || x.date >= since)) {
     const j = judge(h.sets, h.plan, !!o.bw);
     if (!j) continue;
     const rir = (h.plan && h.plan.rir != null) ? h.plan.rir : 0;
@@ -183,7 +203,7 @@ export function trendPerMonth(moves) {
  *        prog — плановая надбавка недели: применяется только к seed, дальше вес двигают подходы
  */
 export function progressionOf(history, o = {}) {
-  const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0 } = o;
+  const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0, reset = null } = o;
   const step = EQUIP_STEP[equip] || 2.5;
   const { toBar } = spaceOf(o);
   const { anchor, moves } = workMax(history, { ...o, step });
@@ -194,7 +214,7 @@ export function progressionOf(history, o = {}) {
 
   let source, target;
   if (anchor > 0) {
-    source = "work";
+    source = reset && reset.one > 0 && !moves.length ? "manual" : "work";
     target = round(toBar(asWeight(anchor, reps[1], rir)));
   } else if (seed > 0) {
     source = "estimate";
@@ -229,6 +249,7 @@ export function progressionOf(history, o = {}) {
 export function stateOf(p) {
   if (!p || p.source === "none") return { key: "none", text: "Вес по ощущениям", cls: "verdict-mid" };
   if (p.source === "estimate") return { key: "new", text: "Первый заход — оценка от базовых лифтов", cls: "verdict-mid" };
+  if (p.source === "manual") return { key: "manual", text: "Вес поправлен вручную — дальше его поведут подходы", cls: "verdict-mid" };
   if (p.sessions < 2) return { key: "new", text: "Первый замер — со второго квеста вес поведёт журнал", cls: "verdict-mid" };
   if (p.move === "down") return { key: "drop", text: "Откат — рабочий вес опустился на шаг", cls: "verdict-fail" };
   const tail = p.moves.slice(1).slice(-PROG.STALL);
@@ -245,6 +266,7 @@ const num = (v) => String(Math.round(v * 100) / 100).replace(".", ",");
 export function moveLabel(p) {
   if (!p || p.source === "none") return null;
   if (p.source === "estimate") return { icon: "◎", text: "оценка от базовых лифтов" };
+  if (p.source === "manual") return { icon: "✎", text: "вес задан вручную" };
   if (!p.last) return null;
   if (p.last.from === 0) return { icon: "◎", text: `первый замер: ${num(p.last.top)} × ${p.last.topReps}` };
   if (p.move === "up" && p.deltaKg > 0) return { icon: "▲", text: `+${num(p.deltaKg)} кг к прошлому разу` };

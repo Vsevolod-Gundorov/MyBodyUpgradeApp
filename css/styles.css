@@ -265,21 +265,37 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .rest-bar.done { border-color: var(--moss); }
 .rest-bar.done .rest-label b { color: var(--moss); }
 
-/* сцепка суперсета: две карточки в одной рамке, без двойных отступов —
-   видно, что с чем чередовать, и что отдых один на пару */
-.ss-group { margin-top: 10px; border: 1px solid rgba(79,154,168,.35); border-radius: var(--r);
-  background: rgba(79,154,168,.05); }
-.ss-head { display: flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: .7rem;
-  border-bottom: 1px solid rgba(79,154,168,.2); border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0; }
-.ss-head b { color: var(--teal); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; }
-.ss-head .ico { width: 14px; height: 14px; color: var(--teal); }
-.ss-group .ex { margin-top: 0; border: 0; border-radius: 0; background: none; }
-.ss-group .ex + .ex { border-top: 1px solid rgba(79,154,168,.2); }
-.ss-group .ex.main-ex { background: none; }
-.ss-group .ex:last-child { border-radius: 0 0 calc(var(--r) - 1px) calc(var(--r) - 1px); }
-.ss-group .ex.open { background: var(--panel); }
-.ss-group .ex.open.main-ex { background: linear-gradient(180deg, rgba(201,169,97,.07), rgba(201,169,97,0) 55%), var(--panel); }
-.ss-group .ex-ico { border-color: rgba(79,154,168,.4); color: var(--teal); }
+/* суперсет — одна карточка на пару: работают их кругами, и счётчик считает круги */
+.ss-card { border-color: rgba(79,154,168,.4); }
+.ss-card .ex-title .name { color: var(--teal); }
+.ss-duo { flex: 0 0 auto; display: flex; }
+.ss-duo .ex-ico { width: 38px; height: 38px; border-radius: 10px; border-color: rgba(79,154,168,.4); color: var(--teal); }
+.ss-duo .ex-ico:last-child { margin-left: -14px; background: var(--panel-2); }
+.ss-duo .ex-ico .ico { width: 25px; height: 25px; }
+/* что с чем в паре и с каким весом — двумя строками, каждая ведёт в разбор */
+.ss-legend { display: flex; flex-direction: column; gap: 6px; }
+.ss-leg { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; cursor: pointer;
+  background: rgba(79,154,168,.06); border: 1px solid rgba(79,154,168,.25); border-radius: 10px;
+  padding: 7px 10px; color: inherit; font: inherit; }
+.ss-leg:active { border-color: var(--teal); }
+.ss-leg-ico { flex: 0 0 auto; width: 26px; height: 26px; display: grid; place-content: center; color: var(--teal); }
+.ss-leg-ico .ico { width: 22px; height: 22px; }
+.ss-leg-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ss-leg-name { font-size: .85rem; }
+.ss-leg-goal { font-size: .74rem; color: var(--dim); }
+.ss-leg-goal b { color: var(--gold-bright); font-size: .82rem; }
+/* круг: два подхода подряд без отдыха */
+.ss-rounds { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.ss-round { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px 8px; background: rgba(0,0,0,.18); }
+.ss-round.active { border-color: rgba(201,169,97,.45); }
+.ss-round.done { border-color: rgba(143,177,94,.35); background: rgba(143,177,94,.05); }
+.ssr-l { display: flex; align-items: center; justify-content: space-between; font-size: .62rem;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-bottom: 3px; }
+.ssr-l i { font-style: normal; color: var(--moss); font-size: .8rem; }
+.ss-row { grid-template-columns: 28px 1fr 1fr 24px; margin-top: 4px; }
+.ss-idx { display: grid; place-content: center; color: var(--teal); }
+.ss-idx .ico { width: 20px; height: 20px; }
+.ss-card .ex-tools .ex-tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ex {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
@@ -305,6 +321,8 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .ex.open.stuck .add-set,
 .ex.open.stuck .ex-tools { display: none; }
 .ex.open.stuck .ex-goal { padding: 6px 10px; }
+.ex.open.stuck .ss-legend { display: none; }
+.ex.open.stuck .ss-rounds { margin-top: 0; }
 .ex.open.stuck .eg-nums b { font-size: 1.2rem; }
 .ex.open.stuck .set-row { margin-top: 4px; }
 .ex.open.stuck .ex-body { padding-bottom: 10px; }
@@ -1357,6 +1375,17 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .ex-prog.up i { color: var(--moss, #8fb15e); }
 .ex-prog.down { color: #c76a5a; }
 .ex-prog.down i { color: #c76a5a; }
+
+/* правка рабочего веса: после перерыва догонять шагами по 2,5 кг — месяц зря */
+.ex-fix { margin-top: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(0,0,0,.2); text-align: left; }
+.ex-fix-l { display: block; font-size: .78rem; color: var(--bone); margin-bottom: 7px; }
+.ex-fix-l i { font-style: normal; font-size: .68rem; display: block; }
+.ex-fix-row { display: flex; gap: 6px; }
+.ex-fix-b { flex: 1 1 0; background: rgba(255,255,255,.03); border: 1px solid var(--line); color: var(--bone);
+  border-radius: 8px; padding: 7px 2px; font: inherit; font-size: .78rem; cursor: pointer; white-space: nowrap; }
+.ex-fix-b:active { border-color: var(--gold); color: var(--gold-bright); }
+.ex-fix-b.on { border-color: var(--line-strong); color: var(--gold); }
 
 /* личный максимум в карточке движения: отдельный счётчик, вес в подходах он не задаёт */
 .ex-1rm { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px;
