@@ -7,10 +7,9 @@
 //
 // Всё раскрывается из одного числа — РАБОЧЕГО МАКСИМУМА движения. Это не рекорд:
 // это то, на что движение способно сейчас, и двигают его только подходы из журнала.
-// Из него считается вилка на сегодня:
-//   верх (цель) — вес, который надо повесить: «идеальный максимум подхода»;
-//   низ         — шаг назад: ниже не опускаемся, это уже откат.
-// Ту же вилку квест подставляет в подходы, поэтому в зале считать нечего.
+// Из него считается РАБОЧИЙ ВЕС на сегодня — одно число: сколько повесить
+// в этой схеме. Не вилка и не «от и до»: у движения нет пола, есть база,
+// которую надо сделать. Её квест и подставляет в подходы — в зале считать нечего.
 //
 // Схемы в цикле чередуются (силовая 4–6, объёмная 8–10, добивающая 15–20), поэтому
 // рабочий максимум хранится в пересчёте на максимум — по одной кривой «проценты от
@@ -31,7 +30,7 @@ export const PROG = {
   REP_CAP: 10,    // выше 10 повторов формулы 1ПМ врут
   WORKSET: 0.8,   // подход рабочий, если вес ≥80% топового: разминка и лесенка отсекаются
   FLOOR: 0.9,     // глубже 10% от своего же лучшего рабочий максимум не проседает
-  LIGHT: 0.9,     // топ ниже 90% назначенного — это лёгкий день, вилку он не двигает
+  LIGHT: 0.9,     // топ ниже 90% назначенного — это лёгкий день, рабочий вес он не двигает
   STALL: 3,       // столько сессий подряд без прибавки — застой
 };
 
@@ -78,7 +77,7 @@ export function judge(sets, plan = {}, bw = false) {
   const lo = (plan.reps && plan.reps[0]) || 1;
   const hi = (plan.reps && plan.reps[1]) || lo;
   // рабочий верх — самый тяжёлый подход, который уложился в коридор повторов.
-  // Рекордный сингл в конце квеста идёт в личный максимум, но вилку не двигает:
+  // Рекордный сингл в конце квеста идёт в личный максимум, но рабочий вес не двигает:
   // одна удачная попытка не значит, что с этим весом можно работать всю неделю.
   const inRange = good.filter((s) => s.r >= lo);
   const top = Math.max(...(inRange.length ? inRange : good).map((s) => s.w));
@@ -96,7 +95,7 @@ export function judge(sets, plan = {}, bw = false) {
 
 /**
  * Рабочий максимум движения: идём по истории вперёд и двигаем якорь двойной прогрессией.
- * Каждый шаг — ровно один шаг снаряда в журнальном весе, поэтому вилка всегда объяснима.
+ * Каждый шаг — ровно один шаг снаряда в журнальном весе, поэтому вес всегда объясним.
  * @param history [{ date, sets, plan }] по возрастанию даты
  */
 export function workMax(history, o = {}) {
@@ -111,7 +110,7 @@ export function workMax(history, o = {}) {
     const floor = o.bw ? 0 : step;                                  // без пояса довесок нулевой — это нормально
     const at = (w) => asMax(toSys(Math.max(floor, w)), j.hi, rir);  // вес → якорь на языке этой схемы
     const prev = anchor;
-    const due = prev ? toBar(asWeight(prev, j.hi, rir)) : 0;       // что вилка назначала на этот квест
+    const due = prev ? toBar(asWeight(prev, j.hi, rir)) : 0;       // что было назначено на этот квест
     let verdict = j.verdict;
     if (!anchor) {
       anchor = at(j.top);                                    // первый замер: с чего начали
@@ -168,7 +167,7 @@ export function trendPerMonth(moves) {
 }
 
 /**
- * Вилка на сегодня и её история.
+ * Рабочий вес на сегодня и его история.
  * @param history [{ date, sets, plan }] по этому движению, по возрастанию даты
  * @param o { reps, rir, equip, seed, prog, bodyweight, bw, perHand }
  *        seed — расчётный 1ПМ от базовых лифтов: чем стартовать, пока истории нет
@@ -182,29 +181,29 @@ export function progressionOf(history, o = {}) {
   const rec = bestSet(history, o);
   const round = (v) => Math.max(0, Math.round(v / step) * step);
   const empty = { source: "none", work1RM: 0, oneRM: 0, oneRMBar: 0, best: null, proven: 0,
-    lo: 0, hi: 0, step, sessions: 0, move: null, deltaKg: 0, last: null, moves: [], trend: null };
+    target: 0, step, sessions: 0, move: null, deltaKg: 0, last: null, moves: [], trend: null };
 
-  let source, hi;
+  let source, target;
   if (anchor > 0) {
     source = "work";
-    hi = round(toBar(asWeight(anchor, reps[1], rir)));
+    target = round(toBar(asWeight(anchor, reps[1], rir)));
   } else if (seed > 0) {
     source = "estimate";
     // старт без истории: середина коридора повторов — не завышаем и не мельчим,
     // дальше вес двигают сами подходы
     const mid = Math.round((reps[0] + reps[1]) / 2);
-    hi = round(toBar(asWeight(seed * (1 + prog), mid, rir)));
+    target = round(toBar(asWeight(seed * (1 + prog), mid, rir)));
   } else {
     return empty;
   }
-  // вилка в ноль осмысленна только для своего веса: подтягивания пока без пояса
-  if (!(hi >= 0) || (hi === 0 && !o.bw)) return empty;
+  // ноль осмыслен только для своего веса: подтягивания пока без пояса
+  if (!(target >= 0) || (target === 0 && !o.bw)) return empty;
 
   const last = moves.length ? moves[moves.length - 1] : null;
   const shift = (v) => round(toBar(asWeight(v, reps[1], rir)));
   return {
     source, work1RM: anchor || seed * (1 + prog),
-    hi, lo: Math.max(0, hi - step), step,
+    target, step,
     oneRM: rec ? rec.one : (source === "estimate" ? seed * (1 + prog) : 0),
     oneRMBar: rec ? toBar(rec.one) : (source === "estimate" ? toBar(seed * (1 + prog)) : 0),
     best: rec, proven: provenTop(moves), sessions: moves.length,
@@ -219,18 +218,18 @@ export function stateOf(p) {
   if (!p || p.source === "none") return { key: "none", text: "Вес по ощущениям", cls: "verdict-mid" };
   if (p.source === "estimate") return { key: "new", text: "Первый заход — оценка от базовых лифтов", cls: "verdict-mid" };
   if (p.sessions < 2) return { key: "new", text: "Первый замер — со второго квеста вес поведёт журнал", cls: "verdict-mid" };
-  if (p.move === "down") return { key: "drop", text: "Откат — вилка опустилась на шаг", cls: "verdict-fail" };
+  if (p.move === "down") return { key: "drop", text: "Откат — рабочий вес опустился на шаг", cls: "verdict-fail" };
   const tail = p.moves.slice(1).slice(-PROG.STALL);
   if (tail.length >= PROG.STALL && tail.every((m) => m.to <= m.from))
     return { key: "stall", text: `Застой: ${PROG.STALL} квеста без прибавки — пора делоад или смена движения`, cls: "verdict-fail" };
-  if (p.move === "light") return { key: "hold", text: "Прошлый квест был лёгким — вилка стоит на месте", cls: "verdict-mid" };
-  if (p.move === "up") return { key: "grow", text: "Рост — вилка поднялась на шаг", cls: "verdict-gold" };
+  if (p.move === "light") return { key: "hold", text: "Прошлый квест был лёгким — вес стоит на месте", cls: "verdict-mid" };
+  if (p.move === "up") return { key: "grow", text: "Рост — рабочий вес поднялся на шаг", cls: "verdict-gold" };
   return { key: "hold", text: "Держим вес — добираем повторы до верхней границы", cls: "verdict-mid" };
 }
 
 const num = (v) => String(Math.round(v * 100) / 100).replace(".", ",");
 
-/** Короткая подпись движения вилки для карточки квеста. */
+/** Короткая подпись: куда поехал рабочий вес. */
 export function moveLabel(p) {
   if (!p || p.source === "none") return null;
   if (p.source === "estimate") return { icon: "◎", text: "оценка от базовых лифтов" };
