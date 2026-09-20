@@ -265,6 +265,20 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .rest-bar.done { border-color: var(--moss); }
 .rest-bar.done .rest-label b { color: var(--moss); }
 
+/* сцепка суперсета: две карточки в одной рамке, без двойных отступов —
+   видно, что с чем чередовать, и что отдых один на пару */
+.ss-group { margin-top: 10px; border: 1px solid rgba(79,154,168,.35); border-radius: var(--r);
+  background: rgba(79,154,168,.05); overflow: hidden; }
+.ss-head { display: flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: .7rem;
+  border-bottom: 1px solid rgba(79,154,168,.2); }
+.ss-head b { color: var(--teal); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; }
+.ss-head .ico { width: 14px; height: 14px; color: var(--teal); }
+.ss-group .ex { margin-top: 0; border: 0; border-radius: 0; background: none; }
+.ss-group .ex + .ex { border-top: 1px solid rgba(79,154,168,.2); }
+.ss-group .ex.main-ex { background: none; }
+.ss-letter { font-family: var(--font-display); font-size: 1.1rem; color: var(--teal); }
+.ss-group .ex-ico { border-color: rgba(79,154,168,.4); }
+
 .ex {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
   margin-top: 10px; overflow: hidden;
@@ -318,6 +332,15 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .eg-line.up, .eg-line.up i { color: var(--moss); }
 .eg-line.down, .eg-line.down i { color: var(--ember); }
 .eg-line.note { color: var(--teal); cursor: default; }
+/* прошлый раз: по умолчанию свёрнут — в зале он нужен не каждый подход */
+.eg-prev { margin-top: 5px; font-size: .74rem; color: var(--dim); }
+.eg-prev summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 4px;
+  color: var(--dim); border-bottom: 1px dashed rgba(216,184,104,.3); padding-bottom: 1px; }
+.eg-prev summary::-webkit-details-marker { display: none; }
+.eg-prev summary::after { content: "▾"; font-size: .7rem; }
+.eg-prev[open] summary::after { content: "▴"; }
+.eg-prev > span { display: block; margin-top: 4px; }
+.eg-prev b { color: var(--bone); font-weight: 500; }
 .eg-line.note .ico { width: 13px; height: 13px; flex: 0 0 auto; align-self: center; }
 .eg-line[data-method] { cursor: pointer; }
 
@@ -344,14 +367,6 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 /* активный подход — тот, который сейчас делаешь */
 .set-row.active input { border-color: rgba(201,169,97,.45); }
 .set-row.active .idx::before { content: "▸"; position: absolute; left: -7px; color: var(--gold); font-size: .7rem; }
-
-/* повторы в один тап: коридор развёрнут в кнопки */
-.rep-chips { grid-column: 1 / -1; display: flex; align-items: center; gap: 5px; margin: 6px 0 2px 26px; }
-.rc-l { flex: 0 0 auto; font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
-.rc { flex: 1 1 0; min-width: 0; background: rgba(255,255,255,.03); border: 1px solid var(--line); color: var(--bone);
-  border-radius: 8px; padding: 7px 2px; font: inherit; font-family: var(--font-mono); font-size: .92rem; cursor: pointer; }
-.rc:active { transform: scale(.95); border-color: var(--gold); color: var(--gold-bright); }
-.rc:last-child { border-color: var(--line-strong); color: var(--gold-bright); }
 
 .add-set {
   margin-top: 9px; width: 100%; background: none; border: 1px dashed var(--line);

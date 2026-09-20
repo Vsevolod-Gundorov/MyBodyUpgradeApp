@@ -60,7 +60,7 @@ test("разминка не считается рабочим подходом �
   assert.equal(j.work, 4);
 });
 
-test("рекордный сингл в конце квеста не роняет вилку", () => {
+test("рекордный сингл в конце квеста не роняет рабочий вес", () => {
   // так и тренируются: отработал план, потом попробовал разовый максимум
   const j = judge([...same(4, 100, 6), { w: 125, r: 1 }], plan4x46);
   assert.equal(j.verdict, "up", "попытка на раз — это не проваленный рабочий подход");
@@ -74,9 +74,9 @@ test("пустой и кривой журнал разбору не мешают
 
 /* ---------- рабочий максимум ---------- */
 
-const corridorTop = (history, o = {}) => progressionOf(history, { reps: [4, 6], rir: 1, equip: "bb", ...o }).hi;
+const corridorTop = (history, o = {}) => progressionOf(history, { reps: [4, 6], rir: 1, equip: "bb", ...o }).target;
 
-test("удачный квест поднимает вилку ровно на шаг снаряда", () => {
+test("удачный квест поднимает рабочий вес ровно на шаг снаряда", () => {
   const one = corridorTop([sess(d(1), same(4, 100, 6))]);
   const two = corridorTop([sess(d(1), same(4, 100, 6)), sess(d(4), same(4, 100, 6))]);
   assert.equal(two - one, 2.5, "штанга шагает по 2,5 кг, а не процентами");
@@ -89,11 +89,10 @@ test("вес растёт из квеста в квест и из цикла в 
   const p = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(p.sessions, 8);
   assert.equal(p.move, "up");
-  assert.equal(p.hi, 120, "восемь удачных квестов — восемь шагов от 100 кг");
-  assert.ok(p.lo < p.hi, "низ вилки легче верха: там больше повторов");
-});
+  assert.equal(p.target, 120, "восемь удачных квестов — восемь шагов от 100 кг");
+  });
 
-test("застрял на весе — вилка стоит, а не ползёт", () => {
+test("застрял на весе — вес стоит, а не ползёт", () => {
   const hist = [1, 4, 7, 10].map((n) => sess(d(n), same(4, 100, 5)));
   const p = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(p.move, "hold");
@@ -101,14 +100,14 @@ test("застрял на весе — вилка стоит, а не ползё
   assert.equal(stateOf(p).key, "stall", "три квеста без прибавки — это застой, и о нём надо сказать");
 });
 
-test("недобор опускает вилку на шаг, но не роняет в пропасть", () => {
+test("недобор опускает вес на шаг, но не роняет в пропасть", () => {
   const up = [sess(d(1), same(4, 100, 6)), sess(d(4), same(4, 102.5, 6))];
   const good = corridorTop(up);
   const bad = corridorTop([...up, sess(d(7), same(4, 105, 2))]);
   assert.equal(good - bad, 2.5, "один провал — один шаг вниз");
   // серия провалов не должна обнулить движение
   const crash = corridorTop([...up, ...Array.from({ length: 8 }, (_, i) => sess(d(10 + i * 3), same(4, 60, 2)))]);
-  assert.ok(crash >= good * PROG.FLOOR * 0.95, `вилка провалилась слишком глубоко: ${crash} из ${good}`);
+  assert.ok(crash >= good * PROG.FLOOR * 0.95, `вес провалился слишком глубоко: ${crash} из ${good}`);
   assert.ok(crash > 0);
 });
 
@@ -119,27 +118,27 @@ test("рабочий максимум — не рекорд: удачный де
   assert.equal(rec.w, 140, "личный максимум помнит попытку");
   assert.ok(p.oneRM >= 140);
   assert.ok(p.work1RM < rec.one, "а рабочий максимум остаётся на земле");
-  assert.ok(p.hi <= 110, `вилка не должна прыгать к рекорду: ${p.hi}`);
+  assert.ok(p.target <= 110, `рабочий вес не должен прыгать к рекорду: ${p.target}`);
 });
 
 /* ---------- снаряды со своей арифметикой ---------- */
 
-test("гантели считаются на руку: шаг 2 кг на гантель, вилка тоже на руку", () => {
+test("гантели считаются на руку: шаг 2 кг на гантель, вес тоже на руку", () => {
   const o = { reps: [8, 10], rir: 2, equip: "db", perHand: true };
   const one = progressionOf([sess(d(1), same(3, 30, 10), { sets: 3, reps: [8, 10], rir: 2 })], o);
   const two = progressionOf([sess(d(1), same(3, 30, 10), { sets: 3, reps: [8, 10], rir: 2 }),
                              sess(d(4), same(3, 30, 10), { sets: 3, reps: [8, 10], rir: 2 })], o);
-  assert.equal(two.hi - one.hi, 2, "прибавка — 2 кг на гантель, а не на пару");
-  assert.ok(one.hi >= 28 && one.hi <= 36, `вилка должна остаться в районе рабочих 30 кг: ${one.hi}`);
+  assert.equal(two.target - one.target, 2, "прибавка — 2 кг на гантель, а не на пару");
+  assert.ok(one.target >= 28 && one.target <= 36, `вес должен остаться в районе рабочих 30 кг: ${one.target}`);
 });
 
-test("подтягивания с поясом: вилка — довесок, а не общий вес системы", () => {
+test("подтягивания с поясом: вес — довесок, а не общий вес системы", () => {
   const o = { reps: [6, 8], rir: 2, equip: "bwp", bw: true, bodyweight: 90 };
   const p = progressionOf([sess(d(1), same(4, 20, 8), { sets: 4, reps: [6, 8], rir: 2 })], o);
-  assert.ok(p.hi >= 20 && p.hi < 50, `в поясе висит довесок, а не 110 кг: ${p.hi}`);
+  assert.ok(p.target >= 20 && p.target < 50, `в поясе висит довесок, а не 110 кг: ${p.target}`);
   const p2 = progressionOf([sess(d(1), same(4, 20, 8), { sets: 4, reps: [6, 8], rir: 2 }),
                             sess(d(4), same(4, 20, 8), { sets: 4, reps: [6, 8], rir: 2 })], o);
-  assert.equal(p2.hi - p.hi, 2.5);
+  assert.equal(p2.target - p.target, 2.5);
   assert.ok(p.oneRMBar < p.oneRM, "личный максимум показывается довеском, а считается по системе");
 });
 
@@ -148,7 +147,7 @@ test("подтягивания с поясом: вилка — довесок, �
 test("без журнала вес берётся от базовых лифтов и честно помечен оценкой", () => {
   const p = progressionOf([], { reps: [4, 6], rir: 1, equip: "bb", seed: 140 });
   assert.equal(p.source, "estimate");
-  assert.ok(p.hi > 110 && p.hi < 140, `оценка рабочего веса от 1ПМ 140: ${p.hi}`);
+  assert.ok(p.target > 110 && p.target < 140, `оценка рабочего веса от 1ПМ 140: ${p.target}`);
   assert.equal(moveLabel(p).text, "оценка от базовых лифтов");
   assert.equal(stateOf(p).key, "new");
 });
@@ -156,18 +155,17 @@ test("без журнала вес берётся от базовых лифто
 test("плановая надбавка недели работает только до первых подходов", () => {
   const base = progressionOf([], { reps: [4, 6], rir: 1, equip: "bb", seed: 140 });
   const bumped = progressionOf([], { reps: [4, 6], rir: 1, equip: "bb", seed: 140, prog: 0.05 });
-  assert.ok(bumped.hi > base.hi, "пока данных нет, неделю двигает план");
+  assert.ok(bumped.target > base.target, "пока данных нет, неделю двигает план");
   const withHist = [sess(d(1), same(4, 100, 5))];
   const a = progressionOf(withHist, { reps: [4, 6], rir: 1, equip: "bb", seed: 140 });
   const b = progressionOf(withHist, { reps: [4, 6], rir: 1, equip: "bb", seed: 140, prog: 0.05 });
-  assert.equal(a.hi, b.hi, "как только есть подходы, вес двигают они, а не процент из шаблона");
+  assert.equal(a.target, b.target, "как только есть подходы, вес двигают они, а не процент из шаблона");
 });
 
-test("ни журнала, ни оценки — вилки нет, и это видно", () => {
+test("ни журнала, ни оценки — веса нет, и это видно", () => {
   const p = progressionOf([], { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(p.source, "none");
-  assert.equal(p.hi, 0);
-  assert.equal(p.lo, 0);
+  assert.equal(p.target, 0);
   assert.equal(moveLabel(p), null);
   assert.equal(stateOf(p).key, "none");
   assert.equal(stateOf(null).key, "none");
@@ -175,16 +173,14 @@ test("ни журнала, ни оценки — вилки нет, и это в
 
 /* ---------- вилка и подписи ---------- */
 
-test("вилка раскрывается из одного числа: верх — тяжёлый край, низ — лёгкий", () => {
+test("рабочий вес раскрывается из одного числа под любую схему", () => {
   const hist = [sess(d(1), same(4, 100, 6))];
   const heavy = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
   const light = progressionOf(hist, { reps: [12, 15], rir: 1, equip: "bb" });
   assert.equal(heavy.work1RM, light.work1RM, "рабочий максимум у движения один на все схемы");
-  assert.ok(light.hi < heavy.lo, "объёмная схема легче силовой по всей вилке");
-  assert.ok(heavy.lo <= heavy.hi && light.lo <= light.hi);
+  assert.ok(light.target < heavy.target, "объёмная схема легче силовой");
   for (const p of [heavy, light]) {
-    assert.equal(p.hi % p.step, 0, "вес округляется по шагу снаряда: в зале нет 101,4 кг");
-    assert.equal(p.lo % p.step, 0);
+    assert.equal(p.target % p.step, 0, "вес округляется по шагу снаряда: в зале нет 101,4 кг");
   }
 });
 
@@ -222,7 +218,7 @@ test("история движения не портится пропущенны
   const p = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(p.sessions, 3);
   assert.equal(p.move, "up");
-  assert.ok(p.hi >= 107.5, "перерыв между квестами не обнуляет прогресс");
+  assert.ok(p.target >= 107.5, "перерыв между квестами не обнуляет прогресс");
 });
 
 test("прибавка с объёмной недели не теряется на силовой", () => {
@@ -230,20 +226,20 @@ test("прибавка с объёмной недели не теряется н
   const volume = { sets: 4, reps: [8, 10], rir: 2 };
   const base = [sess(d(1), same(4, 100, 6), strength)];
   const after = progressionOf(base, { reps: [8, 10], rir: 2, equip: "bb" });
-  assert.ok(after.hi > 0 && after.hi < 100, `объёмной неделе положен вес полегче: ${after.hi}`);
+  assert.ok(after.target > 0 && after.target < 100, `объёмной неделе положен вес полегче: ${after.target}`);
   // объёмный квест закрыт по верхней границе — на следующей силовой это должно быть видно
-  const done = [...base, sess(d(4), same(4, after.hi, 10), volume)];
+  const done = [...base, sess(d(4), same(4, after.target, 10), volume)];
   const back = progressionOf(done, { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(back.move, "up");
-  assert.ok(back.hi > 100, `силовая вилка должна подрасти после объёмной недели: ${back.hi}`);
+  assert.ok(back.target > 100, `силовая вилка должна подрасти после объёмной недели: ${back.target}`);
 });
 
-test("лёгкий квест не двигает вилку ни вверх, ни вниз", () => {
+test("лёгкий квест не двигает вес ни вверх, ни вниз", () => {
   const hist = [sess(d(1), same(4, 100, 6)), sess(d(4), same(4, 102.5, 6))];
   const strong = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
   const light = progressionOf([...hist, sess(d(7), same(4, 70, 3))], { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(light.move, "light", "70 кг вместо назначенных 105 — это не провал, а лёгкий день");
-  assert.equal(light.hi, strong.hi, "вилка осталась на месте");
+  assert.equal(light.target, strong.target, "вес остался на месте");
 });
 
 test("добивающая схема не получает вес десятиповторной", () => {
@@ -251,16 +247,16 @@ test("добивающая схема не получает вес десяти�
   const hist = [sess(d(1), same(3, 60, 12), { sets: 3, reps: [10, 12], rir: 1 })];
   const mid = progressionOf(hist, { reps: [10, 12], rir: 1, equip: "bb" });
   const finisher = progressionOf(hist, { reps: [15, 20], rir: 0, equip: "bb" });
-  assert.equal(mid.hi, 60, "своя схема — свой вес");
-  assert.ok(finisher.hi < mid.hi * 0.9, `на 20 повторов вес должен заметно упасть: ${finisher.hi} против ${mid.hi}`);
-  assert.ok(finisher.hi > mid.hi * 0.6, `и не обвалиться в пустоту: ${finisher.hi}`);
+  assert.equal(mid.target, 60, "своя схема — свой вес");
+  assert.ok(finisher.target < mid.target * 0.9, `на 20 повторов вес должен заметно упасть: ${finisher.target} против ${mid.target}`);
+  assert.ok(finisher.target > mid.target * 0.6, `и не обвалиться в пустоту: ${finisher.target}`);
 });
 
 test("вилка одинаково разворачивается вперёд и назад по схемам", () => {
   const strength = { sets: 4, reps: [4, 6], rir: 1 };
   const hist = [sess(d(1), same(4, 100, 6), strength)];
   const back = progressionOf(hist, { reps: [4, 6], rir: 1, equip: "bb" });
-  assert.equal(back.hi, 100, "та же схема возвращает тот же вес — без дрейфа от пересчётов");
+  assert.equal(back.target, 100, "та же схема возвращает тот же вес — без дрейфа от пересчётов");
 });
 
 test("подход со своим весом записывается: нулевой довесок — это не пустая строка", () => {
@@ -273,8 +269,18 @@ test("подход со своим весом записывается: нуле
   const p = progressionOf(hist, o);
   assert.equal(p.source, "work");
   assert.equal(p.sessions, 1);
-  assert.equal(p.hi, 0, "первый заход без пояса — и дальше пока без пояса");
+  assert.equal(p.target, 0, "первый заход без пояса — и дальше пока без пояса");
   const next = progressionOf([...hist, sess(d(4), [{ w: 0, r: 12 }, { w: 0, r: 12 }, { w: 0, r: 12 }], plan)], o);
-  assert.equal(next.hi, 2.5, "два чистых квеста подряд — пора вешать пояс");
+  assert.equal(next.target, 2.5, "два чистых квеста подряд — пора вешать пояс");
   assert.ok(p.oneRM > 90, "личный максимум считается по системе: тело плюс довесок");
+});
+
+test("у движения один рабочий вес, а не вилка: пола нет, есть база", () => {
+  const p = progressionOf([sess(d(1), same(4, 100, 6))], { reps: [4, 6], rir: 1, equip: "bb" });
+  assert.equal(typeof p.target, "number");
+  assert.equal(p.lo, undefined, "нижней границы веса у движения не бывает — её убрали намеренно");
+  assert.equal(p.hi, undefined, "и «верха» тоже: осталось одно число");
+  assert.ok(p.target > 0);
+  const none = progressionOf([], { reps: [4, 6], rir: 1, equip: "bb" });
+  assert.equal(none.target, 0, "нет данных — нет и веса");
 });
