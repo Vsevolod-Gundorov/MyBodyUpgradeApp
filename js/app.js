@@ -3209,11 +3209,19 @@ function showKbdBar() {
     document.body.appendChild(kbdBar);
   }
   kbdBar.classList.add("on");
+  // нижнее меню и плашка отдыха прибиты к низу окна, а на телефоне клавиатура
+  // это «низ» сдвигает: полоски начинают жить своей жизнью посреди экрана.
+  // Пока печатаем — убираем их, наверху и так висит своя кнопка «Готово»
+  document.body.classList.add("kbd");
   placeKbdBar();
 }
 function hideKbdBar() {
   if (!kbdBar || Date.now() - kbdGuard < 400) return;
   kbdBar.classList.remove("on");
+  document.body.classList.remove("kbd");
+  // iOS иногда оставляет fixed-элементы там, где был сдвинутый вьюпорт:
+  // короткий толчок скролла ставит их на место
+  requestAnimationFrame(() => window.scrollTo(window.scrollX, window.scrollY));
 }
 
 document.addEventListener("focusin", (e) => { if (isField(e.target)) showKbdBar(); });
