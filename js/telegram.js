@@ -35,6 +35,10 @@ export function initTelegram({ onBack } = {}) {
 /** Безопасные зоны и высота вьюпорта Телеграма → CSS-переменные. */
 function applyInsets() {
   if (!inTelegram) return;
+  // Пока открыта клавиатура, Телеграм шлёт viewportChanged с другими отступами,
+  // и экран прыгает прямо под пальцем. Переждём: как только клавиатура уедет,
+  // придёт ещё одно событие, и отступы встанут на место.
+  if (document.body.classList.contains("kbd")) return;
   const root = document.documentElement.style;
   const c = (tg.contentSafeAreaInset || {});
   const s = (tg.safeAreaInset || {});

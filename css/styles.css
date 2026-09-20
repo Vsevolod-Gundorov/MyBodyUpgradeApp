@@ -243,6 +243,10 @@ h2.display { font-size: 1.4rem; }
   border-top: 1px solid var(--line-strong); backdrop-filter: blur(10px);
 }
 .kbd-bar.on { display: flex; }
+/* пока открыта клавиатура, нижние панели уезжают: иначе на iOS они болтаются
+   по экрану вслед за сдвинутым вьюпортом */
+body.kbd .tabbar { transform: translateY(110%); }
+body.kbd .rest-bar { opacity: 0; pointer-events: none; }
 .kbd-done {
   background: rgba(224,189,102,.1); border: 1px solid var(--line-strong); color: var(--gold-bright);
   border-radius: 8px; padding: 7px 18px; font: inherit; font-size: .9rem; cursor: pointer;
@@ -257,6 +261,7 @@ h2.display { font-size: 1.4rem; }
   border: 1px solid var(--line-strong); border-radius: 12px;
   box-shadow: 0 8px 26px rgba(0,0,0,.5), inset 0 1px 0 rgba(224,189,102,.15);
   overflow: hidden; animation: restup .3s cubic-bezier(.2,.8,.2,1);
+  transition: opacity .15s linear;
 }
 @keyframes restup { from { transform: translate(-50%, 20px); opacity: 0; } }
 .rest-bar .rest-prog { height: 4px; background: #0a1215; }
@@ -503,6 +508,7 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 /* ---------- таббар (гравированная золочёная панель) ---------- */
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+  transition: transform .18s ease-out;
   display: flex; justify-content: center; gap: 2px;
   background:
     linear-gradient(180deg, rgba(233,212,147,.06), transparent 30%),
