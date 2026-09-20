@@ -8,8 +8,9 @@
 // Всё раскрывается из одного числа — РАБОЧЕГО МАКСИМУМА движения. Это не рекорд:
 // это то, на что движение способно сейчас, и двигают его только подходы из журнала.
 // Из него считается РАБОЧИЙ ВЕС на сегодня — одно число: сколько повесить
-// в этой схеме. Не вилка и не «от и до»: у движения нет пола, есть база,
-// которую надо сделать. Её квест и подставляет в подходы — в зале считать нечего.
+// в этой схеме. Его квест и подставляет в подходы — в зале считать нечего.
+// Рядом идёт ПОЛ: 90% рабочего веса. Ниже него подход перестаёт быть рабочим —
+// столько же стоит граница, за которой движок откатывает рабочий максимум.
 //
 // Схемы в цикле чередуются (силовая 4–6, объёмная 8–10, добивающая 15–20), поэтому
 // рабочий максимум хранится в пересчёте на максимум — по одной кривой «проценты от
@@ -181,7 +182,7 @@ export function progressionOf(history, o = {}) {
   const rec = bestSet(history, o);
   const round = (v) => Math.max(0, Math.round(v / step) * step);
   const empty = { source: "none", work1RM: 0, oneRM: 0, oneRMBar: 0, best: null, proven: 0,
-    target: 0, step, sessions: 0, move: null, deltaKg: 0, last: null, moves: [], trend: null };
+    target: 0, floor: 0, step, sessions: 0, move: null, deltaKg: 0, last: null, moves: [], trend: null };
 
   let source, target;
   if (anchor > 0) {
@@ -201,9 +202,12 @@ export function progressionOf(history, o = {}) {
 
   const last = moves.length ? moves[moves.length - 1] : null;
   const shift = (v) => round(toBar(asWeight(v, reps[1], rir)));
+  // пол: ниже этого веса подход уже не рабочий. Округляем вниз — пол не должен
+  // оказаться строже, чем есть на самом деле
+  const floor = target > 0 ? Math.max(step, Math.floor((target * PROG.FLOOR) / step) * step) : 0;
   return {
     source, work1RM: anchor || seed * (1 + prog),
-    target, step,
+    target, floor: floor < target ? floor : 0, step,
     oneRM: rec ? rec.one : (source === "estimate" ? seed * (1 + prog) : 0),
     oneRMBar: rec ? toBar(rec.one) : (source === "estimate" ? toBar(seed * (1 + prog)) : 0),
     best: rec, proven: provenTop(moves), sessions: moves.length,

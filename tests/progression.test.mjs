@@ -284,3 +284,21 @@ test("у движения один рабочий вес, а не вилка: п
   const none = progressionOf([], { reps: [4, 6], rir: 1, equip: "bb" });
   assert.equal(none.target, 0, "нет данных — нет и веса");
 });
+
+test("у рабочего веса есть пол: ниже него подход уже не рабочий", () => {
+  const p = progressionOf([sess(d(1), same(4, 100, 6))], { reps: [4, 6], rir: 1, equip: "bb" });
+  assert.ok(p.floor > 0 && p.floor < p.target, `пол должен быть ниже цели: ${p.floor} из ${p.target}`);
+  assert.ok(p.floor >= p.target * 0.85, `и не в подвале: ${p.floor} из ${p.target}`);
+  assert.equal(p.floor % p.step, 0, "пол тоже округляется по шагу снаряда");
+  assert.equal(p.floor, 90, "90 кг при рабочих 100 — это та же граница, за которой движок откатывает вес");
+  // тот же порог, по которому рабочий максимум не проваливается при серии неудач
+  assert.equal(PROG.FLOOR, 0.9);
+});
+
+test("без веса пола не бывает", () => {
+  assert.equal(progressionOf([], { reps: [4, 6], rir: 1, equip: "bb" }).floor, 0);
+  const bw = progressionOf([sess(d(1), [{ w: 0, r: 12 }, { w: 0, r: 12 }, { w: 0, r: 12 }], { sets: 3, reps: [10, 12], rir: 1 })],
+    { reps: [10, 12], rir: 1, equip: "bwp", bw: true, bodyweight: 90 });
+  assert.equal(bw.target, 0, "подтягивания без пояса");
+  assert.equal(bw.floor, 0, "и пола у них нет — падать некуда");
+});
