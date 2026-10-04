@@ -7,6 +7,17 @@
   <title>Solo Win — прокачай героя</title>
   <link rel="stylesheet" href="css/fonts.css" />
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/theme-plain.css" />
+  <!-- тема ставится до первой отрисовки: иначе при запуске мигает не та -->
+  <script>
+    try {
+      var t = localStorage.getItem("bodyupgrade.theme");
+      if (t === "plain") {
+        document.documentElement.dataset.theme = "plain";
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", "#080b11");
+      }
+    } catch (e) {}
+  </script>
   <!-- SDK Telegram Mini Apps: только с telegram.org, иначе не будет initData и актуальной версии -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>

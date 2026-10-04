@@ -10,6 +10,8 @@ import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restF
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
+import { THEMES, THEME_ORDER, DEFAULT_THEME, themeOf, say } from "../data/theme.js";
+import { PLAIN_ICONS, PLAIN_VB } from "../data/icons-plain.js";
 
 /* ================= иконки (game-icons.net, CC BY 3.0; fill = currentColor) ================= */
 const ICONS = Object.assign({}, GAME_ICONS, ACHIEVEMENT_ICONS, UI_ICONS, EXERCISE_ICONS);
@@ -25,12 +27,25 @@ alias("apple", "meat");
 // а текстовый символ ⚑ мельче соседних иконок и выглядит по-разному на iOS и Android
 ICONS.flag = { vb: "0 0 512 512", inner: '<path d="M132 28h36v456h-36z"/><path d="M168 56h268l-64 88 64 88H168z"/>' };
 
+// штриховой набор второй темы: те же имена, другой рисунок
+const LINE_ICONS = {};
+Object.entries(PLAIN_ICONS).forEach(([k, v]) => (LINE_ICONS[k] = { vb: PLAIN_VB, inner: v, stroke: true }));
+
 const icon = (name, cls = "") => {
-  const g = ICONS[name];
-  return g ? `<svg class="ico ${cls}" viewBox="${g.vb}" aria-hidden="true">${g.inner}</svg>` : "";
+  // анатомические иконки движений одинаковы в обеих темах: они и так предметные
+  const g = (themeNow() === "plain" && LINE_ICONS[name]) || ICONS[name] || LINE_ICONS[name];
+  if (!g) return "";
+  const a = g.stroke
+    ? ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+    : "";
+  return `<svg class="ico ${g.stroke ? "ico-line " : ""}${cls}" viewBox="${g.vb}"${a} aria-hidden="true">${g.inner}</svg>`;
 };
 // какая иконка у какой характеристики + свой цвет шкалы и акцент
 const STAT_ICONS = { СИЛА: "hammer", МОЩЬ: "bolt", ВЫНОСЛ: "flame", ОБЪЁМ: "layers", ДИСЦИПЛ: "shield", СТОЙКОСТЬ: "gem" };
+// В «Чистой» шкалы характеристик идут одним голубым: шесть разных градиентов —
+// это украшение, а сравнивать столбики проще, когда цвет не мешает длине.
+const STAT_GRAD_PLAIN = "linear-gradient(90deg,#1e6f9e,#38bdf8,#7dd3fc)";
+const statGrad = (k) => (themeNow() === "plain" ? STAT_GRAD_PLAIN : STAT_GRAD[k]);
 const STAT_GRAD = {
   СИЛА: "linear-gradient(90deg,#8f3030,#cf5a4a,#ec8a72)",       // багрянец
   МОЩЬ: "linear-gradient(90deg,#5a3f8f,#8a6bcf,#b49ae8)",       // фиолет
@@ -174,7 +189,7 @@ const defaultState = () => ({
   cycleStart: 0, // с какого квеста (индекс в ORDER) начинается цикл
   questStart: {}, // wid -> ts открытия квеста (справочно; длительность считается не по нему)
   questTicks: {}, // wid -> [ts] отметки активности: по ним и меряется длительность тренировки
-  settings: { sound: true, haptics: true, offSearch: true }, // offSearch — искать ли продукты во внешней базе
+  settings: { sound: true, haptics: true, offSearch: true, theme: DEFAULT_THEME }, // offSearch — искать ли продукты во внешней базе
   buffs: {
     active: { creatine: 10, arginine: 7 }, // id -> доза (число; единица берётся из баффа)
     checkedAt: null,                        // ISO даты последней проверки арсенала
@@ -199,6 +214,39 @@ const defaultState = () => ({
 });
 
 let S = load();
+
+/* ================= оформление: «Сага» или «Чистая» =================
+   Тема живёт в настройках журнала, а её копия — в отдельном ключе
+   localStorage: его читает крошечный скрипт в index.html ещё до отрисовки,
+   иначе при каждом запуске на долю секунды мигала бы не та тема. */
+const THEME_KEY = "bodyupgrade.theme";
+function themeNow() {
+  const t = S && S.settings && S.settings.theme;
+  return THEMES[t] ? t : DEFAULT_THEME;
+}
+/** Слово в текущей теме: квест или тренировка, Персонаж или Профиль. */
+const L = (key) => say(themeNow(), key);
+/** Название тренировки: в «Саге» это имя босса, в «Чистой» — что за день и какой.
+ *  Имена боссов остаются в данных: переключил тему обратно — они вернулись. */
+function questName(w) {
+  if (!w) return "";
+  if (themeNow() !== "plain") return w.boss || w.title || "";
+  const tpl = TEMPLATES[w.tpl];
+  if (tpl) return TYPE_NAMES[w.type] ? `${tpl.name} · ${TYPE_NAMES[w.type]}` : tpl.name;
+  return w.title || w.boss || "";
+}
+function applyTheme() {
+  const id = themeNow();
+  document.documentElement.dataset.theme = id;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", themeOf(id).color);
+  try { localStorage.setItem(THEME_KEY, id); } catch (e) { /* приватный режим */ }
+}
+function setTheme(id) {
+  if (!THEMES[id] || id === themeNow()) return;
+  S.settings.theme = id;
+  save(); applyTheme(); render();
+}
 function load() {
   try {
     const raw = localStorage.getItem(DB_KEY);
@@ -458,9 +506,9 @@ function scoreSession(workout, entries) {
   const intensity = weightMax ? weightPts / weightMax : 1;
   const score = Math.round(100 * (0.65 * coverage + 0.35 * intensity));
   let verdict, cls, flavor;
-  if (score >= 85) { verdict = "Квест покорён"; cls = "verdict-gold"; flavor = "Руны силы легли в твою пользу. Герой стал крепче."; }
-  else if (score >= 60) { verdict = "Достойно, но не всё"; cls = "verdict-mid"; flavor = "Враг отступил, но ушёл живым. В следующий раз — до конца."; }
-  else { verdict = "Слабый натиск"; cls = "verdict-fail"; flavor = "Клинок едва задел цель. Хроники помнят всё."; }
+  if (score >= 85) { verdict = L("vGold"); cls = "verdict-gold"; flavor = L("vGoldSub"); }
+  else if (score >= 60) { verdict = L("vMid"); cls = "verdict-mid"; flavor = L("vMidSub"); }
+  else { verdict = L("vFail"); cls = "verdict-fail"; flavor = L("vFailSub"); }
   const xp = Math.round(score * 1.2 + doneSets * 2);
   return { score, verdict, cls, flavor, xp, doneSets, plannedSets };
 }
@@ -557,8 +605,6 @@ const VIEWS = ["profile", "cycle", "buffs", "resources", "progress"];
 let view = VIEWS.includes((location.hash || "").slice(1)) ? location.hash.slice(1) : "profile";
 
 document.querySelectorAll(".tab").forEach((t) => {
-  const holder = t.querySelector(".tab-ico");
-  if (holder && t.dataset.icon) holder.innerHTML = icon(t.dataset.icon);
   t.addEventListener("click", () => {
     if (t.dataset.view === view && !cycleSub) return;
     withLoader(() => { view = t.dataset.view; cycleSub = null; render(); });
@@ -573,7 +619,9 @@ const LOADER_WORDS = ["Пробуждение", "Сбор рун", "Врата �
 const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let loaderHideTimer = null;
 function withLoader(action) {
-  if (reduceMotion || !loaderEl) { action(); return; }
+  // «Чистая» переключает экраны без заставки: межэкранная анимация с рунами —
+  // часть саги, а в обычном интерфейсе это просто задержка на ровном месте
+  if (reduceMotion || !loaderEl || themeNow() === "plain") { action(); return; }
   const word = document.getElementById("loader-word");
   if (word) word.textContent = LOADER_WORDS[Math.floor(Math.random() * LOADER_WORDS.length)];
   fxTransition();
@@ -752,7 +800,17 @@ let backHandler = null; // что делает «назад» на текуще�
 function setBack(fn) { backHandler = fn; setBackButton(!!fn); }
 function render() {
   setBack(null);
-  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+  // подпись и значок вкладки зависят от темы, поэтому ставятся на каждой отрисовке,
+  // а не один раз при запуске: иначе после переключения темы таббар остаётся прежним
+  const TAB_LEX = { profile: "tabHero", cycle: "tabQuests", buffs: "tabBuffs", resources: "tabFood", progress: "tabLog" };
+  document.querySelectorAll(".tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.view === view);
+    const holder = t.querySelector(".tab-ico");
+    if (holder && t.dataset.icon) holder.innerHTML = icon(t.dataset.icon);
+    const lbl = t.querySelector("span:not(.tab-ico):not(.tab-badge)");
+    const key = TAB_LEX[t.dataset.view];
+    if (lbl && key) { lbl.textContent = L(key); t.setAttribute("aria-label", L(key)); }
+  });
   updateBuffBadge();
   window.scrollTo(0, 0);
   if (view === "profile") renderProfile();
@@ -793,27 +851,27 @@ function renderProfile() {
     .sort((a, b) => (TIERS[b.tier].rank - TIERS[a.tier].rank) || ((achievements[b.id].last || "").localeCompare(achievements[a.id].last || "")));
   app.innerHTML = `
     <div class="hero-head gilded">
-      <div class="eyebrow">SOLO WIN · прокачка персонажа</div>
+      <div class="eyebrow">${L("heroEyebrow")}</div>
       <h1 class="display hero-name">${S.hero.name}</h1>
-      <div class="hero-title">${c.novice ? "«гринд только начинается»" : `«${S.hero.title}»`}</div>
+      <div class="hero-title">${c.novice ? L("heroNovice") : (themeNow() === "plain" ? S.hero.title : `«${S.hero.title}»`)}</div>
       <div class="level-ring">
         <svg viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(224,189,102,.16)" stroke-width="5"/>
+          <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(var(--t-acc-b),.16)" stroke-width="5"/>
           <circle cx="60" cy="60" r="52" fill="none" stroke="var(--gold-bright)" stroke-width="5"
             stroke-linecap="round" stroke-dasharray="${ring}" stroke-dashoffset="${ring * (1 - h.lvlProgress)}"/>
         </svg>
         <div class="lvl"><b>${h.level}</b><span>уровень</span></div>
       </div>
-      <div class="dim small mono">${S.xp} XP · квестов пройдено: ${S.sessions.length}</div>
+      <div class="dim small mono">${S.xp} XP · ${L("doneCount")}: ${S.sessions.length}</div>
     </div>
 
     <div class="panel panel--ornate class-panel">
       <span class="class-medallion medallion medallion--lg">${icon(c.icon)}</span>
       <div class="class-body">
-        <div class="eyebrow">Класс</div>
+        <div class="eyebrow">${L("classLbl")}</div>
         <div class="class-name display">${c.name}</div>
-        <div class="class-sub">Подкласс: <b>${c.sub}</b></div>
-        <div class="class-gov dim small mono">${c.novice ? "качай характеристики — и откроется класс" : (c.hybrid ? `гибрид: ${c.primary} + ${c.secondary}` : `по росту: ${c.primary} · ${c.secondary}`)}</div>
+        <div class="class-sub">${L("classSub")}: <b>${c.sub}</b></div>
+        <div class="class-gov dim small mono">${c.novice ? L("classHint") : (c.hybrid ? `гибрид: ${c.primary} + ${c.secondary}` : `по росту: ${c.primary} · ${c.secondary}`)}</div>
       </div>
     </div>
 
@@ -822,18 +880,18 @@ function renderProfile() {
       <div class="statgrid">
         ${Object.entries(h.stats).map(([k, v]) => `
           <div class="stat">
-            <span class="stat-ico" style="color:${STAT_ACCENT[k] || "#c9a961"}">${icon(STAT_ICONS[k] || "gem")}</span>
+            <span class="stat-ico" style="color:${themeNow() === "plain" ? "var(--gold)" : (STAT_ACCENT[k] || "#c9a961")}">${icon(STAT_ICONS[k] || "gem")}</span>
             <span class="label">${k}</span>
-            <span class="bar"><i style="width:${v}%;background:${STAT_GRAD[k] || "linear-gradient(90deg,#8a713e,#c9a961,#e8cd82)"}"></i></span>
-            <span class="val mono" style="color:${STAT_ACCENT[k] || "#c9a961"}">${v}</span>
+            <span class="bar"><i style="width:${v}%;background:${statGrad(k) || "linear-gradient(90deg,#8a713e,#c9a961,#e8cd82)"}"></i></span>
+            <span class="val mono" style="color:${themeNow() === "plain" ? "var(--gold)" : (STAT_ACCENT[k] || "#c9a961")}">${v}</span>
           </div>`).join("")}
       </div>
     </div>
 
     <div class="panel">
       <div class="ach-head">
-        <div class="eyebrow">Знаки отличия · ${achSum.total} / ${achSum.of}</div>
-        <button class="ach-all-btn" id="ach-all">Все знаки</button>
+        <div class="eyebrow">${L("awards")} · ${achSum.total} / ${achSum.of}</div>
+        <button class="ach-all-btn" id="ach-all">${L("awardsAll")}</button>
       </div>
       <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}${achSum.byTier[t] ? "" : " none"}"><i></i>${achSum.byTier[t]}</span>`).join("")}</div>
       ${earnedList.length
@@ -842,17 +900,29 @@ function renderProfile() {
               ${achMedallion(a)}${g.count > 1 ? `<span class="ach-count-badge">×${g.count}</span>` : ""}
               <span class="sb-name">${a.name}</span>
             </button>`; }).join("")}</div>${earnedList.length > 24 ? `<div class="dim small" style="margin-top:8px">и ещё ${earnedList.length - 24} — в полном списке</div>` : ""}`
-        : `<div class="empty">Пока пусто. Бей рекорды, закрывай нормативы и перевыполняй квесты — знаки придут сами.</div>`}
+        : `<div class="empty">${L("awardsEmpty")}</div>`}
     </div>
 
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:8px">Арсенал героя · расчётный 1ПМ</div>
+      <div class="eyebrow" style="margin-bottom:8px">${L("lifts")}</div>
       ${Object.entries(h.lifts).map(([k, v]) => {
         const d = v.cur - v.base;
         return `<div class="kv"><span>${LIFT_NAMES[k]}</span>
           <span class="mono">${fmt(v.cur)} кг ${d > 0.5 ? `<span class="verdict-gold">+${fmt(d)}</span>` : `<span class="dim">база</span>`}</span></div>`;
       }).join("")}
-      <button class="kv kv-btn" id="edit-bw"><span>Вес героя</span><span class="mono">${bw} кг <i class="dim">изменить</i></span></button>
+      <button class="kv kv-btn" id="edit-bw"><span>${L("bodyweight")}</span><span class="mono">${bw} кг <i class="dim">изменить</i></span></button>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow" style="margin-bottom:10px">Оформление</div>
+      <div class="theme-pick">
+        ${THEME_ORDER.map((id) => { const th = THEMES[id]; return `
+          <button class="theme-card ${id === themeNow() ? "on" : ""}" data-theme-pick="${id}" aria-pressed="${id === themeNow()}">
+            <span class="theme-swatch">${th.swatch.map((c) => `<i style="background:${c}"></i>`).join("")}</span>
+            <span class="theme-name">${th.name}</span>
+            <span class="theme-note dim small">${th.note}</span>
+          </button>`; }).join("")}
+      </div>
     </div>
 
     <div class="panel">
@@ -911,6 +981,7 @@ function renderProfile() {
     o.querySelector("#bw-close").onclick = () => o.remove();
     o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
   };
+  app.querySelectorAll("[data-theme-pick]").forEach((b) => b.onclick = () => { fxTap(); setTheme(b.dataset.themePick); });
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };
   document.getElementById("tg-off").onclick = () => { S.settings.offSearch = !S.settings.offSearch; fxTap(); save(); render(); };
@@ -975,9 +1046,9 @@ function renderCycle() {
   tonnageTrend(S.sessions, { bodyweight: S.hero.bodyweight || 90 }).forEach((t) => (TONN[t.n] = t));
   app.innerHTML = `
     <div class="bar">
-      <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>Арсенал движений</span></button>
+      <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>${L("pool")}</span></button>
       <span class="bar-actions">
-        <button class="icon-btn ${pickStart ? "on" : ""}" id="pick-start" aria-label="Выбрать стартовый квест" title="Выбрать стартовый квест">${icon("flag")}</button>
+        <button class="icon-btn ${pickStart ? "on" : ""}" id="pick-start" aria-label=L("questStart") title=L("questStart")>${icon("flag")}</button>
         <button class="icon-btn" id="cycle-help" aria-label="О цикле">${icon("help")}</button>
       </span>
     </div>
@@ -991,7 +1062,7 @@ function renderCycle() {
       <div class="week-block ${open ? "open" : ""} ${wk.deload ? "deload" : ""}">
         <button class="week-head" data-week="${wk.n}" aria-expanded="${open}">
           <span class="week-title">
-            <span class="week-n">Неделя ${wk.n}</span>${wk.saga ? `<span class="saga display">${wk.saga}</span>` : ""}
+            <span class="week-n">Неделя ${wk.n}</span>${wk.saga && themeNow() !== "plain" ? `<span class="saga display">${wk.saga}</span>` : ""}
           </span>
           <span class="week-badges">
             ${open
@@ -1009,7 +1080,7 @@ function renderCycle() {
             ? `<span class="tonn-val mono">${fmtTonn(tn.kg)}</span>
                <span class="tonn-lbl dim small">поднято · ${plural(tn.sets, "рабочий подход", "рабочих подходов")}</span>
                ${tn.delta == null ? "" : `<span class="tonn-delta ${tn.delta > 0 ? "up" : tn.delta < 0 ? "down" : ""}">${tn.delta > 0 ? "▲ +" : tn.delta < 0 ? "▼ " : "= "}${tn.delta}% <span class="dim">к неделе ${tn.vs}</span></span>`}`
-            : `<span class="tonn-lbl dim small">нагрузка недели появится, когда закроешь первый квест</span>`}
+            : `<span class="tonn-lbl dim small">нагрузка недели появится, когда закроешь ${L("firstQuest")}</span>`}
         </div>
         ${wk.workouts.map((w) => {
           const idx = ORDER.indexOf(w.id);
@@ -1025,11 +1096,11 @@ function renderCycle() {
               <span class="medallion">${icon(w.icon || "anvil")}</span>
               <span class="wcard-body">
                 <span class="row1">
-                  <span class="boss">${w.boss}</span>
+                  <span class="boss">${questName(w)}</span>
                   ${last ? `<span class="verdict-chip ${last.cls} clickable" data-sid="${last.id}">${last.score}% ›</span>` : ""}
                 </span>
                 <span class="badges">
-                  ${isNext ? `<span class="badge b-next">следующий</span>` : ""}
+                  ${isNext ? `<span class="badge b-next">${L("nextQuest")}</span>` : ""}
                   <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>
                   <span class="badge">${built ? built.exercises.length : 0} упр</span>
                   ${sl && sl.level === "high" ? `<span class="badge b-load">${LOAD_TXT.high}</span>` : ""}
@@ -1062,7 +1133,7 @@ function renderCycle() {
         <div><span class="badge b-str">силовая</span> тяжёлые веса, 4–8 повторов, запас в баке</div>
         <div><span class="badge b-vol">объёмная</span> больше повторов и подходов, ближе к отказу</div>
         <div><span class="badge b-load">тяжёлый</span> квест с максимальной базой — ставь его на свежие ноги</div>
-        <div><span class="badge b-next">следующий</span> квест, который движок предлагает закрыть</div>
+        <div><span class="badge b-next">${L("nextQuest")}</span> ${L("quest")}, которую движок предлагает закрыть</div>
         <div><span class="badge b-deload">разгрузка</span> пятая неделя: те же квесты и то же число подходов, но вес −${Math.round((1 - DELOAD) * 100)}%. Усталость копится быстрее силы, и такая неделя возвращает свежесть до того, как она превратится в застой. Рабочий максимум разгрузка не двигает</div>
         <div><span class="tonn-val mono">12,4 т</span> недельный тоннаж: сумма вес × повторы по рабочим подходам, разминка не в счёт. Рядом — сравнение с прошлой неделей: по нему видно, растёт нагрузка или ты её уже не вывозишь</div>
         <div><span class="badge">⚑</span> кнопка в шапке включает выбор стартового квеста, если круг начинаешь не с первого</div>
@@ -1167,9 +1238,9 @@ function renderPool() {
     <div class="qstack">
       <div class="qhead">
         <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
-        <h2 class="qhead-title display">Арсенал движений</h2>
+        <h2 class="qhead-title display">${L("pool")}</h2>
         <span class="badge">${EXERCISES.length}</span>
-        <button class="icon-btn" id="pool-help" aria-label="Об арсенале">${icon("help")}</button>
+        <button class="icon-btn" id="pool-help" aria-label=L("poolAbout")>${icon("help")}</button>
       </div>
       <div class="search-bar">
         <span class="search-ico">${icon("search")}</span>
@@ -1236,7 +1307,7 @@ function renderPool() {
     ${!groups.length ? `<div class="empty">Ничего не найдено. Попробуй другое слово — например «блок» или «тяга».</div>` : ""}`;
 
   document.getElementById("pool-help").onclick = () => showInfo({
-    title: "Арсенал движений", eyebrow: "как читать",
+    title: L("pool"), eyebrow: "как читать",
     body: `<p>Весь пул движений с рабочими весами под твои замеры. Любое можно поставить в квест заменой или добавить к нему.</p>
       <div class="info-legend">
         <div><span class="badge b-weight">вес ★</span> посчитан по твоим замерам этого движения</div>
@@ -1520,9 +1591,9 @@ function renderWorkout(wid) {
     <div class="qhead">
       <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
       <span class="medallion medallion--sm">${icon(w.icon || "anvil")}</span>
-      <h2 class="qhead-title display">${w.boss}</h2>
+      <h2 class="qhead-title display">${questName(w)}</h2>
       <span class="qtimer mono" id="quest-timer">${icon("stopwatch")}<b>0:00</b></span>
-      <button class="icon-btn" id="q-help" aria-label="О квесте">${icon("help")}</button>
+      <button class="icon-btn" id="q-help" aria-label=L("questAbout")>${icon("help")}</button>
     </div>
     <div class="badges qbadges">
       <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>
@@ -1542,7 +1613,7 @@ function renderWorkout(wid) {
     ${feelToday() === "norm" ? "" : `<div class="feel-note dim small">${FEEL[feelToday()].hint}</div>`}
     <div id="ex-list"></div>
     <button class="btn-ghost add-ex-btn" id="add-ex">+ движение</button>
-    <button class="finish-btn" id="finish">Завершить квест</button>`;
+    <button class="finish-btn" id="finish">${L("questOne")}</button>`;
 
   document.getElementById("add-ex").onclick = () => openPoolPicker({ title: "Добавить движение", wid, exclude: w.exercises.map((x) => x.id),
     onPick: (id) => { const pl = planOf(wid); setPlan(wid, { add: [...(pl.add || []), id], hide: (pl.hide || []).filter((h) => h !== id) }); fxTap(); renderWorkout(wid); } });
@@ -1552,7 +1623,7 @@ function renderWorkout(wid) {
   document.getElementById("back").onclick = leaveQuest;
 
   const questInfo = () => showInfo({
-    title: w.boss, eyebrow: `${TYPE_NAMES[w.type]} · ${w.title}`,
+    title: questName(w), eyebrow: `${TYPE_NAMES[w.type]} · ${w.title}`,
     body: `<p>${w.why || ""}</p>
       <div class="info-legend">
         <div><span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span> ${w.type === "volume" ? "многоповторка ближе к отказу — работаем на объём" : "тяжёлые веса с запасом в баке — работаем на силу"}</div>
@@ -2125,7 +2196,7 @@ function renderWorkout(wid) {
       const done = (arr || []).filter((s) => setDone(s, exById(id))).map(({ w: wt, r }) => ({ w: wt, r }));
       if (done.length) e[id] = done;
     }
-    if (!Object.keys(e).length) { alert("Квест пуст: запиши хотя бы один подход."); return; }
+    if (!Object.keys(e).length) { alert(L("questEmpty")); return; }
     const res = scoreSession(w, e);
     // рекорды: лучший расчётный 1ПМ по движениям квеста ДО этой сессии
     const prBefore = {};
@@ -2274,7 +2345,7 @@ function showVerdict(res, awarded, durationSec) {
   const bright = res.cls === "verdict-fail" ? "#e0805a" : "#f7dd94";
   const badges = (awarded && awarded.length)
     ? `<div class="v-statuses">
-         <div class="eyebrow" style="margin-bottom:8px">${awarded.length > 1 ? "Знаки отличия" : "Знак отличия"}</div>
+         <div class="eyebrow" style="margin-bottom:8px">${awarded.length > 1 ? L("awards") : "Знак отличия"}</div>
          ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${u.ach.name}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${u.note || u.ach.desc}</span></span></div>`).join("")}
        </div>`
     : "";
@@ -2317,7 +2388,7 @@ function showSessionDetail(sessionId) {
   o.innerHTML = `
     <div class="portion-card sd-card">
       <div class="eyebrow">Прошлый квест · ${fmtDate(s.date)}</div>
-      <div class="portion-name display">${w ? w.boss : s.workoutId}</div>
+      <div class="portion-name display">${w ? questName(w) : s.workoutId}</div>
       <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>
@@ -2372,7 +2443,7 @@ function showAllAchievements() {
   o.className = "overlay portion-overlay ach-overlay";
   o.innerHTML = `
     <div class="portion-card ach-card">
-      <div class="eyebrow">Знаки отличия · ${sum.total} / ${sum.of}</div>
+      <div class="eyebrow">${L("awards")} · ${sum.total} / ${sum.of}</div>
       <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}"><i></i>${tierName(t)} ${sum.byTier[t]}/${ACHIEVEMENTS.filter((a) => a.tier === t).length}</span>`).join("")}</div>
       <div class="ach-list">
         ${cats.map((cat) => {
@@ -2470,7 +2541,7 @@ function renderBuffs() {
             <span class="buff-top"><b class="buff-name">${b.name}</b><button class="buff-dose edit mono" data-dose="${b.id}">${doseStr(b, active[b.id])} ✎</button></span>
             <span class="st-line">${stockLine} · <button class="st-set" data-stock="${b.id}">${typeof serv === "number" ? "пополнить" : "задать запас"}</button></span>
           </span>
-          <button class="buff-toggle off" data-remove="${b.id}" title="Снять бафф" aria-label="Снять бафф">✕</button>
+          <button class="buff-toggle off" data-remove="${b.id}" title=L("buffOff") aria-label=L("buffOff")>✕</button>
         </div>`;
       }).join("")
     : "";
@@ -2502,12 +2573,12 @@ function renderBuffs() {
   const reminder = due
     ? `<div class="buff-reminder due">
          <div class="br-ico">${icon("hourglass")}</div>
-         <div class="br-body"><b>Проверить баффы!</b><span class="dim small">${days === null ? "Арсенал ещё не сверялся." : `Прошло ${days} дн. с последней сверки.`} Что заканчивается, что обновить.</span></div>
+         <div class="br-body"><b>${L("buffDue")}</b><span class="dim small">${days === null ? L("buffNever") : `Прошло ${days} дн. с последней сверки.`} Что заканчивается, что обновить.</span></div>
          <button class="br-ok" id="buff-check">Сверено</button>
        </div>`
     : `<div class="buff-reminder ok">
          <div class="br-ico">${icon("shield")}</div>
-         <div class="br-body"><b>Арсенал сверен</b><span class="dim small">Следующая проверка через ${BUFF_CHECK_DAYS - days} дн.</span></div>
+         <div class="br-body"><b>${L("buffOk")}</b><span class="dim small">Следующая проверка через ${BUFF_CHECK_DAYS - days} дн.</span></div>
        </div>`;
 
   const lowAlert = lowList.length
@@ -2626,7 +2697,7 @@ function openBuffEditor(buff) {
   o.className = "overlay portion-overlay";
   o.innerHTML = `
     <div class="portion-card buff-editor">
-      <div class="eyebrow">${editing ? "Правка баффа" : "Новый бафф"}</div>
+      <div class="eyebrow">${editing ? L("buffEdit") : L("buffNew")}</div>
       <div class="be-preview"><span class="medallion" id="be-medal">${icon(preview.icon)}</span>
         <div><div class="be-pname display" id="be-pname">${preview.name || "…"}</div>
         <button class="be-reroll" id="be-reroll">↻ другой облик</button></div></div>
@@ -2798,9 +2869,9 @@ function renderResources() {
   const kcalPct = tot.k / T.kcal;
   const kcalOk = kcalPct >= 0.9 && kcalPct <= 1.1;
   let vCls, vTxt;
-  if (readiness >= 90 && proteinOk && kcalOk) { vCls = "verdict-gold"; vTxt = "Паёк собран"; }
-  else if (readiness >= 55) { vCls = "verdict-mid"; vTxt = "Припасы копятся"; }
-  else { vCls = "verdict-fail"; vTxt = "Кладовая пуста"; }
+  if (readiness >= 90 && proteinOk && kcalOk) { vCls = "verdict-gold"; vTxt = L("nGold"); }
+  else if (readiness >= 55) { vCls = "verdict-mid"; vTxt = L("nMid"); }
+  else { vCls = "verdict-fail"; vTxt = L("nFail"); }
 
   const gaugeList = [...core, { key: "fiber", name: "Клетчатка", unit: "г", cur: tot.fb, tgt: fiberTgt, floor: true }];
   const ring = 2 * Math.PI * 52;
@@ -2881,7 +2952,7 @@ function renderResources() {
           <circle cx="60" cy="60" r="52" fill="none" stroke="#c9a961" stroke-width="5"
             stroke-linecap="round" stroke-dasharray="${ring}" stroke-dashoffset="${ring * (1 - readiness / 100)}"/>
         </svg>
-        <div class="lvl"><b>${readiness}%</b><span>паёк</span></div>
+        <div class="lvl"><b>${readiness}%</b><span>${L("ration")}</span></div>
       </div>
       <div class="fuel-verdict ${vCls}">${vTxt}</div>
       <div class="dim small mono">${T.label} · цель ${T.kcal} ккал · Б ${T.protein} · Ж ${T.fat} · У ${T.carbs}</div>
@@ -3388,6 +3459,7 @@ if (window.visualViewport) {
 }
 
 /* ================= старт ================= */
+applyTheme();
 // Telegram Mini App: системная кнопка «Назад», хаптика, безопасные зоны, облако
 initTelegram({ onBack: () => { if (backHandler) backHandler(); } });
 // первый запуск этого аккаунта — берём имя героя из профиля Телеграма
