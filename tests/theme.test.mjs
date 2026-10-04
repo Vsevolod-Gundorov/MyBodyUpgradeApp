@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { THEMES, THEME_ORDER, DEFAULT_THEME, themeOf, say, LEX, LEX_KEYS } from "../data/theme.js";
 import { PLAIN_ICONS, PLAIN_VB } from "../data/icons-plain.js";
 import { GAME_ICONS } from "../data/icons.js";
-import { ACHIEVEMENTS, ACH_BY_ID, ACH_PLAIN, CATEGORIES, achName, achDesc, catName } from "../data/achievements.js";
+import { ACHIEVEMENTS, ACH_BY_ID, ACH_PLAIN, CATEGORIES, achName, achDesc, catName, catHidden, visibleAchievements, summary as achSummary } from "../data/achievements.js";
 import { PROGRAM, ARCHIVED_WORKOUTS } from "../data/program.js";
 
 test("тем ровно две, обе описаны полностью", () => {
@@ -32,7 +32,11 @@ test("словарь: ни один ключ не потерян ни в одн�
     for (const k of LEX_KEYS) {
       assert.ok(LEX[id] && LEX[id][k] != null, `${id}: нет ключа ${k}`);
       // пустой может быть только programNote: в «Саге» описание берётся из самой программы
-      if (k !== "programNote") assert.ok(String(LEX[id][k]).trim().length, `${id}/${k}: пустая строка`);
+      // пустая строка — осознанное «не показывать эту подпись»: в «Чистой»
+      // половина пояснений лишняя. Перечисляем такие ключи явно, чтобы опечатка
+      // в любом другом месте по-прежнему ловилась
+      const MAY_BE_EMPTY = ["programNote", "buffsNote", "stockHint", "logNote", "logEmptyR", "dayTip"];
+      if (!MAY_BE_EMPTY.includes(k)) assert.ok(String(LEX[id][k]).trim().length, `${id}/${k}: пустая строка`);
     }
     // лишних ключей тоже быть не должно: это опечатка, которая никогда не сработает
     for (const k of Object.keys(LEX[id])) {
@@ -152,4 +156,29 @@ test("подключение темы: разметка и стили на ме�
     if (id === DEFAULT_THEME) continue;
     assert.ok(css.includes(`[data-theme="${id}"]`), `нет стилей темы ${id}`);
   }
+});
+
+test("в «Чистой» нет раздела про уровень и характеристики, но прогресс не теряется", () => {
+  const saga = visibleAchievements("saga");
+  const plain = visibleAchievements("plain");
+  assert.equal(saga.length, ACHIEVEMENTS.length, "в исходной редакции видно всё");
+  assert.ok(plain.length < saga.length, "в «Чистой» часть разделов скрыта");
+
+  // скрыт ровно раздел про уровень, класс и характеристики
+  const hidden = saga.filter((a) => !plain.includes(a));
+  assert.ok(hidden.length, "ничего не скрыто");
+  hidden.forEach((a) => assert.equal(a.cat, "hero", `${a.id}: скрыт не тот раздел`));
+  assert.ok(catHidden("hero", "plain"));
+  assert.ok(!catHidden("hero", "saga"));
+  assert.ok(!catHidden("quest", "plain"));
+
+  // достижения не удалены: они по-прежнему в данных и начисляются
+  hidden.forEach((a) => assert.ok(ACH_BY_ID[a.id], `${a.id}: пропало из данных`));
+
+  // счётчик считает по видимым, но заслуженное из скрытого раздела не теряется
+  const earned = Object.fromEntries(saga.map((a) => [a.id, { count: 1 }]));
+  assert.equal(achSummary(earned, "saga").of, saga.length);
+  assert.equal(achSummary(earned, "plain").of, plain.length);
+  assert.equal(achSummary(earned, "plain").total, plain.length);
+  assert.equal(achSummary({}, "plain").total, 0);
 });

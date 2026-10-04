@@ -149,3 +149,28 @@
 }
 :root[data-theme="plain"] .rune-divider::before,
 :root[data-theme="plain"] .rune-divider::after { display: none; }
+
+/* ---------- плотность: меньше воздуха, больше содержимого на экране ----------
+   Исходная тема дышит рамками и орнаментом, им нужен отступ. Здесь рамок нет,
+   и те же 18–20 px превращаются в пустоту, из-за которой приходится листать. */
+:root[data-theme="plain"] .panel { padding: 13px 14px; }
+:root[data-theme="plain"] .panel + .panel,
+:root[data-theme="plain"] .panel + .section,
+:root[data-theme="plain"] .section + .panel { margin-top: 10px; }
+:root[data-theme="plain"] .hero-head { padding: 10px 0 14px; }
+:root[data-theme="plain"] .rune-divider { margin: 12px 0; }
+:root[data-theme="plain"] .week-block.open { margin-top: 10px; }
+:root[data-theme="plain"] .week-tonn { padding: 0 2px 6px; }
+:root[data-theme="plain"] .feel-row { margin-bottom: 10px; }
+:root[data-theme="plain"] .qbadges { margin-bottom: 10px; }
+
+/* сводка профиля вместо уровня и характеристик: три числа в строку */
+.hero-sum { display: flex; justify-content: center; gap: 26px; margin-top: 12px; }
+.hs-cell { display: grid; justify-items: center; gap: 1px; }
+.hs-cell b { font-size: 1.45rem; font-weight: 600; color: var(--bone); line-height: 1.1; }
+.hs-cell i { font-style: normal; font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+
+/* ---------- шкалы макросов: без строки «осталось» карточка вдвое ниже ---------- */
+:root[data-theme="plain"] .gauge { padding: 9px 11px; }
+:root[data-theme="plain"] .gauges { gap: 7px; }
+:root[data-theme="plain"] .g-bar { margin-top: 7px; }
