@@ -1,4 +1,4 @@
-import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend } from "../data/program.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend, tonnageTrend } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, similarTo, searchExercises, setDone } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
@@ -6,7 +6,7 @@ import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber 
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
-import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restFor, e1rm as e1rmAvg, PROG } from "../data/progression.js";
+import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restFor, feelOf, FEEL, DELOAD, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
@@ -191,6 +191,7 @@ const defaultState = () => ({
   achievements: {}, // id -> { count, first, last } — знаки отличия (см. data/achievements.js)
   plan: {},      // wid -> { swap: {origId:newId}, add: [id], hide: [id] } — правки состава квеста
   workReset: {}, // движение -> { date, one } — рабочий максимум, поправленный руками
+  feel: null,    // { date, val } — самочувствие на сегодня: от него зависят вес, подходы и отдых
   meta: { exports: 0, imports: 0 }, // счётчики служебных действий (для достижений «Хроники»)
   rev: 0,        // ревизия журнала — растёт с каждым сохранением
   updatedAt: null,
@@ -338,7 +339,9 @@ function movementHistory() {
       const sets = (sess.entries[ex.id] || []).filter((x) => setDone(x, src));
       if (!sets.length) return;
       const key = ex.lift || ex.id;
-      (out[key] ||= []).push({ date: sess.date, sets, plan: { sets: ex.sets, reps: ex.reps, rir: ex.rir != null ? ex.rir : 1 } });
+      (out[key] ||= []).push({ date: sess.date, sets, plan: {
+        sets: ex.sets, reps: ex.reps, rir: ex.rir != null ? ex.rir : 1,
+        feel: sess.feel || "norm", deload: !!ex.deload } });
     });
   });
   return (histCache = out);
@@ -354,12 +357,12 @@ function seed1RM(src) {
 }
 
 /** Вилка рабочего веса движения: из журнала, а без журнала — от базовых лифтов. */
-function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0 } = {}) {
+function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0, feel = "norm", deload = false } = {}) {
   if (!src) return null;
   const key = src.lift || src.id;
   return progressionOf(movementHistory()[key] || [], {
     reps, rir, equip: src.equip, prog, seed: seed1RM(src),
-    sets, tier: src.tier || 2, rest: rest || 0,
+    sets, tier: src.tier || 2, rest: rest || 0, feel, deload,
     bodyweight: S.hero.bodyweight || 90, bw: !!src.bw, perHand: !!src.perHand,
     reset: (S.workReset || {})[key] || null,
   });
@@ -373,7 +376,13 @@ function withWeights(ex) {
   const rest = !ex.ss ? 0
     : (ex.ssSameMuscle ? Math.round(restFor(src.tier || 2, ex.reps[1]) * 0.45)
                        : restFor(src.tier || 2, ex.reps[1]) + 30);
-  const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0, sets: ex.sets, rest });
+  // разбитому атлету квест даёт на подход меньше: тренировка состоится,
+  // но не за счёт следующей недели. Ниже двух подходов не опускаемся —
+  // это уже не упражнение
+  const feel = feelToday();
+  ex = { ...ex, sets: Math.max(2, (ex.sets || 3) + feelOf(feel).sets) };
+  const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0, sets: ex.sets, rest,
+    feel, deload: !!ex.deload });
   const own = src && (src.equip === "bw" || src.bw);
   if (!p || p.source === "none") return { ...ex, w: 0, wSource: "none", wp: p || null, bwOnly: !!own,
     wNote: own ? "свой вес" : "задай вес сам" };
@@ -412,6 +421,8 @@ function setPlan(wid, patch) {
 
 const epley = (w, r) => (r >= 1 ? w * (1 + r / 30) : 0);
 const fmt = (n) => (Math.round(n * 10) / 10).toString().replace(".", ",");
+// тоннаж: килограммы до тонны, дальше — тонны с одним знаком
+const fmtTonn = (kg) => (kg >= 1000 ? `${fmt(kg / 1000)} т` : `${Math.round(kg)} кг`);
 const today = () => new Date().toISOString().slice(0, 10);
 const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${d}.${m}.${String(y).slice(2)}`; };
 
@@ -605,8 +616,17 @@ let stickWatchers = [];          // следят, прилипла ли раск
 let restIntervalId = null;       // интервал таймера отдыха (живёт поверх экранов)
 let restState = null;            // { endAt, total, note }
 const timedSets = new WeakSet(); // подходы, для которых отдых уже запускался
-let restFeel = "norm";           // состояние: fresh | norm | tired
-const FEEL_FACTOR = { fresh: 0.85, norm: 1, tired: 1.25 };
+// самочувствие на сегодня: от него зависят рабочий вес, число подходов и отдых.
+// Живёт в журнале и сбрасывается на «норму» на следующий день — вчерашняя разбитость
+// не должна молча резать сегодняшний квест
+function feelToday() {
+  const f = S.feel;
+  return f && f.date === today() && FEEL[f.val] ? f.val : "norm";
+}
+function setFeelToday(val) {
+  S.feel = { date: today(), val: FEEL[val] ? val : "norm" };
+  invalidateE1RM(); save();
+}
 
 // зона нагрузки по числу повторов (для подписи отдыха)
 function repZone(r) {
@@ -644,7 +664,7 @@ function smartRest(ex, set, a) {
   if (warmup) rest = Math.min(rest, 120);
   else if (pct != null && tier !== 1) { if (pct >= 0.9) rest += 20; else if (pct <= 0.7) rest -= 15; }
   // состояние
-  rest *= (FEEL_FACTOR[restFeel] || 1);
+  rest *= feelOf(feelToday()).rest;
   // тяжёлая база на рабочих подходах в силовой зоне — гарантируем ≥4 мин
   if (tier === 1 && r <= 8 && !warmup) rest = Math.max(rest, 240);
   rest = Math.round(rest / 5) * 5;
@@ -941,6 +961,10 @@ function renderCycle() {
   if (!weekOpen) weekOpen = new Set([weekOfId(nextId) || PROGRAM.weeks[0].n]);
   const startId = ORDER[(((S.cycleStart || 0) % ORDER.length) + ORDER.length) % ORDER.length];
   const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
+  // сколько реально поднято за неделю — то единственное число, в котором видно
+  // «я себя перегружаю» раньше, чем это почувствуют колени
+  const TONN = {};
+  tonnageTrend(S.sessions, { bodyweight: S.hero.bodyweight || 90 }).forEach((t) => (TONN[t.n] = t));
   app.innerHTML = `
     <div class="bar">
       <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>Арсенал движений</span></button>
@@ -954,21 +978,31 @@ function renderCycle() {
       const vol = wk.workouts.length - st;
       const pr = weekProgress(wk, S.sessions);
       const open = pickStart || weekOpen.has(wk.n);   // при выборе старта видны все квесты
+      const tn = TONN[wk.n] || { kg: 0, sets: 0, delta: null };
       return `
-      <div class="week-block ${open ? "open" : ""}">
+      <div class="week-block ${open ? "open" : ""} ${wk.deload ? "deload" : ""}">
         <button class="week-head" data-week="${wk.n}" aria-expanded="${open}">
           <span class="week-title">
             <span class="week-n">Неделя ${wk.n}</span>${wk.saga ? `<span class="saga display">${wk.saga}</span>` : ""}
           </span>
           <span class="week-badges">
             ${open
-              ? `${st ? `<span class="badge b-str">${plural(st, "силовая", "силовых")}</span>` : ""}
+              ? `${wk.deload ? `<span class="badge b-deload">разгрузка</span>` : ""}
+                 ${st ? `<span class="badge b-str">${plural(st, "силовая", "силовых")}</span>` : ""}
                  ${vol ? `<span class="badge b-vol">${plural(vol, "объёмная", "объёмных")}</span>` : ""}`
-              : `<span class="badge ${pr.complete ? "b-vol" : pr.done ? "b-plan" : "b-dim"}">${pr.done} из ${pr.total}</span>`}
+              : `${wk.deload ? `<span class="badge b-deload">разгрузка</span>` : ""}
+                 <span class="badge ${pr.complete ? "b-vol" : pr.done ? "b-plan" : "b-dim"}">${pr.done} из ${pr.total}</span>`}
             <span class="week-chev">${open ? "▾" : "▸"}</span>
           </span>
         </button>
         ${!open ? "" : `
+        <div class="week-tonn ${tn.kg ? "" : "empty"}" id="tonn-${wk.n}">
+          ${tn.kg
+            ? `<span class="tonn-val mono">${fmtTonn(tn.kg)}</span>
+               <span class="tonn-lbl dim small">поднято · ${plural(tn.sets, "рабочий подход", "рабочих подходов")}</span>
+               ${tn.delta == null ? "" : `<span class="tonn-delta ${tn.delta > 0 ? "up" : tn.delta < 0 ? "down" : ""}">${tn.delta > 0 ? "▲ +" : tn.delta < 0 ? "▼ " : "= "}${tn.delta}% <span class="dim">к неделе ${tn.vs}</span></span>`}`
+            : `<span class="tonn-lbl dim small">нагрузка недели появится, когда закроешь первый квест</span>`}
+        </div>
         ${wk.workouts.map((w) => {
           const idx = ORDER.indexOf(w.id);
           const done = S.sessions.filter((s) => s.workoutId === w.id);
@@ -1021,6 +1055,8 @@ function renderCycle() {
         <div><span class="badge b-vol">объёмная</span> больше повторов и подходов, ближе к отказу</div>
         <div><span class="badge b-load">тяжёлый</span> квест с максимальной базой — ставь его на свежие ноги</div>
         <div><span class="badge b-next">следующий</span> квест, который движок предлагает закрыть</div>
+        <div><span class="badge b-deload">разгрузка</span> пятая неделя: те же квесты и то же число подходов, но вес −${Math.round((1 - DELOAD) * 100)}%. Усталость копится быстрее силы, и такая неделя возвращает свежесть до того, как она превратится в застой. Рабочий максимум разгрузка не двигает</div>
+        <div><span class="tonn-val mono">12,4 т</span> недельный тоннаж: сумма вес × повторы по рабочим подходам, разминка не в счёт. Рядом — сравнение с прошлой неделей: по нему видно, растёт нагрузка или ты её уже не вывозишь</div>
         <div><span class="badge">⚑</span> кнопка в шапке включает выбор стартового квеста, если круг начинаешь не с первого</div>
       </div>`,
   });
@@ -1481,15 +1517,17 @@ function renderWorkout(wid) {
       <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>
       ${wk ? `<span class="badge">неделя ${wk.n}</span>` : ""}
       ${w.wave ? `<span class="badge">волна ${w.wave}</span>` : ""}
+      ${w.deload ? `<span class="badge b-deload">разгрузка −${Math.round((1 - DELOAD) * 100)}%</span>` : ""}
       ${w.prog ? `<span class="badge b-prog">+${Math.round(w.prog * 100)}%</span>` : ""}
       <span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span>
       ${sl.overload ? `<span class="badge b-warn" id="q-warn">⚠ перегруз</span>` : ""}
     </div>
     <div class="feel-row">
       <span class="feel-lbl">Состояние</span>
-      ${[["fresh", "Свежий"], ["norm", "Норма"], ["tired", "Устал"]].map(([k, t]) =>
-        `<button class="feel ${restFeel === k ? "on" : ""}" data-feel="${k}">${t}</button>`).join("")}
+      ${["fresh", "norm", "tired"].map((k) =>
+        `<button class="feel ${feelToday() === k ? "on" : ""}" data-feel="${k}">${FEEL[k].name}</button>`).join("")}
     </div>
+    ${feelToday() === "norm" ? "" : `<div class="feel-note dim small">${FEEL[feelToday()].hint}</div>`}
     <div id="ex-list"></div>
     <button class="btn-ghost add-ex-btn" id="add-ex">+ движение</button>
     <button class="finish-btn" id="finish">Завершить квест</button>`;
@@ -1508,6 +1546,8 @@ function renderWorkout(wid) {
         <div><span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span> ${w.type === "volume" ? "многоповторка ближе к отказу — работаем на объём" : "тяжёлые веса с запасом в баке — работаем на силу"}</div>
         ${w.wave ? `<div><span class="badge">волна ${w.wave}</span> набор вспомогательных движений этой пары недель</div>` : ""}
         ${w.prog ? `<div><span class="badge b-prog">+${Math.round(w.prog * 100)}%</span> прибавка к рабочим весам относительно первой пары недель</div>` : ""}
+        ${w.deload ? `<div><span class="badge b-deload">разгрузка</span> те же движения и то же число подходов, но вес −${Math.round((1 - DELOAD) * 100)}%. Эта неделя не двигает рабочий максимум ни вверх, ни вниз — она нужна, чтобы следующий блок стартовал со свежих мышц, а не с накопленной усталости</div>` : ""}
+        <div><span class="feel on">Устал</span> состояние перед квестом: «Свежий» даёт +2% к весу и короткий отдых, «Устал» — минус 5%, на подход меньше и отдых длиннее. Движок помнит, в каком состоянии закрыт квест, и не считает тяжёлый день откатом силовых</div>
         <div><span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span> ${plural(sl.compound, "многосуставное", "многосуставных")}, ${sl.maxBase ? plural(sl.maxBase, "максимальная база", "максимальные базы") : "без максимальных баз"}</div>
         ${sl.overload ? `<div><span class="badge b-warn">⚠ перегруз</span> две максимальные базы в одном квесте. Натуралу это стоит дороже, чем даёт: замени одну на движение в тренажёре</div>` : ""}
         <div><span class="badge b-weight">вес ★</span> посчитан по твоим подходам в этом движении; ◎ — оценка от базовых лифтов, пока журнал пуст</div>
@@ -1520,9 +1560,10 @@ function renderWorkout(wid) {
   document.getElementById("q-help").onclick = questInfo;
   const warnBadge = document.getElementById("q-warn");
   if (warnBadge) warnBadge.onclick = questInfo;
+  // самочувствие пересобирает квест: от него зависят рабочий вес, число подходов и отдых
   app.querySelectorAll(".feel").forEach((b) => b.onclick = () => {
-    restFeel = b.dataset.feel; fxTap();
-    app.querySelectorAll(".feel").forEach((x) => x.classList.toggle("on", x.dataset.feel === restFeel));
+    if (b.dataset.feel === feelToday()) return;
+    setFeelToday(b.dataset.feel); fxTap(); renderWorkout(wid);
   });
 
   // часы квеста (интервал самоочищается, когда элемент исчезает при смене экрана)
@@ -1605,10 +1646,9 @@ function renderWorkout(wid) {
         <div class="ex-goal">
           <div class="eg-nums">
             ${target
-              ? `<b class="mono">${fmt(target)}</b><span class="eg-u">кг${wNoteShort ? ` <i>${wNoteShort}</i>` : ""}</span>`
+              ? `<span class="eg-w"><b class="mono">${fmt(target)}</b><span class="eg-u">кг${wNoteShort ? ` <i>${wNoteShort}</i>` : ""}</span></span>`
               : `<b class="eg-noweight">${ex.bwOnly ? "свой вес" : (ex.wNote || "вес по ощущениям")}</b>`}
-            <span class="eg-x">×</span>
-            <b class="mono">${repTxt}</b><span class="eg-u">повт</span>
+            <span class="eg-reps"><span class="eg-x">×</span><b class="mono">${repTxt}</b><span class="eg-u">повт</span></span>
           </div>
           <div class="eg-side">
             ${floor ? `<span class="eg-floor">пол <b class="mono">${fmt(floor)}</b> кг</span>` : ""}
@@ -2083,8 +2123,8 @@ function renderWorkout(wid) {
     const now = new Date();
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
     // rir нужен прогрессии: по нему схемы разных недель пересчитываются друг в друга
-    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role }));
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: restFeel, verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
+    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload }));
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: feelToday(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
     S.xp += res.xp;
     invalidateE1RM();
     delete S.drafts[wid];
@@ -2100,7 +2140,7 @@ function renderWorkout(wid) {
       type: "session",
       session: { score: res.score, doneSets: res.doneSets, plannedSets: res.plannedSets, tonn, durationSec,
         prLifts, prDetails, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
-        hour: now.getHours(), feel: restFeel, totalReps, gapDays, workoutId: wid,
+        hour: now.getHours(), feel: feelToday(), totalReps, gapDays, workoutId: wid,
         quest: w.boss, timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
         durationStr: durationSec ? fmtDuration(durationSec) : "" },
     }, { silent: true });

@@ -1,7 +1,7 @@
 // Тесты бизнес-логики программы и пула движений: node --test tests/program.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend } from "../data/program.js";
+import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend, weekTonnage, tonnageTrend, DELOAD_FACTOR } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, pctOf1RM, similarTo } from "../data/exercises.js";
 
 // группы, которые обязаны прорабатываться не реже 2 раз в неделю
@@ -30,9 +30,11 @@ test("пул покрывает все двигательные паттерны
   for (const p of Object.keys(PATTERNS)) assert.ok(EXERCISES.some((e) => e.pattern === p), `нет движений паттерна ${p}`);
 });
 
+const loadWeeks = () => PROGRAM.weeks.filter((w) => !w.deload);
+
 test("периодизация: в каждой неделе либо 2 силовых, либо 2 объёмных", () => {
-  assert.equal(PROGRAM.weeks.length, 4);
-  for (const wk of PROGRAM.weeks) {
+  assert.equal(loadWeeks().length, 4);
+  for (const wk of loadWeeks()) {
     assert.equal(wk.workouts.length, 3, `неделя ${wk.n}: 3 квеста`);
     const st = wk.workouts.filter((w) => w.type === "strength").length;
     const vol = wk.workouts.filter((w) => w.type === "volume").length;
@@ -41,8 +43,30 @@ test("периодизация: в каждой неделе либо 2 сило
     assert.equal(wk.emphasis, st === 2 ? "strength" : "volume", `акцент недели ${wk.n}`);
   }
   // акценты чередуются
-  const em = PROGRAM.weeks.map((w) => w.emphasis);
+  const em = loadWeeks().map((w) => w.emphasis);
   assert.deepEqual(em, ["strength", "volume", "strength", "volume"]);
+});
+
+test("разгрузка: одна неделя в цикле, состав и число подходов те же, вес −15%", () => {
+  const dl = PROGRAM.weeks.filter((w) => w.deload);
+  assert.equal(dl.length, 1, "в цикле ровно одна разгрузочная неделя");
+  const wk = dl[0];
+  assert.equal(wk.n, PROGRAM.weeks.length, "разгрузка закрывает блок, а не стоит в его середине");
+  assert.equal(wk.workouts.length, 3);
+  for (const w of wk.workouts) {
+    assert.ok(w.deload, `${w.id}: квест разгрузочной недели не помечен`);
+    assert.equal(w.prog, 0, `${w.id}: на разгрузке плановой надбавки быть не должно`);
+    // те же движения и то же число подходов, что и в обычной неделе того же типа
+    const twin = PROGRAM.weeks
+      .filter((x) => !x.deload)
+      .flatMap((x) => x.workouts)
+      .find((x) => x.tpl === w.tpl && x.type === w.type && x.wave === w.wave && !x.sub);
+    assert.ok(twin, `${w.id}: не с чем сравнить`);
+    const a = buildExercises(w), b = buildExercises(twin);
+    assert.deepEqual(a.map((e) => e.id), b.map((e) => e.id), `${w.id}: состав отличается от обычной недели`);
+    assert.deepEqual(a.map((e) => e.sets), b.map((e) => e.sets), `${w.id}: число подходов отличается`);
+  }
+  assert.ok(DELOAD_FACTOR > 0.8 && DELOAD_FACTOR < 0.95, `скидка разгрузки ${DELOAD_FACTOR} вне разумных границ`);
 });
 
 test("каждая мышечная группа прорабатывается минимум 2 раза в неделю", () => {
@@ -130,11 +154,20 @@ test("волны A и B дают разные вспомогательные д�
     assert.equal(a.filter((e) => e.main).length, 1);
     assert.equal(b.filter((e) => e.main).length, 1);
   }
-  // движение дня в дне ног сохраняется между волнами — прогрессия не рвётся
-  // (кроме квестов с точечной правкой состава, например дня становой)
-  const legDays = PROGRAM.weeks.map((wk) => wk.workouts.find((w) => w.tpl === "L")).filter((w) => !w.sub);
-  const mains = new Set(legDays.map((w) => buildExercises(w)[0].id));
-  assert.equal(mains.size, 1, `движение дня ног скачет между квестами: ${[...mains].join(", ")}`);
+  // движение дня ног стабильно внутри волны — прогрессия по нему не рвётся,
+  // а между волнами меняется на родственный вариант: один паттерн, другой угол
+  const legMains = {};
+  PROGRAM.weeks.forEach((wk) => {
+    const w = wk.workouts.find((x) => x.tpl === "L");
+    if (!w || w.sub) return;                       // день становой состав правит точечно
+    (legMains[wk.wave] ||= new Set()).add(buildExercises(w)[0].id);
+  });
+  for (const [wave, set] of Object.entries(legMains)) {
+    assert.equal(set.size, 1, `волна ${wave}: движение дня ног скачет — ${[...set].join(", ")}`);
+  }
+  const all = Object.values(legMains).flatMap((x) => [...x]);
+  assert.ok(new Set(all).size >= 2, "движение дня ног одинаково на обеих волнах — нет разнообразия");
+  for (const id of all) assert.equal(EX_BY_ID[id].pattern, "squat", `движение дня ног ${id} — не приседание`);
 });
 
 test("приёмы интенсивности: описаны, дозированы и не вешаются на тяжёлую базу", () => {
@@ -553,4 +586,59 @@ test("шаблонную пару можно разбить, и движения
   const list = buildExercises(w, { unpair: [withSS.ss] });
   for (const e of list.filter((x) => x.ss === withSS.ss)) assert.fail(`${e.id} остался в разбитой паре`);
   assert.equal(list.find((x) => x.id === withSS.id).ss, null);
+});
+
+/* ---------- недельный тоннаж ---------- */
+
+const sessOf = (workoutId, entries) => ({ workoutId, date: "2026-10-01", entries });
+
+test("тоннаж недели: сумма поднятого по всем квестам, разминка не в счёт", () => {
+  const wk = PROGRAM.weeks[0];
+  const [a, b] = wk.workouts;
+  const t = weekTonnage(wk, [
+    sessOf(a.id, { bench: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }),
+    sessOf(b.id, { squat: [{ w: 40, r: 5 }, { w: 120, r: 5 }] }),   // первый подход — разминка
+  ], { bodyweight: 97 });
+  assert.equal(t.kg, 100 * 10 + 120 * 5);
+  assert.equal(t.sets, 3, "разминочный подход в рабочие не идёт");
+  assert.equal(t.quests, 2);
+  assert.equal(t.total, wk.workouts.length);
+});
+
+test("тоннаж недели: пересдача квеста заменяет прошлый заход, а не удваивает неделю", () => {
+  const wk = PROGRAM.weeks[0];
+  const id = wk.workouts[0].id;
+  const one = weekTonnage(wk, [sessOf(id, { bench: [{ w: 100, r: 5 }] })]);
+  const twice = weekTonnage(wk, [
+    sessOf(id, { bench: [{ w: 100, r: 5 }] }),
+    sessOf(id, { bench: [{ w: 100, r: 5 }] }),
+  ]);
+  assert.equal(twice.kg, one.kg, "считается неделя, а не количество попыток");
+  assert.equal(twice.quests, 1);
+});
+
+test("тоннаж недели: гантели и свой вес считаются целиком", () => {
+  const wk = PROGRAM.weeks[0];
+  const id = wk.workouts[0].id;
+  // incline-db пишется как вес одной гантели, pullup — как довесок к своему весу
+  const t = weekTonnage(wk, [sessOf(id, {
+    "incline-db": [{ w: 30, r: 10 }],
+    pullup: [{ w: 10, r: 5 }],
+  })], { bodyweight: 97 });
+  assert.equal(t.kg, 30 * 2 * 10 + (97 + 10) * 5);
+});
+
+test("тренд тоннажа: процент к прошлой непустой неделе, пустые недели пропускаются", () => {
+  const [w1, w2, w3] = PROGRAM.weeks;
+  const rows = tonnageTrend([
+    sessOf(w1.workouts[0].id, { bench: [{ w: 100, r: 10 }] }),    // 1000
+    sessOf(w3.workouts[0].id, { bench: [{ w: 110, r: 10 }] }),    // 1100
+  ]);
+  assert.equal(rows.length, PROGRAM.weeks.length);
+  assert.equal(rows[0].delta, null, "первой неделе не с чем сравниваться");
+  assert.equal(rows[1].kg, 0, "вторая неделя пустая");
+  assert.equal(rows[1].delta, null);
+  assert.equal(rows[2].delta, 10, "третья сравнивается с первой: +10%");
+  assert.equal(rows[2].vs, w2.n - 1, "и подпись указывает именно на неё");
+  assert.ok(rows[rows.length - 1].deload, "последняя неделя цикла помечена разгрузочной");
 });

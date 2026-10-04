@@ -130,6 +130,47 @@ export function loadFactor({ sets = 1, rest = 150 } = {}) {
   return Math.max(0.82, Math.min(1, 1 - bySets - byRest));
 }
 
+/**
+ * Самочувствие перед квестом — автoрегуляция. Единственное, что движок не может
+ * вывести из журнала: сон, стресс и болезнь в подходы не записываются.
+ *   свежий — чуть выше вес и короче отдых: день, когда можно взять своё;
+ *   устал  — минус 5% к весу, на подход меньше и длиннее отдых: тренировка
+ *            состоится, но не ценой следующей недели.
+ * Поправка на вес симметрична поправке на объём: она же делится обратно, когда
+ * движок читает такую сессию из журнала, иначе тяжёлый день задним числом
+ * выглядел бы откатом.
+ */
+export const FEEL = {
+  fresh: { key: "fresh", name: "Свежий", k: 1.02, sets: 0,  rest: 0.85, hint: "+2% к весу, отдых короче" },
+  norm:  { key: "norm",  name: "Норма",  k: 1,    sets: 0,  rest: 1,    hint: "план как есть" },
+  tired: { key: "tired", name: "Устал",  k: 0.95, sets: -1, rest: 1.25, hint: "−5% к весу, на подход меньше, отдых длиннее" },
+};
+export const feelOf = (key) => FEEL[key] || FEEL.norm;
+
+/**
+ * Разгрузка: та же работа, те же подходы, вес −15%. Нужна не вместо прогресса,
+ * а ради него: усталость копится быстрее, чем сила, и неделя на 85% возвращает
+ * свежесть до того, как она превратится в застой.
+ */
+export const DELOAD = 0.85;
+
+/**
+ * Тоннаж подходов движения: вес × повторы в системном весе (обе гантели, тело + пояс).
+ * Разминка не в счёт — это не работа, это подготовка к ней.
+ */
+export function tonnageOf(sets, o = {}) {
+  const { toSys } = spaceOf(o);
+  const good = (sets || []).filter((s) => s && s.r > 0 && (s.w > 0 || (o.bw && s.w >= 0)));
+  if (!good.length) return { kg: 0, sets: 0, reps: 0 };
+  const top = Math.max(...good.map((s) => s.w));
+  const work = good.filter((s) => !isWarmup(s, top));
+  return {
+    kg: work.reduce((a, s) => a + toSys(s.w) * s.r, 0),
+    sets: work.length,
+    reps: work.reduce((a, s) => a + s.r, 0),
+  };
+}
+
 /** Переводы между журнальным весом (что повесил) и системным (по чему считаем проценты). */
 export function spaceOf({ perHand = false, bw = false, bodyweight = 0 } = {}) {
   return {
@@ -187,13 +228,18 @@ export function workMax(history, o = {}) {
     if (!j) continue;
     const rir = (h.plan && h.plan.rir != null) ? h.plan.rir : 0;
     const floor = o.bw ? 0 : step;                                  // без пояса довесок нулевой — это нормально
-    // вес, взятый в четырёх подходах подряд, говорит о большем, чем тот же вес в одном
-    const k = loadFactor({ sets: (h.plan && h.plan.sets) || j.planned, rest: restFor(tier, j.hi) });
+    // вес, взятый в четырёх подходах подряд, говорит о большем, чем тот же вес в одном,
+    // а вес, взятый на разбитом самочувствии, — о большем, чем тот же вес на свежую голову
+    const k = loadFactor({ sets: (h.plan && h.plan.sets) || j.planned, rest: restFor(tier, j.hi) })
+      * feelOf(h.plan && h.plan.feel).k;
     const at = (w) => asMax(toSys(Math.max(floor, w)) / k, j.hi, rir);  // вес → якорь на языке этой схемы
     const prev = anchor;
     const due = prev ? toBar(asWeight(prev, j.hi, rir) * k) : 0;   // что было назначено на этот квест
     let verdict = j.verdict;
-    if (!anchor) {
+    if (h.plan && h.plan.deload) {
+      verdict = "deload";                                    // разгрузочная неделя рабочий максимум не двигает
+      if (!anchor) anchor = at(j.top / DELOAD);              // но если журнал начался с неё — хоть какая-то точка отсчёта
+    } else if (!anchor) {
       anchor = at(j.top);                                    // первый замер: с чего начали
     } else if (j.top < due * PROG.LIGHT) {
       verdict = "light";                                     // работал заметно легче плана — не показатель
@@ -255,13 +301,15 @@ export function trendPerMonth(moves) {
  *        prog — плановая надбавка недели: применяется только к seed, дальше вес двигают подходы
  */
 export function progressionOf(history, o = {}) {
-  const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0, reset = null, sets = 1, tier = 2 } = o;
+  const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0, reset = null, sets = 1, tier = 2,
+    feel = "norm", deload = false } = o;
   const step = EQUIP_STEP[equip] || 2.5;
   const { toBar } = spaceOf(o);
   const { anchor, moves } = workMax(history, { ...o, step });
   // вес на сегодня — с поправкой на объём и отдых этой схемы
-  const rest = o.rest || restFor(tier, reps[1]);
-  const k = loadFactor({ sets, rest });
+  const rest = Math.round((o.rest || restFor(tier, reps[1])) * feelOf(feel).rest);
+  const k = loadFactor({ sets, rest: o.rest || restFor(tier, reps[1]) })
+    * feelOf(feel).k * (deload ? DELOAD : 1);
   const rec = bestSet(history, o);
   const round = (v) => Math.max(0, Math.round(v / step) * step);
   const empty = { source: "none", work1RM: 0, oneRM: 0, oneRMBar: 0, best: null, proven: 0,
@@ -290,7 +338,7 @@ export function progressionOf(history, o = {}) {
   const floor = target > 0 ? Math.max(step, Math.floor((target * PROG.FLOOR) / step) * step) : 0;
   return {
     source, work1RM: anchor || seed * (1 + prog),
-    target, floor: floor < target ? floor : 0, step, rest, loadK: k,
+    target, floor: floor < target ? floor : 0, step, rest, loadK: k, deload: !!deload, feel: feelOf(feel).key,
     oneRM: rec ? rec.one : (source === "estimate" ? seed * (1 + prog) : 0),
     oneRMBar: rec ? toBar(rec.one) : (source === "estimate" ? toBar(seed * (1 + prog)) : 0),
     best: rec, proven: provenTop(moves), sessions: moves.length,
@@ -303,11 +351,14 @@ export function progressionOf(history, o = {}) {
 /** Словами: что происходит с движением и каким цветом это показывать. */
 export function stateOf(p) {
   if (!p || p.source === "none") return { key: "none", text: "Вес по ощущениям", cls: "verdict-mid" };
+  if (p.deload) return { key: "deload", text: `Разгрузка: вес −${Math.round((1 - DELOAD) * 100)}%, рабочий максимум не трогаем`, cls: "verdict-mid" };
   if (p.source === "estimate") return { key: "new", text: "Первый заход — оценка от базовых лифтов", cls: "verdict-mid" };
   if (p.source === "manual") return { key: "manual", text: "Вес поправлен вручную — дальше его поведут подходы", cls: "verdict-mid" };
   if (p.sessions < 2) return { key: "new", text: "Первый замер — со второго квеста вес поведёт журнал", cls: "verdict-mid" };
+  if (p.move === "deload") return { key: "deload", text: "Прошлый заход был разгрузочным — максимум на месте", cls: "verdict-mid" };
   if (p.move === "down") return { key: "drop", text: "Откат — рабочий вес опустился на шаг", cls: "verdict-fail" };
-  const tail = p.moves.slice(1).slice(-PROG.STALL);
+  // разгрузка и лёгкий день — не застой: они и не должны двигать вес
+  const tail = p.moves.slice(1).filter((m) => m.verdict !== "deload" && m.verdict !== "light").slice(-PROG.STALL);
   if (tail.length >= PROG.STALL && tail.every((m) => m.to <= m.from))
     return { key: "stall", text: `Застой: ${PROG.STALL} квеста без прибавки — пора делоад или смена движения`, cls: "verdict-fail" };
   if (p.move === "light") return { key: "hold", text: "Прошлый квест был лёгким — вес стоит на месте", cls: "verdict-mid" };
@@ -326,6 +377,7 @@ export function moveLabel(p) {
   if (p.last.from === 0) return { icon: "◎", text: `первый замер: ${num(p.last.top)} × ${p.last.topReps}` };
   if (p.move === "up" && p.deltaKg > 0) return { icon: "▲", text: `+${num(p.deltaKg)} кг к прошлому разу` };
   if (p.move === "down") return { icon: "▼", text: p.deltaKg ? `${num(p.deltaKg)} кг после недобора` : "минус шаг после недобора" };
+  if (p.move === "deload") return { icon: "↓", text: `разгрузка: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
   if (p.move === "light") return { icon: "=", text: `лёгкий квест: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
   return { icon: "=", text: `держим вес: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
 }

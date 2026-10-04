@@ -14,9 +14,14 @@
 // движения заменяются на родственные варианты (жим штанги ↔ наклонный, тяга ↔ подтягивания,
 // сгибания сидя ↔ лёжа). Движение дня и схема прогрессии при этом сохраняются.
 //
+// Пятая неделя — разгрузочная: те же движения и то же число подходов, вес −15%.
+// Усталость копится быстрее силы, и неделя на 85% возвращает свежесть до того,
+// как она превратится в застой. Рабочий максимум разгрузка не двигает.
+//
 // Веса в квесте НЕ зашиты: считаются под атлета из его замеров 1ПМ и коэффициентов пула
 // (data/exercises.js → workingWeight). Пул также позволяет заменить или добавить упражнение.
 import { EX_BY_ID } from "./exercises.js";
+import { tonnageOf, DELOAD } from "./progression.js";
 
 /* ---------- схемы подходов: роль упражнения × тип сессии ---------- */
 // rir — запас повторов (0 = до отказа). База идёт с запасом: близость к отказу почти
@@ -77,9 +82,9 @@ export const TEMPLATES = {
   },
   L: {
     key: "L", name: "Низ тела", short: "Низ",
-    why: "День ног: одна максимальная база в начале по заветам Колемана, дальше квадрицепс и задняя цепь по отдельности на тренажёрах, закрывает всё высокоповторный добой в стиле Ли Приста. Двух максимальных баз в один день у натурала быть не должно — это цена восстановления, а не стимул.",
+    why: "День ног: одна максимальная база в начале по заветам Колемана — на волне A это классический присед, на волне B фронтальный (вертикальный корпус, больше квадрицепса и меньше поясницы), дальше квадрицепс и задняя цепь по отдельности на тренажёрах, закрывает всё высокоповторный добой в стиле Ли Приста. Двух максимальных баз в один день у натурала быть не должно — это цена восстановления, а не стимул.",
     slots: [
-      { ex: "squat",         alt: "squat",         role: "main" },
+      { ex: "squat",         alt: "front-squat",   role: "main" },
       { ex: "rdl",           alt: "hip-thrust",    role: "heavy" },
       { ex: "legpress",      alt: "hack",          role: "acc" },
       { ex: "legcurl-s",     alt: "legcurl-l",     role: "acc" },
@@ -91,11 +96,11 @@ export const TEMPLATES = {
   },
   F: {
     key: "F", name: "Фулбоди-добор", short: "Добор",
-    why: "Второй активный день для всех групп: другие движения, другие углы. Максимальных баз здесь нет намеренно — этот день добирает объём, а не съедает восстановление перед следующей неделей.",
+    why: "Второй активный день для всех групп: другие движения, другие углы. Ноги здесь идут односторонне и широкой постановкой — болгарские выпады и плие-присед достают ягодицу и приводящие в растяжении, куда обычный присед не лезет. Максимальных баз здесь нет намеренно — этот день добирает объём, а не съедает восстановление перед следующей неделей.",
     slots: [
       { ex: "flat-db",      alt: "dips",           role: "main" },
       { ex: "pullup",       alt: "lat",            role: "heavy" },
-      { ex: "hack",         alt: "bulgarian",      role: "acc" },
+      { ex: "bulgarian",    alt: "plie-squat",     role: "acc" },
       { ex: "db-ohp",       alt: "ohp",            role: "acc" },
       { ex: "legcurl-l",    alt: "legcurl-s",      role: "acc" },
       { ex: "hammer",       alt: "cable-curl",     role: "iso",   ss: 1 },
@@ -110,9 +115,11 @@ export const TEMPLATES = {
 // sub — точечная правка состава конкретного квеста: замена движения в слоте или снятие слота (null).
 // Так в цикле появляется ровно один тяжёлый день становой, и в нём нет второй максимальной базы.
 const W = (id, tpl, type, boss, icon, wave, prog = 0, sub = null) => ({ id, tpl, type, boss, icon, wave, prog, sub });
+// квест разгрузочной недели: состав и число подходов те же, вес считается от 85%
+const D = (id, tpl, type, boss, icon, wave, sub = null) => ({ ...W(id, tpl, type, boss, icon, wave, 0, sub), deload: true });
 export const PROGRAM = {
   cycleName: "Цикл V — Арена",
-  note: "Сплит Верх / Низ / Фулбоди-добор: каждая группа мышц получает два активных дня в неделю, по 2–3 упражнения за день. Недели 1 и 3 — Верх и Низ силовые, Фулбоди объёмный; недели 2 и 4 — наоборот, так что каждая группа каждую неделю видит и тяжёлую, и объёмную работу. Недели 3–4 идут на второй волне движений: вспомогательные заменяются вариантами, движение дня и прогрессия сохраняются.",
+  note: "Сплит Верх / Низ / Фулбоди-добор: каждая группа мышц получает два активных дня в неделю, по 2–3 упражнения за день. Недели 1 и 3 — Верх и Низ силовые, Фулбоди объёмный; недели 2 и 4 — наоборот, так что каждая группа каждую неделю видит и тяжёлую, и объёмную работу. Недели 3–4 идут на второй волне движений: вспомогательные заменяются вариантами, движение дня меняется на родственный вариант (присед со штангой → фронтальный). Пятая неделя — разгрузка: те же квесты и то же число подходов, но вес −15%, чтобы снять накопленную усталость до того, как она превратится в застой.",
   weeks: [
     {
       n: 1, emphasis: "strength", wave: "A", saga: "Сага о Пробуждении",
@@ -136,7 +143,7 @@ export const PROGRAM = {
         W("w3u", "U", "strength", "Молот Зари", "anvil", "B", 0.025),
         // день становой: максимальная база одна, приседания и работа на поясницу в этот день убраны
         W("w3l", "L", "strength", "Зов Земли", "weight", "B", 0.025,
-          { squat: "deadlift", "hip-thrust": "legpress", "back-ext-45": null }),
+          { "front-squat": "deadlift", "hip-thrust": "legpress", "back-ext-45": null }),
         W("w3f", "F", "volume",   "Расправить Крылья", "wings", "B", 0.025),
       ],
     },
@@ -146,6 +153,17 @@ export const PROGRAM = {
         W("w4u", "U", "volume",   "Второе Пламя", "flame", "B", 0.025),
         W("w4l", "L", "volume",   "Ход Исполина", "mountain", "B", 0.025),
         W("w4f", "F", "strength", "Вершина Цикла", "peak", "B", 0.05),
+      ],
+    },
+    {
+      // разгрузка закрывает четырёхнедельный блок: движения и подходы прежние,
+      // вес −15%. Это не пропущенная неделя, а условие, при котором следующий
+      // блок стартует сильнее, а не с застоя
+      n: 5, emphasis: "deload", wave: "B", saga: "Сага о Передышке", deload: true,
+      workouts: [
+        D("w5u", "U", "volume", "Тихая Кузня", "hourglass", "B"),
+        D("w5l", "L", "volume", "Ровный Шаг", "tree", "B"),
+        D("w5f", "F", "volume", "Глубокий Вдох", "sun", "B"),
       ],
     },
   ],
@@ -194,7 +212,7 @@ export function buildExercises(workout, plan = {}) {
       lift: ex.lift, tier: ex.tier, equip: ex.equip, group: ex.group, pattern: ex.pattern,
       sets: sc.sets, reps: sc.reps, rir: sc.rir,
       method, ss: slot.ss || null,
-      prog: workout.prog || 0,
+      prog: workout.prog || 0, deload: !!workout.deload,
       swappedFrom: slot.from || null, added: !!slot.added,
     });
   });
@@ -239,6 +257,50 @@ export function sessionLoad(list) {
   const level = maxBase > 1 || load >= 11 ? "high" : (load >= 7 ? "mid" : "low");
   return { load, maxBase, compound, level, overload: maxBase > 1 };
 }
+
+/**
+ * Недельный тоннаж: сколько килограммов реально поднято за неделю.
+ * Это единственное число, в котором видно «я себя перегружаю» до того, как это
+ * почувствуют колени: план показывает вес в подходе, а не сумму за неделю.
+ * Разминка не в счёт, повторный заход в тот же квест заменяет прошлый —
+ * считается неделя, а не количество попыток.
+ * @param week    неделя программы
+ * @param sessions журнал: [{ workoutId, entries: { exId: [{w, r}] } }]
+ * @returns { kg, sets, reps, quests, total } — total: сколько квестов в неделе
+ */
+export function weekTonnage(week, sessions = [], o = {}) {
+  const ids = new Set(((week && week.workouts) || []).map((w) => w.id));
+  const bodyweight = o.bodyweight || 0;
+  const last = new Map();                       // квест → последний заход
+  (sessions || []).forEach((s) => { if (s && ids.has(s.workoutId)) last.set(s.workoutId, s); });
+  let kg = 0, sets = 0, reps = 0;
+  last.forEach((s) => {
+    Object.entries(s.entries || {}).forEach(([id, arr]) => {
+      const src = EX_BY_ID[id];
+      const t = tonnageOf(arr, { perHand: !!(src && src.perHand), bw: !!(src && src.bw), bodyweight });
+      kg += t.kg; sets += t.sets; reps += t.reps;
+    });
+  });
+  return { kg: Math.round(kg), sets, reps, quests: last.size, total: ids.size };
+}
+
+/**
+ * Тоннаж по всем неделям цикла плюс сравнение с предыдущей НЕПУСТОЙ неделей.
+ * Пустые недели пропускаются: сравнивать с нулём бессмысленно.
+ */
+export function tonnageTrend(sessions = [], o = {}, weeks = PROGRAM.weeks) {
+  let prev = null;
+  return (weeks || []).map((wk) => {
+    const t = weekTonnage(wk, sessions, o);
+    const delta = prev && prev.kg > 0 && t.kg > 0 ? Math.round(((t.kg - prev.kg) / prev.kg) * 100) : null;
+    const row = { n: wk.n, deload: !!wk.deload, ...t, delta, vs: delta == null ? null : prev.n };
+    if (t.kg > 0) prev = { n: wk.n, kg: t.kg };
+    return row;
+  });
+}
+
+/** Насколько разгрузка легче: доля от обычного веса. */
+export const DELOAD_FACTOR = DELOAD;
 
 /** Недельный объём по мышечным группам: сколько сессий и рабочих подходов получает группа. */
 export function weeklyCoverage(week, plans = {}) {

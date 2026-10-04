@@ -4,7 +4,7 @@
 // «потолок» и «пол» — два числа, из которых не следовало, что ставить сегодня.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, loadFactor, restFor, PROG } from "../data/progression.js";
+import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, loadFactor, restFor, tonnageOf, feelOf, FEEL, DELOAD, PROG } from "../data/progression.js";
 
 const d = (n) => `2026-0${Math.floor(n / 28) + 1}-${String((n % 28) + 1).padStart(2, "0")}`;
 const plan4x46 = { sets: 4, reps: [4, 6], rir: 1 };
@@ -432,4 +432,101 @@ test("тот же вес в большем числе подходов гово�
   assert.ok(four.work1RM > one.work1RM, "сто на шесть четыре раза — сильнее, чем один раз");
   assert.equal(one.target, 100, "и каждому вернётся его же вес под его же схему");
   assert.equal(four.target, 100);
+});
+
+/* ---------- самочувствие ---------- */
+
+test("самочувствие двигает вес, подходы и отдых — и только в одну сторону каждое", () => {
+  assert.equal(feelOf("norm").k, 1, "норма ничего не меняет");
+  assert.equal(feelOf("norm").sets, 0);
+  assert.equal(feelOf("norm").rest, 1);
+  assert.ok(feelOf("tired").k < 1 && feelOf("tired").k >= 0.9, "разбитому легче, но не вдвое");
+  assert.equal(feelOf("tired").sets, -1, "и на подход меньше");
+  assert.ok(feelOf("tired").rest > 1, "и отдых длиннее");
+  assert.ok(feelOf("fresh").k > 1 && feelOf("fresh").k <= 1.05, "свежему чуть больше, без геройства");
+  assert.ok(feelOf("fresh").rest < 1, "и отдых короче");
+  assert.equal(feelOf("чушь").k, 1, "неизвестное состояние — это норма, а не поломка");
+});
+
+test("на разбитом самочувствии квест даёт вес легче, а свежему — чуть тяжелее", () => {
+  const hist = [sess(d(1), same(4, 102.5, 6))];
+  const base = { reps: [4, 6], rir: 1, equip: "bb", sets: 4, tier: 1 };
+  const norm = progressionOf(hist, base);
+  const tired = progressionOf(hist, { ...base, feel: "tired" });
+  const fresh = progressionOf(hist, { ...base, feel: "fresh" });
+  assert.ok(tired.target < norm.target, `устал: ${tired.target} должно быть меньше ${norm.target}`);
+  assert.ok(fresh.target > norm.target, `свежий: ${fresh.target} должно быть больше ${norm.target}`);
+  assert.ok(tired.rest > norm.rest && fresh.rest < norm.rest, "отдых едет вслед за состоянием");
+  assert.ok(tired.target >= norm.target * 0.9, "но не превращается в другую тренировку");
+});
+
+test("тяжёлый день не читается как откат силовых: поправка на самочувствие снимается обратно", () => {
+  // атлет пришёл разбитым, взял свои 95 вместо 102,5 и закрыл схему
+  const base = { reps: [4, 6], rir: 1, equip: "bb", sets: 4, tier: 1 };
+  const норма = progressionOf([sess(d(1), same(4, 102.5, 6))], base);
+  const устал = progressionOf(
+    [sess(d(1), same(4, 97.5, 6), { sets: 4, reps: [4, 6], rir: 1, feel: "tired" })], base);
+  // 97,5 на разбитом — это примерно те же силовые, что 102,5 на свежую голову
+  assert.ok(Math.abs(устал.work1RM - норма.work1RM) / норма.work1RM < 0.04,
+    `рабочий максимум разъехался: ${устал.work1RM} против ${норма.work1RM}`);
+});
+
+/* ---------- разгрузка ---------- */
+
+test("разгрузка снимает 15% веса и не трогает рабочий максимум", () => {
+  const hist = [sess(d(1), same(4, 100, 6))];
+  const base = { reps: [4, 6], rir: 1, equip: "bb", sets: 4, tier: 1 };
+  const full = progressionOf(hist, base);
+  const dl = progressionOf(hist, { ...base, deload: true });
+  assert.equal(full.target, 100);
+  assert.ok(dl.target < full.target, "на разгрузке вес ниже");
+  assert.ok(Math.abs(dl.target - full.target * DELOAD) <= 2.5, `−15% от ${full.target} — это ${dl.target}`);
+  assert.equal(dl.work1RM, full.work1RM, "но рабочий максимум тот же: это не откат");
+  assert.equal(stateOf(dl).key, "deload");
+});
+
+test("закрытая разгрузочная неделя не двигает вес ни вверх, ни вниз", () => {
+  const base = { reps: [4, 6], rir: 1, equip: "bb", sets: 4, tier: 1 };
+  const before = progressionOf([sess(d(1), same(4, 100, 6))], base);
+  // следующим квестом идёт разгрузка: 85 кг, все повторы закрыты
+  const after = progressionOf([
+    sess(d(1), same(4, 100, 6)),
+    sess(d(8), same(4, 85, 6), { sets: 4, reps: [4, 6], rir: 1, deload: true }),
+  ], base);
+  assert.equal(after.work1RM, before.work1RM, "лёгкая неделя не опустила максимум");
+  assert.equal(after.target, before.target, "и вес следующего квеста остался прежним");
+  assert.equal(after.move, "deload");
+  assert.equal(moveLabel(after).icon, "↓");
+});
+
+test("разгрузка не считается застоем", () => {
+  const base = { reps: [4, 6], rir: 1, equip: "bb", sets: 4, tier: 1 };
+  const dlPlan = { sets: 4, reps: [4, 6], rir: 1, deload: true };
+  const p = progressionOf([
+    sess(d(1), same(4, 100, 6)),
+    sess(d(8), same(4, 102.5, 6)),
+    sess(d(15), same(4, 87.5, 6), dlPlan),
+    sess(d(22), same(4, 87.5, 6), dlPlan),
+    sess(d(29), same(4, 87.5, 6), dlPlan),
+  ], base);
+  assert.notEqual(stateOf(p).key, "stall", "три разгрузочных квеста подряд — это план, а не застой");
+});
+
+/* ---------- тоннаж ---------- */
+
+test("тоннаж считает только рабочие подходы и в полном системном весе", () => {
+  const t = tonnageOf([{ w: 100, r: 5 }, { w: 100, r: 5 }]);
+  assert.equal(t.kg, 1000);
+  assert.equal(t.sets, 2);
+  assert.equal(t.reps, 10);
+  // разминка в тоннаж не идёт: 40 кг при рабочих ста — это подготовка, а не работа
+  const warm = tonnageOf([{ w: 40, r: 5 }, { w: 100, r: 5 }, { w: 100, r: 5 }]);
+  assert.equal(warm.kg, 1000, "разминочный подход не должен раздувать тоннаж");
+  assert.equal(warm.sets, 2);
+  // гантели: в журнале одна, поднято две
+  assert.equal(tonnageOf([{ w: 30, r: 10 }], { perHand: true }).kg, 600);
+  // подтягивания: вместе с собственным весом
+  assert.equal(tonnageOf([{ w: 10, r: 5 }], { bw: true, bodyweight: 90 }).kg, 500);
+  assert.equal(tonnageOf([], {}).kg, 0);
+  assert.equal(tonnageOf(null, {}).kg, 0);
 });
