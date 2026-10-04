@@ -227,12 +227,22 @@ h2.display { font-size: 1.4rem; }
   background: rgba(224,189,102,.08); border: 1px solid var(--line-strong); border-radius: 8px;
   padding: 6px 9px; white-space: nowrap; }
 
-/* выбор состояния (влияет на умный отдых) */
+/* выбор состояния: влияет на рабочий вес, число подходов и отдых */
 .feel-row { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
 .feel-lbl { font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
 .feel { flex: 1; background: var(--panel); border: 1px solid var(--line); color: var(--dim);
   border-radius: 8px; padding: 8px; cursor: pointer; font: inherit; font-size: .82rem; }
 .feel.on { color: var(--gold-bright); border-color: var(--line-strong); background: linear-gradient(180deg, rgba(224,189,102,.12), var(--panel)); }
+.feel-note { margin: -8px 0 12px; }
+
+/* нагрузка недели: сколько килограммов реально поднято и куда это едет */
+.week-tonn { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 2px 2px 8px; }
+.week-tonn.empty { padding-bottom: 6px; }
+.tonn-val { color: var(--gold); font-size: .95rem; font-weight: 600; }
+.tonn-delta { font-size: .72rem; color: var(--dim); }
+.tonn-delta.up { color: var(--moss); }
+.tonn-delta.down { color: var(--ember); }
+.week-block.deload .week-n { color: var(--teal); }
 
 /* панель таймера отдыха (над таббаром, поверх экранов) */
 /* полоска «Готово» над клавиатурой: у цифровой клавиатуры iOS своей кнопки нет */
@@ -375,19 +385,29 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .ex.open .ex-body { display: block; }
 
 /* ---- цель подхода: крупно и один раз, а не россыпью бейджей ---- */
-.ex-goal { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px;
+/* цель слева не жмётся: это главное число карточки. Мелочь справа ужимается сама */
+.ex-goal { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 10px;
   background: rgba(0,0,0,.26); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; }
 .main-ex .ex-goal { border-color: var(--line-strong); background: rgba(201,169,97,.07); }
 /* справа — мелочь: пол и куда поехал вес. Так карточка не растёт вниз пустотой */
-.eg-side { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: right; }
+.eg-side { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: right; min-width: 0; }
 .eg-nums { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; }
+.eg-nums > * { flex: 0 0 auto; }
 .eg-nums b { font-size: 1.4rem; font-weight: 600; color: var(--gold-bright); line-height: 1.15; }
 .eg-nums .eg-noweight { font-size: .95rem; color: var(--bone); }
 .eg-nums .eg-u { font-size: .74rem; color: var(--dim); }
 .eg-nums .eg-u i { font-style: normal; font-size: .72rem; }
 .eg-nums .eg-x { font-size: 1rem; color: var(--dim); margin: 0 4px; }
+/* «77,5 кг» и «× 8–10 повт» — два неразрывных куска: перенос идёт между ними,
+   а не отрывает единицу измерения от числа */
+.eg-w, .eg-reps { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+.eg-reps .eg-x { margin-left: 0; }
 .eg-floor { font-size: .72rem; color: var(--dim); white-space: nowrap; }
 .eg-floor b { color: var(--ember); font-weight: 600; }
+/* подпись справа течёт как обычный текст: иначе длинная фраза отрывает значок
+   на свою строку и блок вырастает на пустую строку вниз */
+.eg-side .eg-line { display: block; }
+.eg-side .eg-line i.mono { margin-right: 3px; }
 .eg-line { display: flex; align-items: baseline; gap: 4px; font-size: .72rem; color: var(--dim); line-height: 1.35; }
 .eg-line i.mono { font-style: normal; }
 .eg-line b { color: var(--bone); font-weight: 500; }
@@ -1304,6 +1324,7 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .badge.b-load   { color: var(--ember); border-color: rgba(198,91,60,.45); background: rgba(198,91,60,.1); }
 .badge.b-warn   { color: var(--ember); border-color: rgba(198,91,60,.6); background: rgba(198,91,60,.16); cursor: pointer; }
 .badge.b-prog   { color: var(--teal); border-color: rgba(79,154,168,.45); }
+.badge.b-deload { color: var(--teal); border-color: rgba(79,154,168,.5); background: rgba(79,154,168,.12); }
 .badge.b-main   { color: var(--gold-bright); border-color: var(--line-strong); background: rgba(201,169,97,.14); }
 .badge.b-alt    { color: var(--teal); border-color: rgba(79,154,168,.45); }
 .badge.b-plan   { color: var(--bone); border-color: var(--line-strong); }
