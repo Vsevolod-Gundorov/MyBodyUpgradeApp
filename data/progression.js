@@ -131,6 +131,41 @@ export function loadFactor({ sets = 1, rest = 150 } = {}) {
 }
 
 /**
+ * Поправка на уже сделанную работу ПО ЭТОЙ ЖЕ ГРУППЕ в этой же тренировке.
+ * loadFactor считает усталость внутри упражнения, а это — усталость между ними:
+ * разгибания ног третьим движением идут не на свежий квадрицепс, к ним он уже
+ * отработал семь подходов приседа и жима ногами. Без этой поправки первый заход
+ * в движение получает вес, рассчитанный от свежего максимума, и не идёт.
+ *   каждый сделанный до этого рабочий подход по группе стоит 1,5%;
+ *   вторичная работа (ягодицы в приседе, трицепс в жиме) считается вполовину;
+ *   глубже 15% не опускаемся — ниже это уже не подсобка, а другая тренировка.
+ * Поправка симметрична: при назначении веса она делит, при чтении журнала —
+ * умножает обратно. Поэтому при неизменном составе квеста вес не меняется,
+ * а двигается он ровно тогда, когда меняется состав или порядок движений.
+ */
+export function freshFactor({ priorSets = 0 } = {}) {
+  return Math.max(0.85, Math.min(1, 1 - 0.015 * Math.max(0, priorSets || 0)));
+}
+
+/**
+ * Сколько работы по группе накоплено к каждому движению квеста.
+ * Чистая функция по списку [{ group, also, sets }] в порядке выполнения.
+ * @returns массив той же длины: сколько рабочих подходов по основной группе
+ *          движения было сделано ДО него (вторичная работа — вполовину)
+ */
+export function priorSetsOf(list = []) {
+  const done = {};
+  return (list || []).map((e) => {
+    if (!e || !e.group) return 0;
+    const before = done[e.group] || 0;
+    const sets = e.sets || 0;
+    done[e.group] = before + sets;
+    (e.also || []).forEach((g) => { done[g] = (done[g] || 0) + sets / 2; });
+    return Math.round(before * 2) / 2;
+  });
+}
+
+/**
  * Самочувствие перед квестом — автoрегуляция. Единственное, что движок не может
  * вывести из журнала: сон, стресс и болезнь в подходы не записываются.
  *   свежий — чуть выше вес и короче отдых: день, когда можно взять своё;
@@ -231,7 +266,8 @@ export function workMax(history, o = {}) {
     // вес, взятый в четырёх подходах подряд, говорит о большем, чем тот же вес в одном,
     // а вес, взятый на разбитом самочувствии, — о большем, чем тот же вес на свежую голову
     const k = loadFactor({ sets: (h.plan && h.plan.sets) || j.planned, rest: restFor(tier, j.hi) })
-      * feelOf(h.plan && h.plan.feel).k;
+      * feelOf(h.plan && h.plan.feel).k
+      * freshFactor({ priorSets: (h.plan && h.plan.prior) || 0 });
     const at = (w) => asMax(toSys(Math.max(floor, w)) / k, j.hi, rir);  // вес → якорь на языке этой схемы
     const prev = anchor;
     const due = prev ? toBar(asWeight(prev, j.hi, rir) * k) : 0;   // что было назначено на этот квест
@@ -302,14 +338,14 @@ export function trendPerMonth(moves) {
  */
 export function progressionOf(history, o = {}) {
   const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0, reset = null, sets = 1, tier = 2,
-    feel = "norm", deload = false } = o;
+    feel = "norm", deload = false, prior = 0 } = o;
   const step = EQUIP_STEP[equip] || 2.5;
   const { toBar } = spaceOf(o);
   const { anchor, moves } = workMax(history, { ...o, step });
   // вес на сегодня — с поправкой на объём и отдых этой схемы
   const rest = Math.round((o.rest || restFor(tier, reps[1])) * feelOf(feel).rest);
   const k = loadFactor({ sets, rest: o.rest || restFor(tier, reps[1]) })
-    * feelOf(feel).k * (deload ? DELOAD : 1);
+    * feelOf(feel).k * (deload ? DELOAD : 1) * freshFactor({ priorSets: prior });
   const rec = bestSet(history, o);
   const round = (v) => Math.max(0, Math.round(v / step) * step);
   const empty = { source: "none", work1RM: 0, oneRM: 0, oneRMBar: 0, best: null, proven: 0,
@@ -339,6 +375,7 @@ export function progressionOf(history, o = {}) {
   return {
     source, work1RM: anchor || seed * (1 + prog),
     target, floor: floor < target ? floor : 0, step, rest, loadK: k, deload: !!deload, feel: feelOf(feel).key,
+    prior, freshK: freshFactor({ priorSets: prior }),
     oneRM: rec ? rec.one : (source === "estimate" ? seed * (1 + prog) : 0),
     oneRMBar: rec ? toBar(rec.one) : (source === "estimate" ? toBar(seed * (1 + prog)) : 0),
     best: rec, proven: provenTop(moves), sessions: moves.length,

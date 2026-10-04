@@ -1,7 +1,7 @@
 // Тесты бизнес-логики программы и пула движений: node --test tests/program.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend, weekTonnage, tonnageTrend, DELOAD_FACTOR } from "../data/program.js";
+import { PROGRAM, TEMPLATES, SCHEME, METHODS, BASELINES, ARCHIVED_WORKOUTS, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend, weekTonnage, tonnageTrend, groupLoad, SESSION_CAP, DELOAD_FACTOR } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, workingWeight, pctOf1RM, similarTo } from "../data/exercises.js";
 
 // группы, которые обязаны прорабатываться не реже 2 раз в неделю
@@ -641,4 +641,76 @@ test("тренд тоннажа: процент к прошлой непусто
   assert.equal(rows[2].delta, 10, "третья сравнивается с первой: +10%");
   assert.equal(rows[2].vs, w2.n - 1, "и подпись указывает именно на неё");
   assert.ok(rows[rows.length - 1].deload, "последняя неделя цикла помечена разгрузочной");
+});
+
+/* ---------- концентрация нагрузки внутри сессии ---------- */
+
+test("сборка квеста проставляет накопленную по группе работу в порядке выполнения", () => {
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      const list = buildExercises(w);
+      assert.equal(list[0].prior, 0, `${w.id}: движение дня должно идти на свежую мышцу`);
+      list.forEach((e) => {
+        assert.ok(Number.isFinite(e.prior) && e.prior >= 0, `${w.id}/${e.id}: prior не посчитан`);
+      });
+      // накопленное не может превышать всю работу квеста по группе — прямую и косвенную
+      const total = {};
+      list.forEach((e) => {
+        const src = EX_BY_ID[e.id];
+        total[e.group] = (total[e.group] || 0) + e.sets;
+        (src.also || []).forEach((g) => { total[g] = (total[g] || 0) + e.sets / 2; });
+      });
+      list.forEach((e) => assert.ok(e.prior < total[e.group],
+        `${w.id}/${e.id}: накоплено ${e.prior} при всего ${total[e.group]} подходах по группе`));
+      // прямая работа по группе идёт по возрастанию: второе движение видит первое
+      const seen = {};
+      list.forEach((e) => {
+        if (seen[e.group] != null) assert.ok(e.prior > seen[e.group],
+          `${w.id}/${e.id}: второе движение на группу не увидело первого`);
+        seen[e.group] = e.prior;
+      });
+    }
+  }
+});
+
+test("prior пересчитывается при правках состава: убрал движение — соседу легче", () => {
+  const legDay = PROGRAM.weeks[0].workouts.find((w) => w.tpl === "L");
+  const full = buildExercises(legDay);
+  const quads = full.filter((e) => EX_BY_ID[e.id].group === "quads");
+  assert.ok(quads.length >= 3, "в дне ног квадрицепс должен получать три движения");
+  const last = quads[quads.length - 1];
+  const without = buildExercises(legDay, { hide: [quads[1].id] });
+  const lastAfter = without.find((e) => e.id === last.id);
+  assert.ok(lastAfter.prior < last.prior,
+    `без ${quads[1].id} накопленная работа должна упасть: ${lastAfter.prior} против ${last.prior}`);
+});
+
+test("концентрация по группам: ни одна группа не уходит глубже 10 подходов за сессию", () => {
+  for (const wk of PROGRAM.weeks) {
+    for (const w of wk.workouts) {
+      const gl = groupLoad(buildExercises(w));
+      assert.ok(gl.length, `${w.id}: пустая сводка по группам`);
+      // отсортировано по убыванию объёма — первой идёт та, на которую квест и рассчитан
+      for (let i = 1; i < gl.length; i++) assert.ok(gl[i - 1].sets >= gl[i].sets, `${w.id}: сводка не отсортирована`);
+      gl.forEach((g) => {
+        assert.ok(g.sets <= SESSION_CAP, `${w.id}: ${MUSCLES[g.group]} получает ${g.sets} подходов за сессию`);
+        assert.equal(g.level, g.sets > SESSION_CAP ? "high" : g.sets >= 7 ? "mid" : "low", `${w.id}/${g.group}: уровень`);
+        assert.notEqual(g.level, "high", `${w.id}: шаблон не должен пробивать потолок сам по себе`);
+        assert.equal(g.names.length, g.ex);
+      });
+      // сумма по группам сходится с составом квеста
+      const total = buildExercises(w).reduce((a, e) => a + e.sets, 0);
+      assert.equal(gl.reduce((a, g) => a + g.sets, 0), total, `${w.id}: сводка теряет подходы`);
+    }
+  }
+});
+
+test("правка атлета может пробить потолок по группе — и это видно", () => {
+  const legDay = PROGRAM.weeks[0].workouts.find((w) => w.tpl === "L");
+  const base = groupLoad(buildExercises(legDay)).find((g) => g.group === "quads");
+  assert.equal(base.level, "mid", "шаблон держится в потолке");
+  // атлет добавил ещё одно движение на квадрицепс
+  const over = groupLoad(buildExercises(legDay, { add: ["bulgarian"] })).find((g) => g.group === "quads");
+  assert.ok(over.sets > SESSION_CAP, `стало ${over.sets} подходов`);
+  assert.equal(over.level, "high");
 });

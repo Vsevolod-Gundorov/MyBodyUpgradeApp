@@ -1,4 +1,4 @@
-import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, weekProgress, weekOfId, muscleTrend, tonnageTrend } from "../data/program.js";
+import { PROGRAM, BASELINES, LIFT_NAMES, ARCHIVED_WORKOUTS, TEMPLATES, SCHEME, METHODS, TYPE_NAMES, ROLE_NAMES, buildExercises, weeklyCoverage, sessionLoad, groupLoad, SESSION_CAP, weekProgress, weekOfId, muscleTrend, tonnageTrend } from "../data/program.js";
 import { EXERCISES, EX_BY_ID, exById, MUSCLES, MUSCLE_ORDER, PATTERNS, EQUIP, EQUIP_STEP, similarTo, searchExercises, setDone } from "../data/exercises.js";
 import { inTelegram, initTelegram, setBackButton, tgHaptic, cloudAvailable, cloudSave, cloudLoad, cloudInfo, tgUser, tgUserId, tgUserName, tgUserHandle, decideSync } from "./telegram.js";
 import { activeSeconds, pushTick, fmtDuration, durationTrusted } from "./timing.js";
@@ -6,7 +6,7 @@ import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber 
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
-import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restFor, feelOf, FEEL, DELOAD, e1rm as e1rmAvg, PROG } from "../data/progression.js";
+import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restFor, feelOf, priorSetsOf, FEEL, DELOAD, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
@@ -334,14 +334,22 @@ function movementHistory() {
   if (histCache) return histCache;
   const out = {};
   [...S.sessions].sort((a, b) => a.date.localeCompare(b.date)).forEach((sess) => {
-    sessionExercises(sess).forEach((ex) => {
+    const list = sessionExercises(sess);
+    // сколько работы по группе было сделано до каждого движения в ТОЙ сессии:
+    // считаем по снимку состава, а не берём из плана — тогда и старые сессии,
+    // записанные до появления поправки, читаются по тем же правилам
+    const prior = priorSetsOf(list.map((ex) => {
+      const src = exById(ex.id);
+      return { group: src ? src.group : null, also: (src && src.also) || [], sets: ex.sets };
+    }));
+    list.forEach((ex, i) => {
       const src = exById(ex.id) || ex;
       const sets = (sess.entries[ex.id] || []).filter((x) => setDone(x, src));
       if (!sets.length) return;
       const key = ex.lift || ex.id;
       (out[key] ||= []).push({ date: sess.date, sets, plan: {
         sets: ex.sets, reps: ex.reps, rir: ex.rir != null ? ex.rir : 1,
-        feel: sess.feel || "norm", deload: !!ex.deload } });
+        feel: sess.feel || "norm", deload: !!ex.deload, prior: prior[i] || 0 } });
     });
   });
   return (histCache = out);
@@ -357,12 +365,12 @@ function seed1RM(src) {
 }
 
 /** Вилка рабочего веса движения: из журнала, а без журнала — от базовых лифтов. */
-function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0, feel = "norm", deload = false } = {}) {
+function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0, feel = "norm", deload = false, prior = 0 } = {}) {
   if (!src) return null;
   const key = src.lift || src.id;
   return progressionOf(movementHistory()[key] || [], {
     reps, rir, equip: src.equip, prog, seed: seed1RM(src),
-    sets, tier: src.tier || 2, rest: rest || 0, feel, deload,
+    sets, tier: src.tier || 2, rest: rest || 0, feel, deload, prior,
     bodyweight: S.hero.bodyweight || 90, bw: !!src.bw, perHand: !!src.perHand,
     reset: (S.workReset || {})[key] || null,
   });
@@ -382,7 +390,7 @@ function withWeights(ex) {
   const feel = feelToday();
   ex = { ...ex, sets: Math.max(2, (ex.sets || 3) + feelOf(feel).sets) };
   const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0, sets: ex.sets, rest,
-    feel, deload: !!ex.deload });
+    feel, deload: !!ex.deload, prior: ex.prior || 0 });
   const own = src && (src.equip === "bw" || src.bw);
   if (!p || p.source === "none") return { ...ex, w: 0, wSource: "none", wp: p || null, bwOnly: !!own,
     wNote: own ? "свой вес" : "задай вес сам" };
@@ -1505,6 +1513,9 @@ function renderWorkout(wid) {
   const sl = sessionLoad(w.exercises);
   const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
   const wk = WEEK_OF[wid];
+  // концентрация: какой группе в этом квесте достаётся больше всего подходов
+  const gl = groupLoad(w.exercises);
+  const hot = gl.filter((g) => g.level !== "low");
   app.innerHTML = `
     <div class="qhead">
       <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
@@ -1520,6 +1531,7 @@ function renderWorkout(wid) {
       ${w.deload ? `<span class="badge b-deload">разгрузка −${Math.round((1 - DELOAD) * 100)}%</span>` : ""}
       ${w.prog ? `<span class="badge b-prog">+${Math.round(w.prog * 100)}%</span>` : ""}
       <span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span>
+      ${hot.length ? `<span class="badge b-focus ${hot[0].level === "high" ? "deep" : ""}" id="q-focus">${(MUSCLES[hot[0].group] || "").toLowerCase()} ${hot[0].sets}</span>` : ""}
       ${sl.overload ? `<span class="badge b-warn" id="q-warn">⚠ перегруз</span>` : ""}
     </div>
     <div class="feel-row">
@@ -1549,6 +1561,9 @@ function renderWorkout(wid) {
         ${w.deload ? `<div><span class="badge b-deload">разгрузка</span> те же движения и то же число подходов, но вес −${Math.round((1 - DELOAD) * 100)}%. Эта неделя не двигает рабочий максимум ни вверх, ни вниз — она нужна, чтобы следующий блок стартовал со свежих мышц, а не с накопленной усталости</div>` : ""}
         <div><span class="feel on">Устал</span> состояние перед квестом: «Свежий» даёт +2% к весу и короткий отдых, «Устал» — минус 5%, на подход меньше и отдых длиннее. Движок помнит, в каком состоянии закрыт квест, и не считает тяжёлый день откатом силовых</div>
         <div><span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span> ${plural(sl.compound, "многосуставное", "многосуставных")}, ${sl.maxBase ? plural(sl.maxBase, "максимальная база", "максимальные базы") : "без максимальных баз"}</div>
+        ${hot.length ? `<div><span class="badge b-focus ${hot[0].level === "high" ? "deep" : ""}">${(MUSCLES[hot[0].group] || "").toLowerCase()} ${hot[0].sets}</span> на какую группу в этом квесте приходится больше всего подходов. Потолок — ${SESSION_CAP} за сессию: выше добавочный подход уже не растит, а только отнимает восстановление${hot[0].level === "high" ? ". <b>Потолок пробит</b> — убери одно движение на эту группу или перенеси его в другой квест" : ""}.
+          ${gl.filter((g) => g.ex > 1).map((g) => `<br><b>${MUSCLES[g.group]}</b>: ${plural3(g.ex, "движение", "движения", "движений")}, ${plural3(g.sets, "подход", "подхода", "подходов")} — ${g.names.join(", ").toLowerCase()}`).join("")}
+          <br><br>Рабочий вес это учитывает: каждый сделанный до движения подход по той же группе снимает 1,5% (вторичная работа — вполовину, глубже 15% не идём). Поэтому третье упражнение на квадрицепс получает вес не как на свежие ноги. Уберёшь или переставишь движение — вес соседей пересчитается сам.</div>` : ""}
         ${sl.overload ? `<div><span class="badge b-warn">⚠ перегруз</span> две максимальные базы в одном квесте. Натуралу это стоит дороже, чем даёт: замени одну на движение в тренажёре</div>` : ""}
         <div><span class="badge b-weight">вес ★</span> посчитан по твоим подходам в этом движении; ◎ — оценка от базовых лифтов, пока журнал пуст</div>
         <div><span class="ex-prog up"><i class="mono">▲</i>+2,5 кг</span> двойная прогрессия: закрыл все подходы по верхней границе повторов — в следующий раз шаг вверх. Не добрал нижнюю — шаг вниз. Попал в коридор — вес держим и добираем повторы</div>
@@ -1655,6 +1670,7 @@ function renderWorkout(wid) {
             ${mv ? `<span class="eg-line ${{ "▲": "up", "▼": "down" }[mv.icon] || ""}"><i class="mono">${mv.icon}</i>${prev ? mv.text.split(":")[0] : mv.text}</span>` : ""}
           </div>
           ${prev ? `<details class="eg-prev"><summary>прошлый раз</summary><span>${fmtDate(prev.date)}: <b class="mono">${prev.txt}</b></span></details>` : ""}
+          ${ex.wp && ex.wp.freshK < 1 && src.group ? `<div class="eg-line note fatigue-note">${(MUSCLES[src.group] || "группа").toLowerCase()} к этому моменту уже отработал${/[аь]$/.test(MUSCLES[src.group] || "") ? "а" : ""} ${plural3(Math.round(ex.wp.prior), "подход", "подхода", "подходов")} — вес на ${Math.round((1 - ex.wp.freshK) * 100)}% ниже, чем на свежую мышцу</div>` : ""}
           ${ex.method && METHODS[ex.method] ? `<div class="eg-line note" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))} ${METHODS[ex.method].name} на последнем подходе — как делать</div>` : ""}
         </div>
 
@@ -2123,7 +2139,7 @@ function renderWorkout(wid) {
     const now = new Date();
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
     // rir нужен прогрессии: по нему схемы разных недель пересчитываются друг в друга
-    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload }));
+    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload, prior: ex.prior || 0 }));
     S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: feelToday(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
     S.xp += res.xp;
     invalidateE1RM();

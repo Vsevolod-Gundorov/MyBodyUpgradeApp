@@ -4,7 +4,7 @@
 // «потолок» и «пол» — два числа, из которых не следовало, что ставить сегодня.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, loadFactor, restFor, tonnageOf, feelOf, FEEL, DELOAD, PROG } from "../data/progression.js";
+import { e1rm, weightFor, judge, workMax, bestSet, progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, loadFactor, restFor, tonnageOf, feelOf, freshFactor, priorSetsOf, FEEL, DELOAD, PROG } from "../data/progression.js";
 
 const d = (n) => `2026-0${Math.floor(n / 28) + 1}-${String((n % 28) + 1).padStart(2, "0")}`;
 const plan4x46 = { sets: 4, reps: [4, 6], rir: 1 };
@@ -529,4 +529,64 @@ test("тоннаж считает только рабочие подходы и 
   assert.equal(tonnageOf([{ w: 10, r: 5 }], { bw: true, bodyweight: 90 }).kg, 500);
   assert.equal(tonnageOf([], {}).kg, 0);
   assert.equal(tonnageOf(null, {}).kg, 0);
+});
+
+/* ---------- нагрузка внутри одной тренировки ---------- */
+
+test("накопленная по группе работа считается по порядку, вторичная — вполовину", () => {
+  // присед (4 сета, вторично ягодицы) → жим ногами (3) → разгибания (3) → хип-траст (3)
+  const list = [
+    { group: "quads", also: ["glutes"], sets: 4 },
+    { group: "quads", also: [], sets: 3 },
+    { group: "quads", also: [], sets: 3 },
+    { group: "glutes", also: [], sets: 3 },
+  ];
+  assert.deepEqual(priorSetsOf(list), [0, 4, 7, 2]);
+  assert.deepEqual(priorSetsOf([]), []);
+  assert.deepEqual(priorSetsOf(null), []);
+  // движение дня всегда первое и всегда на свежую мышцу
+  assert.equal(priorSetsOf(list)[0], 0);
+});
+
+test("поправка на свежесть: глубже 15% не идёт и первому движению ничего не снимает", () => {
+  assert.equal(freshFactor({ priorSets: 0 }), 1);
+  assert.ok(freshFactor({ priorSets: 4 }) < 1);
+  assert.ok(freshFactor({ priorSets: 7 }) < freshFactor({ priorSets: 4 }));
+  assert.equal(freshFactor({ priorSets: 100 }), 0.85);
+  assert.equal(freshFactor({}), 1);
+  assert.equal(freshFactor({ priorSets: -5 }), 1, "отрицательная история — это ноль, а не бонус");
+});
+
+test("третье движение на группу получает вес не как на свежую мышцу", () => {
+  const base = { reps: [10, 12], rir: 1, equip: "machine", seed: 170 * 0.75, sets: 3, tier: 3 };
+  const fresh = progressionOf([], base);
+  const third = progressionOf([], { ...base, prior: 7 });
+  assert.ok(third.target < fresh.target, `после семи подходов должно быть легче: ${third.target} против ${fresh.target}`);
+  assert.ok(third.target >= fresh.target * 0.85, "но не вдвое");
+  assert.equal(third.prior, 7);
+});
+
+test("при неизменном составе квеста поправка на свежесть вес не двигает", () => {
+  // то же движение, та же позиция в тренировке: что сделал — то и назначено
+  const base = { reps: [8, 10], rir: 2, equip: "machine", sets: 3, tier: 2 };
+  const hist = [sess(d(1), same(3, 180, 10), { sets: 3, reps: [8, 10], rir: 2, prior: 4 })];
+  const p = progressionOf(hist, { ...base, prior: 4 });
+  assert.equal(p.target, 180, "поправка симметрична: сделал 180 третьим — получишь 180 третьим");
+});
+
+test("уберёшь движение перед этим — вес соседа вырастет, добавишь — упадёт", () => {
+  const base = { reps: [8, 10], rir: 2, equip: "machine", sets: 3, tier: 2 };
+  const hist = [sess(d(1), same(3, 180, 10), { sets: 3, reps: [8, 10], rir: 2, prior: 4 })];
+  const same_ = progressionOf(hist, { ...base, prior: 4 });
+  const first = progressionOf(hist, { ...base, prior: 0 });     // присед убрали
+  const later = progressionOf(hist, { ...base, prior: 8 });     // добавили ещё одно до него
+  assert.ok(first.target > same_.target, `без приседа перед ним должно быть тяжелее: ${first.target}`);
+  assert.ok(later.target < same_.target, `после лишнего движения — легче: ${later.target}`);
+});
+
+test("журнал, записанный до появления поправки, не роняет вес задним числом", () => {
+  // старая сессия: в плане нет prior (undefined) — читается как ноль
+  const base = { reps: [8, 10], rir: 2, equip: "machine", sets: 3, tier: 2 };
+  const old = progressionOf([sess(d(1), same(3, 180, 10), { sets: 3, reps: [8, 10], rir: 2 })], base);
+  assert.equal(old.target, 180);
 });
