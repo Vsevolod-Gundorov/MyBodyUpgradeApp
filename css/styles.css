@@ -414,6 +414,8 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .eg-line.up, .eg-line.up i { color: var(--moss); }
 .eg-line.down, .eg-line.down i { color: var(--ember); }
 .eg-line.note { grid-column: 1 / -1; margin-top: 4px; color: var(--teal); cursor: default; }
+/* почему вес ниже свежего: группа уже отработала в этом квесте */
+.eg-line.fatigue-note { color: var(--dim); display: block; }
 /* прошлый раз: по умолчанию свёрнут — в зале он нужен не каждый подход */
 .eg-prev { grid-column: 1 / -1; margin-top: 4px; font-size: .73rem; color: var(--dim); }
 .eg-prev summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 4px;
@@ -1325,6 +1327,9 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .badge.b-warn   { color: var(--ember); border-color: rgba(198,91,60,.6); background: rgba(198,91,60,.16); cursor: pointer; }
 .badge.b-prog   { color: var(--teal); border-color: rgba(79,154,168,.45); }
 .badge.b-deload { color: var(--teal); border-color: rgba(79,154,168,.5); background: rgba(79,154,168,.12); }
+/* на какую группу приходится основной объём квеста */
+.badge.b-focus  { color: var(--bone); border-color: var(--line-strong); }
+.badge.b-focus.deep { color: var(--ember); border-color: rgba(198,91,60,.45); background: rgba(198,91,60,.1); }
 .badge.b-main   { color: var(--gold-bright); border-color: var(--line-strong); background: rgba(201,169,97,.14); }
 .badge.b-alt    { color: var(--teal); border-color: rgba(79,154,168,.45); }
 .badge.b-plan   { color: var(--bone); border-color: var(--line-strong); }

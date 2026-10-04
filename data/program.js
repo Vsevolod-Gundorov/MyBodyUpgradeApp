@@ -21,7 +21,7 @@
 // Веса в квесте НЕ зашиты: считаются под атлета из его замеров 1ПМ и коэффициентов пула
 // (data/exercises.js → workingWeight). Пул также позволяет заменить или добавить упражнение.
 import { EX_BY_ID } from "./exercises.js";
-import { tonnageOf, DELOAD } from "./progression.js";
+import { tonnageOf, priorSetsOf, DELOAD } from "./progression.js";
 
 /* ---------- схемы подходов: роль упражнения × тип сессии ---------- */
 // rir — запас повторов (0 = до отказа). База идёт с запасом: близость к отказу почти
@@ -238,7 +238,37 @@ export function buildExercises(workout, plan = {}) {
     e.ssGroup = partner ? partner.group : null;
     e.ssSameMuscle = !!partner && partner.group === e.group;
   });
+  // сколько работы по группе накоплено к каждому движению: третье упражнение
+  // на квадрицепс идёт не на свежие ноги, и рабочий вес это учитывает
+  priorSetsOf(out.map((e) => {
+    const src = EX_BY_ID[e.id];
+    return { group: e.group, also: (src && src.also) || [], sets: e.sets };
+  })).forEach((n, i) => { out[i].prior = n; });
   return out;
+}
+
+/**
+ * Концентрация нагрузки по группам внутри одной сессии: сколько упражнений
+ * и подходов достаётся каждой группе и насколько это глубоко.
+ * Нужно, чтобы правило «не больше ~10 сетов на группу за сессию» было видно
+ * на экране, а не только в тестах: после десятого подхода добавочный уже
+ * не растит, а только отнимает восстановление.
+ * @returns [{ group, ex, sets, prior, level }] по убыванию подходов
+ */
+export const SESSION_CAP = 10;   // больше подходов на группу за сессию уже не растит (Baz-Valle 2022)
+export function groupLoad(list = []) {
+  const by = {};
+  (list || []).forEach((e) => {
+    const src = EX_BY_ID[e.id];
+    if (!src) return;
+    const c = (by[src.group] ||= { group: src.group, ex: 0, sets: 0, prior: 0, names: [] });
+    c.ex++; c.sets += e.sets || 0; c.prior = Math.max(c.prior, e.prior || 0);
+    c.names.push(src.short || src.name);
+  });
+  return Object.values(by)
+    // high — потолок пробит (обычно это уже правка атлета), mid — основная группа квеста
+    .map((c) => ({ ...c, level: c.sets > SESSION_CAP ? "high" : c.sets >= 7 ? "mid" : "low" }))
+    .sort((a, b) => b.sets - a.sets || b.ex - a.ex);
 }
 
 /** Системная цена квеста: сумма cns движений и число максимальных баз.
