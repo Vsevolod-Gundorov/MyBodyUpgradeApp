@@ -1,0 +1,143 @@
+/* ============ Тема «Чистая» ============================================
+   Второе оформление того же приложения: чёрный, тёмно-синий, голубой, белый.
+   Без золота, засечек, пергамента и свечений — интерфейс, который не стыдно
+   открыть при коллегах. Подключается атрибутом data-theme="plain" на <html>.
+
+   Палитра собрана по образцу того, как выглядят сегодняшние трекеры силовой
+   (Hevy, Strong, Boostcamp) и продуктовые интерфейсы вроде Linear и Vercel:
+   почти чёрный фон, тёмно-синие панели, ОДИН голубой акцент на всё приложение
+   и белый текст. Цвет работает как указатель, а не как украшение: голубым
+   подсвечено только то, что сейчас важно.
+
+   Файл намеренно живёт отдельно от styles.css: базовые стили остаются темой
+   «Сага» без единого изменения, а здесь переопределяются только токены и те
+   правила, где фэнтезийность зашита в сам рисунок (градиенты, фактуры, тени).
+   ====================================================================== */
+
+:root[data-theme="plain"] {
+  --ink: #070a11;            /* фон: чёрный с синевой */
+  --ink-2: #0b1018;
+  --panel: #141d2b;          /* панель — должна читаться как поверхность */
+  --panel-2: #1c2838;        /* приподнятая панель */
+  --line: rgba(152, 176, 208, 0.18);
+  --line-strong: rgba(152, 176, 208, 0.42);
+
+  /* акцент один на всё приложение: голубой */
+  --gold: #38bdf8;
+  --gold-bright: #7dd3fc;
+  --gold-deep: #0b6f9c;
+  --teal: #60a5fa;           /* вторичный — синий, а не сине-зелёный */
+  --teal-dim: #2b4a73;
+  --bone: #eef3fa;           /* основной текст */
+  --dim: #95a8c2;            /* вторичный текст */
+  --ember: #f2706b;          /* провал */
+  --moss: #3fcf8e;           /* успех */
+  --r: 12px;
+
+  /* цветовые семейства: те же роли, другой цвет */
+  --t-acc: 56,189,248;       --t-acc-b: 125,211,252;  --t-acc-c: 125,211,252;
+  --t-acc-hi: 186,230,253;   --t-acc-glow: 56,189,248; --t-acc-soft: 125,211,252;
+  --t-acc-warm: 224,242,254; --t-acc-pale: 240,249,255; --t-acc-line: 56,189,248;
+  --t-sec: 96,165,250;       --t-sec-b: 59,130,246;   --t-sec-c: 30,58,96;  --t-sec-d: 37,99,180;
+  --t-bad: 242,112,107;      --t-bad-b: 220,90,86;
+  --t-good: 63,207,142;      --t-good-b: 63,207,142;  --t-good-c: 45,160,110;
+
+  /* плоские поверхности вместо металла и тиснения */
+  --metal-gold: linear-gradient(180deg, #4cc5fa 0%, #38bdf8 55%, #1aa5e4 100%);
+  --emboss: none;
+  --bevel: inset 0 0 0 1px rgba(148,170,200,.10);
+  --tex-leather: none;
+  --tex-grain: none;
+  --tex-frame: none;
+  --font-display: var(--font-body);
+}
+
+/* ---------- фон: ровный, без тумана и кожи ---------- */
+:root[data-theme="plain"] body {
+  background-image:
+    radial-gradient(760px 420px at 50% -6%, rgba(56,189,248,.10), transparent 60%),
+    linear-gradient(180deg, #0b1220 0%, #090d15 52%, #070a10 100%);
+}
+:root[data-theme="plain"] body::before,
+:root[data-theme="plain"] body::after { display: none; }
+
+/* ---------- типографика: гротеск вместо антиквы, без золотой заливки ---------- */
+:root[data-theme="plain"] .display { font-weight: 650; letter-spacing: -.015em; }
+:root[data-theme="plain"] h1.display,
+:root[data-theme="plain"] h2.display {
+  background: none; -webkit-text-fill-color: currentColor; color: var(--bone); filter: none;
+}
+:root[data-theme="plain"] h1.display { font-size: 1.7rem; letter-spacing: -.02em; }
+:root[data-theme="plain"] .saga { font-style: normal; }
+
+/* ---------- иконки: Lucide рисуется обводкой, а не заливкой ----------
+   Правило перебивает точечные `fill: currentColor` базовой темы, поэтому
+   !important здесь по делу: иначе штриховая иконка заливается в сплошное пятно. */
+:root[data-theme="plain"] .ico-line { fill: none !important; stroke: currentColor !important; }
+:root[data-theme="plain"] .medallion .ico,
+:root[data-theme="plain"] .tab .tab-ico .ico { filter: none; }
+
+/* ---------- панели и карточки: плоско, мягкий радиус ---------- */
+:root[data-theme="plain"] .panel,
+:root[data-theme="plain"] .ex,
+:root[data-theme="plain"] .wcard,
+:root[data-theme="plain"] .overlay-card {
+  box-shadow: none; background-image: none; border-radius: var(--r);
+}
+:root[data-theme="plain"] .medallion {
+  background: var(--panel-2); border: 1px solid var(--line); box-shadow: none;
+  color: var(--gold); border-radius: 10px;
+}
+:root[data-theme="plain"] .medallion::before,
+:root[data-theme="plain"] .medallion::after { display: none; }
+
+/* ---------- таббар ---------- */
+:root[data-theme="plain"] .tabbar {
+  background: rgba(10,14,22,.92); backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line); box-shadow: none; background-image: none;
+}
+:root[data-theme="plain"] .tab.active { color: var(--gold); }
+:root[data-theme="plain"] .tab.active .tab-ico .ico { filter: none; }
+
+/* ---------- кнопки ---------- */
+:root[data-theme="plain"] .finish-btn,
+:root[data-theme="plain"] .btn-gold {
+  background: var(--metal-gold); color: #04121c; text-shadow: none; box-shadow: none;
+  border: 0; font-family: var(--font-body); font-weight: 650; letter-spacing: 0; text-transform: none;
+}
+:root[data-theme="plain"] .pill-btn,
+:root[data-theme="plain"] .icon-btn,
+:root[data-theme="plain"] .btn-ghost {
+  background: var(--panel); border: 1px solid var(--line); box-shadow: none; text-shadow: none;
+}
+
+/* ---------- бейджи: тонкая рамка, без заливок-градиентов ---------- */
+:root[data-theme="plain"] .badge { background-image: none; text-transform: none; letter-spacing: .01em; }
+/* «по плану» — единственный залитый бейдж: он отмечает, с чего начать сегодня */
+:root[data-theme="plain"] .badge.b-next { color: #04121c; background: var(--gold); border-color: transparent; }
+:root[data-theme="plain"] .wflag.on { background: rgba(var(--t-acc),.14); color: var(--gold); border: 1px solid var(--line-strong); box-shadow: none; }
+
+/* ---------- всё остальное, где золото зашито в рисунок ---------- */
+:root[data-theme="plain"] .qhead,
+:root[data-theme="plain"] .bar { background-image: none; }
+:root[data-theme="plain"] .eyebrow { letter-spacing: .1em; color: var(--dim); }
+
+/* ---------- контраст: в тёмно-синем всё легко слипается в одно пятно ---------- */
+:root[data-theme="plain"] .week-n { color: #b7c7dd; }
+:root[data-theme="plain"] .wcard { background: var(--panel); }
+:root[data-theme="plain"] .wcard.next { border-color: var(--line-strong); background: var(--panel-2); }
+:root[data-theme="plain"] .panel { background: var(--panel); }
+:root[data-theme="plain"] .boss, :root[data-theme="plain"] .ex-title .name { color: var(--bone); }
+
+/* ---------- геральдика: в «Чистой» её нет ---------- */
+:root[data-theme="plain"] .hero-head::before,
+:root[data-theme="plain"] .panel::before { display: none; }
+:root[data-theme="plain"] .hero-title { font-style: normal; color: var(--dim); font-size: .95rem; }
+:root[data-theme="plain"] .gilded, :root[data-theme="plain"] .panel--ornate { background-image: none; }
+
+/* ---------- поля ввода: на тёмно-синем чёрные колодцы выглядят дырами ---------- */
+:root[data-theme="plain"] .set-row input,
+:root[data-theme="plain"] input, :root[data-theme="plain"] select, :root[data-theme="plain"] textarea {
+  background: var(--ink-2); border-color: var(--line); color: var(--bone);
+}
+:root[data-theme="plain"] .set-row.active input { border-color: var(--gold); }
