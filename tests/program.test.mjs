@@ -524,3 +524,33 @@ test("мышцы вне плана дают нули, а не дырки", () =>
   assert.equal(t.length, PROGRAM.weeks.length);
   assert.ok(t.every((x) => x.sets === 0 && x.days === 0));
 });
+
+test("атлет может сам собрать суперсет из двух движений квеста", () => {
+  const w = PROGRAM.weeks[0].workouts[0];
+  const base = buildExercises(w);
+  const [a, b] = base.filter((x) => !x.ss).slice(0, 2);
+  const list = buildExercises(w, { pair: [[a.id, b.id]] });
+  const ea = list.find((x) => x.id === a.id), eb = list.find((x) => x.id === b.id);
+  assert.ok(ea.ss && ea.ss === eb.ss, "пара получила общий ключ суперсета");
+  assert.equal(ea.ssManual, true);
+  assert.equal(ea.ssWith, eb.short);
+  assert.equal(eb.ssWith, ea.short);
+  assert.equal(ea.ssSameMuscle, ea.group === eb.group, "про одну группу движок знает сам");
+});
+
+test("пара распадается, если одно из движений убрали из квеста", () => {
+  const w = PROGRAM.weeks[0].workouts[0];
+  const [a, b] = buildExercises(w).filter((x) => !x.ss).slice(0, 2);
+  const list = buildExercises(w, { pair: [[a.id, b.id]], hide: [b.id] });
+  assert.equal(list.find((x) => x.id === a.id).ss, null, "одинокое движение суперсетом не остаётся");
+  assert.equal(list.find((x) => x.id === b.id), undefined);
+});
+
+test("шаблонную пару можно разбить, и движения станут обычными", () => {
+  const w = PROGRAM.weeks[0].workouts[0];
+  const withSS = buildExercises(w).find((x) => x.ss);
+  assert.ok(withSS, "в шаблоне есть суперсет — иначе тест бессмыслен");
+  const list = buildExercises(w, { unpair: [withSS.ss] });
+  for (const e of list.filter((x) => x.ss === withSS.ss)) assert.fail(`${e.id} остался в разбитой паре`);
+  assert.equal(list.find((x) => x.id === withSS.id).ss, null);
+});

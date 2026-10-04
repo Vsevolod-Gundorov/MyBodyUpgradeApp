@@ -6,7 +6,7 @@ import { NUTRITION, FOODS, FOOD_CATS, WATER_TARGET_ML, offSearch, estimateFiber 
 import { GAME_ICONS } from "../data/icons.js";
 import { UI_ICONS, EQUIP_ICON, METHOD_ICON } from "../data/icons-ui.js";
 import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
-import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, e1rm as e1rmAvg, PROG } from "../data/progression.js";
+import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restFor, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
@@ -354,11 +354,12 @@ function seed1RM(src) {
 }
 
 /** Вилка рабочего веса движения: из журнала, а без журнала — от базовых лифтов. */
-function progressOf(src, { reps = [8, 10], rir = 1, prog = 0 } = {}) {
+function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0 } = {}) {
   if (!src) return null;
   const key = src.lift || src.id;
   return progressionOf(movementHistory()[key] || [], {
     reps, rir, equip: src.equip, prog, seed: seed1RM(src),
+    sets, tier: src.tier || 2, rest: rest || 0,
     bodyweight: S.hero.bodyweight || 90, bw: !!src.bw, perHand: !!src.perHand,
     reset: (S.workReset || {})[key] || null,
   });
@@ -366,7 +367,13 @@ function progressOf(src, { reps = [8, 10], rir = 1, prog = 0 } = {}) {
 // добавить к упражнению рабочий вес под атлета (с учётом прогрессии недели)
 function withWeights(ex) {
   const src = exById(ex.id);
-  const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0 });
+  // В суперсете мышца отдыхает, пока работает партнёр: если это антагонист,
+  // отдыха даже больше обычного. А вот пара на одну группу — это двойной подход
+  // без отдыха, и вес под неё честно пересчитывается вниз.
+  const rest = !ex.ss ? 0
+    : (ex.ssSameMuscle ? Math.round(restFor(src.tier || 2, ex.reps[1]) * 0.45)
+                       : restFor(src.tier || 2, ex.reps[1]) + 30);
+  const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0, sets: ex.sets, rest });
   const own = src && (src.equip === "bw" || src.bw);
   if (!p || p.source === "none") return { ...ex, w: 0, wSource: "none", wp: p || null, bwOnly: !!own,
     wNote: own ? "свой вес" : "задай вес сам" };
@@ -631,22 +638,11 @@ function smartRest(ex, set, a) {
   const tier = exTier(ex);
   const pct = (a && a.target > 0) ? set.w / a.target : null;
   const warmup = pct != null && pct <= 0.6; // явно лёгкий/разминочный подход
-  let rest;
-  if (tier === 1) {
-    // тяжёлая база: длинный отдых, чтобы держать перформанс
-    if (r <= 3) rest = 300; else if (r <= 5) rest = 270; else if (r <= 6) rest = 255;
-    else if (r <= 8) rest = 240; else if (r <= 10) rest = 210; else if (r <= 12) rest = 180;
-    else if (r <= 15) rest = 150; else rest = 120;
-    if (warmup) rest = Math.min(rest, 120);
-  } else if (tier === 2) {
-    // вторичный компаунд / гипертрофийная база
-    if (r <= 5) rest = 165; else if (r <= 8) rest = 135; else if (r <= 10) rest = 105;
-    else if (r <= 12) rest = 90; else if (r <= 15) rest = 70; else rest = 55;
-    if (pct != null) { if (pct >= 0.9) rest += 20; else if (pct <= 0.6) rest -= 15; }
-  } else {
-    // изоляция
-    if (r <= 8) rest = 90; else if (r <= 12) rest = 70; else if (r <= 15) rest = 55; else rest = 45;
-  }
+  // отдых берём из общего справочника — по нему же считается рабочий вес,
+  // иначе план и расчёт разъезжаются: вес как на три минуты, отдых как на минуту
+  let rest = restFor(tier, r);
+  if (warmup) rest = Math.min(rest, 120);
+  else if (pct != null && tier !== 1) { if (pct >= 0.9) rest += 20; else if (pct <= 0.7) rest -= 15; }
   // состояние
   rest *= (FEEL_FACTOR[restFeel] || 1);
   // тяжёлая база на рабочих подходах в силовой зоне — гарантируем ≥4 мин
@@ -828,7 +824,7 @@ function renderProfile() {
         return `<div class="kv"><span>${LIFT_NAMES[k]}</span>
           <span class="mono">${fmt(v.cur)} кг ${d > 0.5 ? `<span class="verdict-gold">+${fmt(d)}</span>` : `<span class="dim">база</span>`}</span></div>`;
       }).join("")}
-      <div class="kv"><span>Вес героя</span><span class="mono">${bw} кг</span></div>
+      <button class="kv kv-btn" id="edit-bw"><span>Вес героя</span><span class="mono">${bw} кг <i class="dim">изменить</i></span></button>
     </div>
 
     <div class="panel">
@@ -851,6 +847,42 @@ function renderProfile() {
 
 `;
 
+  // Вес героя меняется: от него считаются подтягивания, брусья и гиперэкстензия —
+  // там рабочий вес это довесок к своему, и устаревшие 93 кг врут в каждом подходе
+  document.getElementById("edit-bw").onclick = () => {
+    fxTap();
+    const o = document.createElement("div");
+    o.className = "overlay portion-overlay";
+    o.innerHTML = `
+      <div class="portion-card">
+        <div class="eyebrow">Вес героя</div>
+        <div class="portion-name display">Сколько весишь сейчас</div>
+        <p class="dim small" style="margin:8px 0 12px">От него считаются подтягивания, брусья и гиперэкстензия:
+          там рабочий вес — это довесок к своему.</p>
+        <div class="bw-edit">
+          <button class="ex-fix-b" data-bw="-1">−1</button>
+          <input id="bw-in" class="mono" inputmode="decimal" enterkeyhint="done" value="${S.hero.bodyweight || 90}" aria-label="вес тела" />
+          <button class="ex-fix-b" data-bw="1">+1</button>
+        </div>
+        <button class="finish-btn" id="bw-save" style="margin-top:14px">Сохранить</button>
+        <button class="btn-ghost" id="bw-close">Отмена</button>
+      </div>`;
+    overlayRoot.appendChild(o);
+    const inp = o.querySelector("#bw-in");
+    o.querySelectorAll("[data-bw]").forEach((b) => b.onclick = () => {
+      inp.value = Math.max(30, Math.min(250, (parseFloat(inp.value.replace(",", ".")) || 0) + Number(b.dataset.bw)));
+    });
+    const commit = () => {
+      const v = parseFloat(String(inp.value).replace(",", ".")) || 0;
+      if (v < 30 || v > 250) { inp.focus(); return; }
+      S.hero.bodyweight = Math.round(v * 10) / 10;
+      invalidateE1RM(); save(); o.remove(); fxChime(); renderProfile();
+    };
+    o.querySelector("#bw-save").onclick = commit;
+    inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } };
+    o.querySelector("#bw-close").onclick = () => o.remove();
+    o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+  };
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };
   document.getElementById("tg-off").onclick = () => { S.settings.offSearch = !S.settings.offSearch; fxTap(); save(); render(); };
@@ -1008,8 +1040,8 @@ function renderCycle() {
 
 /* ================= АРСЕНАЛ ДВИЖЕНИЙ (подстраница квестов) ================= */
 // Рабочий вес любого движения под атлета: свой замер, иначе оценка от базовых лифтов.
-function poolWeight(ex, reps = [8, 10], rir = 1) {
-  const p = progressOf(ex, { reps, rir });
+function poolWeight(ex, reps = [8, 10], rir = 1, sets = 3) {
+  const p = progressOf(ex, { reps, rir, sets });
   return p ? { ...p, est1RM: p.target ? p.work1RM : 0 } : null;
 }
 // в каких квестах цикла встречается движение
@@ -1217,8 +1249,8 @@ function showExerciseDetail(id, opts = {}) {
   if (!ex) return;
   fxTap();
   const ww = poolWeight(ex);
-  const strength = poolWeight(ex, SCHEME.strength.acc.reps, SCHEME.strength.acc.rir);
-  const volume = poolWeight(ex, SCHEME.volume.acc.reps, SCHEME.volume.acc.rir);
+  const strength = poolWeight(ex, SCHEME.strength.acc.reps, SCHEME.strength.acc.rir, SCHEME.strength.acc.sets);
+  const volume = poolWeight(ex, SCHEME.volume.acc.reps, SCHEME.volume.acc.rir, SCHEME.volume.acc.sets);
   const used = usedIn(ex.id);
   const alts = similarTo(ex.id, 3);
   const o = document.createElement("div");
@@ -1348,6 +1380,47 @@ function showMethod(key) {
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
 
+/* С кем объединить в суперсет: список движений этого же квеста.
+   Пара на разные группы — классический суперсет-антагонист: мышца отдыхает,
+   пока работает партнёр. Пара на одну группу — двойной подход без отдыха,
+   и рабочий вес под неё пересчитывается вниз, о чём честно сказано в списке. */
+function openPairPicker(wid, ex, list) {
+  fxTap();
+  const src = exById(ex.id) || ex;
+  const mates = list.filter((x) => x.id !== ex.id && !x.ss);
+  const o = document.createElement("div");
+  o.className = "overlay portion-overlay";
+  o.innerHTML = `
+    <div class="portion-card ex-card">
+      <div class="eyebrow">Суперсет с «${ex.short || ex.name}»</div>
+      <p class="dim small" style="margin:8px 0 12px">Два движения подряд без отдыха, отдых — после пары.
+        Квест станет короче, а объём останется прежним.</p>
+      ${mates.length ? `<div class="ex-alts">${mates.map((m) => {
+        const ms = exById(m.id) || m;
+        const same = ms.group === src.group;
+        return `<button class="ex-alt" data-mate="${m.id}">
+          <span class="ex-alt-ico">${icon(exerciseIcon(ms))}</span>
+          <span class="ex-alt-body">
+            <span class="ex-alt-name">${m.name}</span>
+            <span class="ex-alt-meta ${same ? "warn" : "dim"}">${same
+              ? `та же группа · ${MUSCLES[ms.group]} — вес пересчитается вниз`
+              : `${MUSCLES[ms.group]} · мышца отдыхает, пока работает партнёр`}</span>
+          </span>
+          <span class="pool-chev">›</span>
+        </button>`; }).join("")}</div>`
+        : `<div class="empty">Свободных движений нет: все уже в парах.</div>`}
+      <button class="btn-ghost" id="pair-close" style="margin-top:14px">Отмена</button>
+    </div>`;
+  overlayRoot.appendChild(o);
+  o.querySelectorAll("[data-mate]").forEach((b) => b.onclick = () => {
+    const pl = planOf(wid);
+    setPlan(wid, { pair: [...(pl.pair || []), [ex.id, b.dataset.mate]] });
+    o.remove(); fxTap(); renderWorkout(wid);
+  });
+  o.querySelector("#pair-close").onclick = () => o.remove();
+  o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
+}
+
 /* выбор движения из пула: замена или добавление в квест */
 function openPoolPicker({ title, suggest = [], exclude = [], onPick }) {
   fxTap();
@@ -1440,6 +1513,7 @@ function renderWorkout(wid) {
         <div><span class="badge b-weight">вес ★</span> посчитан по твоим подходам в этом движении; ◎ — оценка от базовых лифтов, пока журнал пуст</div>
         <div><span class="ex-prog up"><i class="mono">▲</i>+2,5 кг</span> двойная прогрессия: закрыл все подходы по верхней границе повторов — в следующий раз шаг вверх. Не добрал нижнюю — шаг вниз. Попал в коридор — вес держим и добираем повторы</div>
         <div><span class="badge b-weight">105 кг</span> рабочий вес движения: столько надо повесить. У движения нет «от и до» — есть база, которую надо сделать</div>
+        <div><span class="badge b-ss">суперсет</span> два движения подряд без отдыха: собрать пару можно кнопкой «в суперсет» в карточке, разбить — «разбить пару». Если в паре одна группа мышц, рабочий вес пересчитывается вниз: мышца там не отдыхает</div>
         <div><span class="badge b-dim">≈</span> разминка: подход легче 80% рабочего веса. Он не занимает слот плана, не считается недобором и вес движения не двигает — двадцать килограммов при рабочих ста это не упавшие силовые</div>
       </div>`,
   });
@@ -1554,6 +1628,7 @@ function renderWorkout(wid) {
         <div class="ex-tools">
           <button class="ex-tool" data-swap="${ex.id}">⇄<span>замена</span></button>
           <button class="ex-tool" data-info="${ex.id}">◎<span>разбор</span></button>
+          <button class="ex-tool" data-pair="${ex.id}">⛓<span>в суперсет</span></button>
           <button class="ex-tool danger" data-drop="${ex.id}">✕<span>убрать</span></button>
         </div>
       </div>`;
@@ -1743,6 +1818,7 @@ function renderWorkout(wid) {
       },
     });
     el.querySelector("[data-info]").onclick = () => showExerciseDetail(ex.id);
+    el.querySelector("[data-pair]").onclick = () => openPairPicker(wid, ex, w.exercises);
     el.querySelectorAll("[data-method]").forEach((m) => m.onclick = (e) => { e.stopPropagation(); showMethod(m.dataset.method); });
     el.querySelector("[data-drop]").onclick = () => {
       const pl = planOf(wid);
@@ -1762,6 +1838,8 @@ function renderWorkout(wid) {
     el.className = "ex ss-card";
     el.dataset.ex = pair.map((x) => x.id).join("+");
     const rounds = Math.max(...pair.map((x) => x.sets));
+    // пара на одну группу — это двойной подход: мышца не отдыхает, и вес уже снижен
+    const sameMuscle = !!pair[0].ssSameMuscle;
     const meta = pair.map((ex) => {
       const src = exById(ex.id) || ex;
       return {
@@ -1795,7 +1873,7 @@ function renderWorkout(wid) {
       <button class="ex-head" aria-expanded="false">
         <span class="ss-duo">${meta.map((m) => `<span class="ex-ico">${icon(exerciseIcon(m.src))}</span>`).join("")}</span>
         <span class="ex-main">
-          <span class="ex-title"><span class="name">Суперсет</span><span class="badge b-ss">без отдыха внутри</span></span>
+          <span class="ex-title"><span class="name">Суперсет</span><span class="badge ${sameMuscle ? "b-load" : "b-ss"}">${sameMuscle ? "одна группа" : "без отдыха внутри"}</span></span>
           <span class="ex-brief"><span class="u">${meta.map((m) => m.ex.short || m.ex.name).join(" + ")}</span></span>
         </span>
         <span class="ex-count">
@@ -1818,6 +1896,7 @@ function renderWorkout(wid) {
         <button class="add-set">+ ещё круг</button>
         <div class="ex-tools">
           ${meta.map((m) => `<button class="ex-tool" data-swap="${m.ex.id}">⇄<span>${m.ex.short || m.ex.name}</span></button>`).join("")}
+          <button class="ex-tool danger" data-unpair="${pair[0].ss}">⛓<span>разбить пару</span></button>
         </div>
       </div>`;
     parent.appendChild(el);
@@ -1928,6 +2007,14 @@ function renderWorkout(wid) {
       markActivity(); save(); draw(); upd();
     };
     el.querySelectorAll("[data-info]").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.info));
+    el.querySelectorAll("[data-unpair]").forEach((b) => b.onclick = () => {
+      const pl = planOf(wid);
+      const key = b.dataset.unpair;
+      // ручную связку убираем из списка, шаблонную — помечаем разбитой
+      const manual = (pl.pair || []).filter(([a, c]) => !(pair.some((x) => x.id === a) && pair.some((x) => x.id === c)));
+      setPlan(wid, { pair: manual, unpair: [...new Set([...(pl.unpair || []), key])] });
+      fxTap(); renderWorkout(wid);
+    });
     el.querySelectorAll("[data-swap]").forEach((b) => b.onclick = () => {
       const id = b.dataset.swap;
       const cur = pair.find((x) => x.id === id);
@@ -1966,7 +2053,8 @@ function renderWorkout(wid) {
 
   // вернуть состав по умолчанию, если атлет что-то менял
   const pl = planOf(wid);
-  if ((pl.hide || []).length || Object.keys(pl.swap || {}).length || (pl.add || []).length) {
+  if ((pl.hide || []).length || Object.keys(pl.swap || {}).length || (pl.add || []).length
+      || (pl.pair || []).length || (pl.unpair || []).length) {
     const reset = document.createElement("button");
     reset.className = "btn-ghost reset-plan";
     reset.textContent = "↺ Вернуть состав по умолчанию";
@@ -2972,7 +3060,7 @@ function scaleWorkMax(id, k) {
   const src = exById(id);
   if (!src) return;
   const key = src.lift || src.id;
-  const p = progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir });
+  const p = progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir, sets: SCHEME.strength.acc.sets });
   const base = p && p.work1RM ? p.work1RM : 0;
   if (!base) return;
   S.workReset = S.workReset || {};
@@ -3053,7 +3141,7 @@ function renderProgress() {
     const src = exById(k);
     const slot = nextSlotFor(k);
     const ex = slot ? slot.ex : null;
-    const p = ex ? ex.wp : progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir });
+    const p = ex ? ex.wp : progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir, sets: SCHEME.strength.acc.sets });
     const name = LIFT_NAMES[k] || (src ? src.name : k);
     if (!p || !p.target) return `
       <div class="limit-card">
@@ -3104,6 +3192,7 @@ function renderProgress() {
           <p><b>Рабочий вес</b> — вес на следующий раз: верх это цель подхода, низ — шаг назад, ниже опускаться незачем. Её же квест подставляет в подходы, поэтому в зале считать нечего.</p>
           <p><b>Личный максимум</b> — расчётный 1ПМ лучшего подхода за всю историю (среднее формул <b>Эпли</b> и <b>Бжицки</b>, повторы капаются на 10). Он живёт отдельно и вес в квесте не задаёт: рекорд одного удачного дня не должен задирать рабочую неделю.</p>
           <p>Схемы цикла чередуются, поэтому рабочий вес хранится как максимум на <b>эффективных повторах</b> (повторы плана плюс запас до отказа). Прибавка, взятая на объёмной неделе, не теряется на силовой.</p>
+          <p><b>Объём и отдых</b> входят в расчёт: один подход на десять повторов и четыре таких подхода по полторы минуты отдыха — это разные веса. Каждый подход после первого стоит 2%, каждые полминуты недоотдыха до 2,5 минут — ещё 1,5%, глубже 18% поправка не идёт. Поэтому на объёмной неделе вес заметно легче силовой, хотя движение одно и то же.</p>
           <p><b>Застой</b> — ${PROG.STALL} квеста подряд без прибавки: пора делоад, смена движения или разбор сна и еды. Квест, отработанный заметно легче назначенного, рабочий вес не двигает вовсе.</p>
         </div>
       </details>

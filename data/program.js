@@ -198,14 +198,27 @@ export function buildExercises(workout, plan = {}) {
       swappedFrom: slot.from || null, added: !!slot.added,
     });
   });
+  // атлет может разбить пару из шаблона и собрать свою: ручные связки сильнее
+  const unpair = new Set(plan.unpair || []);
+  out.forEach((e) => { if (e.ss && unpair.has(e.ss)) e.ss = null; });
+  (plan.pair || []).forEach(([a, b], i) => {
+    const ea = out.find((x) => x.id === a), eb = out.find((x) => x.id === b);
+    if (!ea || !eb || ea === eb) return;           // одно из движений убрали или заменили
+    ea.ss = eb.ss = `u${i + 1}`;
+    ea.ssManual = eb.ssManual = true;
+  });
   // суперсет засчитывается только если в квесте осталась вся пара
   const ssCount = {};
   out.forEach((e) => { if (e.ss) ssCount[e.ss] = (ssCount[e.ss] || 0) + 1; });
   out.forEach((e) => {
     if (!e.ss) return;
-    if (ssCount[e.ss] < 2) { e.ss = null; return; }
+    if (ssCount[e.ss] < 2) { e.ss = null; e.ssManual = false; return; }
     const partner = out.find((x) => x !== e && x.ss === e.ss);
     e.ssWith = partner ? partner.short : null;
+    // партнёр на ту же группу — это не суперсет-антагонист, а двойной подход:
+    // мышца не отдыхает, и рабочий вес пересчитывается вниз
+    e.ssGroup = partner ? partner.group : null;
+    e.ssSameMuscle = !!partner && partner.group === e.group;
   });
   return out;
 }
