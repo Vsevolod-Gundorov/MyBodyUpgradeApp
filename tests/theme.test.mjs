@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { THEMES, THEME_ORDER, DEFAULT_THEME, themeOf, say, LEX, LEX_KEYS } from "../data/theme.js";
 import { PLAIN_ICONS, PLAIN_VB } from "../data/icons-plain.js";
 import { GAME_ICONS } from "../data/icons.js";
-import { ACHIEVEMENTS } from "../data/achievements.js";
+import { ACHIEVEMENTS, ACH_BY_ID, ACH_PLAIN, CATEGORIES, achName, achDesc, catName } from "../data/achievements.js";
 import { PROGRAM, ARCHIVED_WORKOUTS } from "../data/program.js";
 
 test("тем ровно две, обе описаны полностью", () => {
@@ -31,7 +31,8 @@ test("словарь: ни один ключ не потерян ни в одн�
   for (const id of THEME_ORDER) {
     for (const k of LEX_KEYS) {
       assert.ok(LEX[id] && LEX[id][k] != null, `${id}: нет ключа ${k}`);
-      assert.ok(String(LEX[id][k]).trim().length, `${id}/${k}: пустая строка`);
+      // пустой может быть только programNote: в «Саге» описание берётся из самой программы
+      if (k !== "programNote") assert.ok(String(LEX[id][k]).trim().length, `${id}/${k}: пустая строка`);
     }
     // лишних ключей тоже быть не должно: это опечатка, которая никогда не сработает
     for (const k of Object.keys(LEX[id])) {
@@ -47,13 +48,62 @@ test("say(): берёт слово темы, а неизвестное отда�
   assert.equal(say("plain", "нет-такого-ключа"), "нет-такого-ключа", "неизвестный ключ виден на экране, а не падает");
 });
 
+// Слова, которых во второй редакции быть не должно. Сравниваем по НАЧАЛУ слова:
+// иначе «превратится» ловится на «врат», а «отмеченных» — на «меч».
+const FANTASY = [
+  "квест", "босс", "сага", "саги", "сагу", "герой", "героя", "герою", "героев",
+  "руна", "руны", "рун", "клинок", "врата", "знак отличия", "знаки отличия",
+  "арсенал", "бафф", "паёк", "паька", "припас", "кладов", "хроник", "дракон",
+  "алхими", "котёл", "котлов", "трапез", "гринд", "легенд", "бессмертн",
+  "пробужд", "судьб", "благодат", "кузниц", "доблест", "воин", "рыцар",
+  "зелье", "эликсир", "левиаф", "берсерк", "колосс", "странник", "новобранец",
+  "полусотник", "сотник", "атлант", "двуликий", "летописец", "гурман",
+  "перекованн", "спартанц", "полноты", "хребет", "каменоломн", "титанов",
+];
+const BAD = new RegExp(`(?<![а-яёa-z])(${FANTASY.join("|")})`, "i");
+
 test("в «Чистой» не остаётся фэнтезийных слов", () => {
-  const BAD = /квест|босс|сага|герой|геро[ия]|руна|руны|клинок|врат|знак отличия|знаки отличия|арсенал/i;
   for (const [k, v] of Object.entries(LEX.plain)) {
-    assert.ok(!BAD.test(v), `plain/${k}: «${v}» — это из саги`);
+    const m = String(v).match(BAD);
+    assert.equal(m, null, `plain/${k}: «${m && m[0]}» в строке «${String(v).slice(0, 80)}»`);
   }
   // и наоборот: исходная тема остаётся собой
   assert.match(LEX.saga.tabQuests, /Квесты/);
+});
+
+test("вторая редакция достижений: все сто переписаны и без фэнтези", () => {
+  const miss = ACHIEVEMENTS.filter((a) => !ACH_PLAIN[a.id]).map((a) => a.id);
+  assert.deepEqual(miss, [], `нет второй редакции: ${miss.join(", ")}`);
+  const extra = Object.keys(ACH_PLAIN).filter((k) => !ACH_BY_ID[k]);
+  assert.deepEqual(extra, [], `лишние записи: ${extra.join(", ")}`);
+
+  for (const a of ACHIEVEMENTS) {
+    const name = achName(a, "plain"), desc = achDesc(a, "plain");
+    assert.ok(name && name.length >= 3, `${a.id}: пустое название`);
+    assert.ok(desc && desc.length >= 8, `${a.id}: пустое условие`);
+    for (const [what, text] of [["название", name], ["условие", desc]]) {
+      const m = String(text).match(BAD);
+      assert.equal(m, null, `${a.id} (${what}): «${m && m[0]}» в «${text}»`);
+    }
+    // в исходной редакции всё осталось как было
+    assert.equal(achName(a, "saga"), a.name, `${a.id}: сага не должна меняться`);
+    assert.equal(achDesc(a, "saga"), a.desc, `${a.id}: сага не должна меняться`);
+  }
+  // названия во второй редакции не повторяются: иначе в списке два одинаковых знака
+  const names = ACHIEVEMENTS.map((a) => achName(a, "plain"));
+  assert.equal(new Set(names).size, names.length,
+    `повторы: ${names.filter((n, i) => names.indexOf(n) !== i).join(", ")}`);
+});
+
+test("разделы списка достижений переписаны полностью", () => {
+  for (const key of Object.keys(CATEGORIES)) {
+    const plain = catName(key, "plain");
+    assert.ok(plain, `${key}: нет раздела во второй редакции`);
+    const m = plain.match(BAD);
+    assert.equal(m, null, `${key}: «${m && m[0]}» в разделе «${plain}»`);
+    assert.equal(catName(key, "saga"), CATEGORIES[key], `${key}: сага не должна меняться`);
+  }
+  assert.equal(catName("нет-такого", "plain"), "нет-такого", "неизвестный раздел виден, а не падает");
 });
 
 test("штриховой набор: валидные фрагменты SVG без вложенного <svg>", () => {

@@ -9,7 +9,7 @@ import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
 import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restFor, feelOf, priorSetsOf, FEEL, DELOAD, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
-import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
+import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, achName, achDesc, catName, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
 import { THEMES, THEME_ORDER, DEFAULT_THEME, themeOf, say } from "../data/theme.js";
 import { PLAIN_ICONS, PLAIN_VB } from "../data/icons-plain.js";
 
@@ -226,6 +226,16 @@ function themeNow() {
 }
 /** Слово в текущей теме: квест или тренировка, Персонаж или Профиль. */
 const L = (key) => say(themeNow(), key);
+/** Добавка в текущей редакции: в «Саге» у неё игровое имя, в «Чистой» —
+ *  настоящее название вещества, которое и так лежит рядом в данных. */
+const BN = (b) => (themeNow() === "plain" ? (b.real || b.name) : (b.name || b.real || ""));
+/** Подпись под названием: в «Саге» это настоящее вещество, в «Чистой» оно уже
+ *  стоит заголовком — повторять его второй строкой незачем. */
+const BSub = (b) => (themeNow() === "plain" ? "" : (b.real || ""));
+/** Достижение в текущей редакции: название, условие и раздел списка. */
+const AN = (a) => achName(a, themeNow());
+const AD = (a) => achDesc(a, themeNow());
+const CN = (k) => catName(k, themeNow());
 /** Название тренировки: в «Саге» это имя босса, в «Чистой» — что за день и какой.
  *  Имена боссов остаются в данных: переключил тему обратно — они вернулись. */
 function questName(w) {
@@ -572,19 +582,28 @@ function heroStats() {
 /* ================= классы и подклассы (из роста характеристик) ================= */
 const CLASS_NOUN = { СИЛА: "Титан", МОЩЬ: "Громовержец", ВЫНОСЛ: "Марафонец", ОБЪЁМ: "Колосс", ДИСЦИПЛ: "Паладин", СТОЙКОСТЬ: "Несгибаемый" };
 const CLASS_EPITHET = { СИЛА: "Могучий", МОЩЬ: "Яростный", ВЫНОСЛ: "Неутомимый", ОБЪЁМ: "Исполинский", ДИСЦИПЛ: "Праведный", СТОЙКОСТЬ: "Стойкий" };
+// Во второй редакции это не класс персонажа, а профиль подготовки: то же самое
+// число, но названное так, как это называют тренеры.
+const CLASS_NOUN_PLAIN = { СИЛА: "Силовой тип", МОЩЬ: "Скоростно-силовой", ВЫНОСЛ: "Выносливостный", ОБЪЁМ: "Объёмный тип", ДИСЦИПЛ: "Системный", СТОЙКОСТЬ: "Устойчивый" };
+const CLASS_EPITHET_PLAIN = { СИЛА: "с упором на силу", МОЩЬ: "с упором на мощность", ВЫНОСЛ: "с упором на выносливость", ОБЪЁМ: "с упором на объём", ДИСЦИПЛ: "с упором на регулярность", СТОЙКОСТЬ: "с упором на стабильность" };
 const CLASS_ICON = { СИЛА: "muscle", МОЩЬ: "lightning", ВЫНОСЛ: "flame", ОБЪЁМ: "weight", ДИСЦИПЛ: "shield", СТОЙКОСТЬ: "gem" };
 function classInfo(stats, sessionsCount) {
   const e = Object.entries(stats).sort((a, b) => b[1] - a[1]);
   const [p1, v1] = e[0], [p2, v2] = e[1];
+  const pl = themeNow() === "plain";
+  const NOUN = pl ? CLASS_NOUN_PLAIN : CLASS_NOUN;
+  const EPI = pl ? CLASS_EPITHET_PLAIN : CLASS_EPITHET;
   if (sessionsCount < 1 || v1 < 58) {
-    return { name: "Странник", sub: "Новобранец", primary: p1, secondary: p2, icon: "helm", novice: true, hybrid: false };
+    return { name: pl ? "Базовый уровень" : "Странник", sub: pl ? "профиль ещё не набран" : "Новобранец",
+      primary: p1, secondary: p2, icon: "helm", novice: true, hybrid: false };
   }
-  // гибридный билд: два топ-стата близки — двойной класс (напр. «Титан-Паладин»)
+  // две сильные стороны вплотную — профиль смешанный (напр. «Силовой тип + Системный»)
   const hybrid = (v1 - v2) <= 5 && v2 >= 55;
   if (hybrid) {
-    return { name: `${CLASS_NOUN[p1]}-${CLASS_NOUN[p2]}`, sub: "Гибридный билд", primary: p1, secondary: p2, icon: CLASS_ICON[p1], novice: false, hybrid: true };
+    return { name: pl ? `${NOUN[p1]} + ${NOUN[p2]}` : `${CLASS_NOUN[p1]}-${CLASS_NOUN[p2]}`,
+      sub: pl ? "смешанный профиль" : "Гибридный билд", primary: p1, secondary: p2, icon: CLASS_ICON[p1], novice: false, hybrid: true };
   }
-  return { name: CLASS_NOUN[p1], sub: CLASS_EPITHET[p2], primary: p1, secondary: p2, icon: CLASS_ICON[p1], novice: false, hybrid: false };
+  return { name: NOUN[p1], sub: EPI[p2], primary: p1, secondary: p2, icon: CLASS_ICON[p1], novice: false, hybrid: false };
 }
 
 function nextWorkoutId() {
@@ -896,9 +915,9 @@ function renderProfile() {
       <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}${achSum.byTier[t] ? "" : " none"}"><i></i>${achSum.byTier[t]}</span>`).join("")}</div>
       ${earnedList.length
         ? `<div class="status-grid">${earnedList.slice(0, 24).map((a) => { const g = achievements[a.id]; return `
-            <button class="status-badge" data-ach="${a.id}" title="${a.name}: ${a.desc}">
+            <button class="status-badge" data-ach="${a.id}" title="${AN(a)}: ${AD(a)}">
               ${achMedallion(a)}${g.count > 1 ? `<span class="ach-count-badge">×${g.count}</span>` : ""}
-              <span class="sb-name">${a.name}</span>
+              <span class="sb-name">${AN(a)}</span>
             </button>`; }).join("")}</div>${earnedList.length > 24 ? `<div class="dim small" style="margin-top:8px">и ещё ${earnedList.length - 24} — в полном списке</div>` : ""}`
         : `<div class="empty">${L("awardsEmpty")}</div>`}
     </div>
@@ -1128,15 +1147,15 @@ function renderCycle() {
   }
   document.getElementById("cycle-help").onclick = () => showInfo({
     title: PROGRAM.cycleName, eyebrow: "как устроен цикл",
-    body: `<p>${PROGRAM.note}</p>
+    body: `<p>${L("programNote") || PROGRAM.note}</p>
       <div class="info-legend">
         <div><span class="badge b-str">силовая</span> тяжёлые веса, 4–8 повторов, запас в баке</div>
         <div><span class="badge b-vol">объёмная</span> больше повторов и подходов, ближе к отказу</div>
-        <div><span class="badge b-load">тяжёлый</span> квест с максимальной базой — ставь его на свежие ноги</div>
+        <div><span class="badge b-load">тяжёлый</span> ${L("helpHeavy")}</div>
         <div><span class="badge b-next">${L("nextQuest")}</span> ${L("quest")}, которую движок предлагает закрыть</div>
-        <div><span class="badge b-deload">разгрузка</span> пятая неделя: те же квесты и то же число подходов, но вес −${Math.round((1 - DELOAD) * 100)}%. Усталость копится быстрее силы, и такая неделя возвращает свежесть до того, как она превратится в застой. Рабочий максимум разгрузка не двигает</div>
+        <div><span class="badge b-deload">разгрузка</span> пятая неделя: ${L("helpDeload")}, но вес −${Math.round((1 - DELOAD) * 100)}%. Усталость копится быстрее силы, и такая неделя возвращает свежесть до того, как она превратится в застой. Рабочий максимум разгрузка не двигает</div>
         <div><span class="tonn-val mono">12,4 т</span> недельный тоннаж: сумма вес × повторы по рабочим подходам, разминка не в счёт. Рядом — сравнение с прошлой неделей: по нему видно, растёт нагрузка или ты её уже не вывозишь</div>
-        <div><span class="badge">⚑</span> кнопка в шапке включает выбор стартового квеста, если круг начинаешь не с первого</div>
+        <div><span class="badge">⚑</span> ${L("helpStart")}</div>
       </div>`,
   });
   document.getElementById("open-pool").onclick = () => withLoader(() => renderPool());
@@ -1630,9 +1649,9 @@ function renderWorkout(wid) {
         ${w.wave ? `<div><span class="badge">волна ${w.wave}</span> набор вспомогательных движений этой пары недель</div>` : ""}
         ${w.prog ? `<div><span class="badge b-prog">+${Math.round(w.prog * 100)}%</span> прибавка к рабочим весам относительно первой пары недель</div>` : ""}
         ${w.deload ? `<div><span class="badge b-deload">разгрузка</span> те же движения и то же число подходов, но вес −${Math.round((1 - DELOAD) * 100)}%. Эта неделя не двигает рабочий максимум ни вверх, ни вниз — она нужна, чтобы следующий блок стартовал со свежих мышц, а не с накопленной усталости</div>` : ""}
-        <div><span class="feel on">Устал</span> состояние перед квестом: «Свежий» даёт +2% к весу и короткий отдых, «Устал» — минус 5%, на подход меньше и отдых длиннее. Движок помнит, в каком состоянии закрыт квест, и не считает тяжёлый день откатом силовых</div>
+        <div><span class="feel on">Устал</span> ${L("helpFeel")}: «Свежий» даёт +2% к весу и короткий отдых, «Устал» — минус 5%, на подход меньше и отдых длиннее. ${L("helpFeelTail")}</div>
         <div><span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span> ${plural(sl.compound, "многосуставное", "многосуставных")}, ${sl.maxBase ? plural(sl.maxBase, "максимальная база", "максимальные базы") : "без максимальных баз"}</div>
-        ${hot.length ? `<div><span class="badge b-focus ${hot[0].level === "high" ? "deep" : ""}">${(MUSCLES[hot[0].group] || "").toLowerCase()} ${hot[0].sets}</span> на какую группу в этом квесте приходится больше всего подходов. Потолок — ${SESSION_CAP} за сессию: выше добавочный подход уже не растит, а только отнимает восстановление${hot[0].level === "high" ? ". <b>Потолок пробит</b> — убери одно движение на эту группу или перенеси его в другой квест" : ""}.
+        ${hot.length ? `<div><span class="badge b-focus ${hot[0].level === "high" ? "deep" : ""}">${(MUSCLES[hot[0].group] || "").toLowerCase()} ${hot[0].sets}</span> ${L("helpFocus")}. Потолок — ${SESSION_CAP} за сессию: выше добавочный подход уже не растит, а только отнимает восстановление${hot[0].level === "high" ? ". <b>Потолок пробит</b> — убери одно движение на эту группу или перенеси его в другой квест" : ""}.
           ${gl.filter((g) => g.ex > 1).map((g) => `<br><b>${MUSCLES[g.group]}</b>: ${plural3(g.ex, "движение", "движения", "движений")}, ${plural3(g.sets, "подход", "подхода", "подходов")} — ${g.names.join(", ").toLowerCase()}`).join("")}
           <br><br>Рабочий вес это учитывает: каждый сделанный до движения подход по той же группе снимает 1,5% (вторичная работа — вполовину, глубже 15% не идём). Поэтому третье упражнение на квадрицепс получает вес не как на свежие ноги. Уберёшь или переставишь движение — вес соседей пересчитается сам.</div>` : ""}
         ${sl.overload ? `<div><span class="badge b-warn">⚠ перегруз</span> две максимальные базы в одном квесте. Натуралу это стоит дороже, чем даёт: замени одну на движение в тренажёре</div>` : ""}
@@ -2295,6 +2314,7 @@ function buildAchievementCtx(event) {
   const ws = weekStreak(S.sessions, 3);
   const gains = Object.keys(BASELINES).map((k) => Math.max(0, (h.lifts[k].cur - BASELINES[k]) / BASELINES[k]));
   return {
+    theme: themeNow(),   // от редакции зависят слова в заметках журнала получений
     event, session: event.session || null,
     hero: { level: h.level, xp: S.xp, stats: h.stats, cls: h.cls, bodyweight: S.hero.bodyweight || 90 },
     lifts: h.lifts,
@@ -2329,7 +2349,7 @@ function showAchievementToast(unlocked) {
   unlocked.slice(0, 3).forEach((u, i) => {
     const el = document.createElement("button");
     el.className = "ach-toast";
-    el.innerHTML = `${achMedallion(u.ach)}<span class="at-body"><span class="eyebrow">${u.isNew ? "Новый знак" : "Снова"} · ${tierName(u.ach.tier)}</span><b>${u.ach.name}${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}</b></span>`;
+    el.innerHTML = `${achMedallion(u.ach)}<span class="at-body"><span class="eyebrow">${u.isNew ? L("achNew") : L("achAgain")} · ${tierName(u.ach.tier)}</span><b>${AN(u.ach)}${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}</b></span>`;
     el.onclick = () => { el.remove(); showAchievementDetail(u.ach); };
     setTimeout(() => { host.appendChild(el); requestAnimationFrame(() => el.classList.add("in")); setTimeout(() => { el.classList.remove("in"); setTimeout(() => el.remove(), 400); }, 3800); }, i * 350);
   });
@@ -2346,7 +2366,7 @@ function showVerdict(res, awarded, durationSec) {
   const badges = (awarded && awarded.length)
     ? `<div class="v-statuses">
          <div class="eyebrow" style="margin-bottom:8px">${awarded.length > 1 ? L("awards") : "Знак отличия"}</div>
-         ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${u.ach.name}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${u.note || u.ach.desc}</span></span></div>`).join("")}
+         ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${AN(u.ach)}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${u.note || AD(u.ach)}</span></span></div>`).join("")}
        </div>`
     : "";
   o.innerHTML = `
@@ -2408,9 +2428,9 @@ function showAchievementDetail(a) {
   o.innerHTML = `
     <div class="status-detail">
       ${achMedallion(a, "medallion--lg" + (got ? "" : " locked"))}
-      <div class="eyebrow tier-text tier-${a.tier}">${tierName(a.tier)} · ${CATEGORIES[a.cat] || ""}${a.repeat ? " · повторяемое" : ""}</div>
-      <div class="sd-title display">${a.name}</div>
-      <div class="sd-desc">${a.desc || ""}</div>
+      <div class="eyebrow tier-text tier-${a.tier}">${tierName(a.tier)} · ${CN(a.cat)}${a.repeat ? " · повторяемое" : ""}</div>
+      <div class="sd-title display">${AN(a)}</div>
+      <div class="sd-desc">${AD(a) || ""}</div>
       ${got
         ? `<div class="dim small mono" style="margin-top:8px">${got.count > 1 ? `получено ${got.count} раз · впервые ${got.first ? fmtDate(got.first) : "—"}` : `получено ${got.first ? fmtDate(got.first) : "—"}`}</div>
            ${achLogHTML(got)}`
@@ -2449,13 +2469,13 @@ function showAllAchievements() {
         ${cats.map((cat) => {
           const list = ACHIEVEMENTS.filter((a) => a.cat === cat);
           if (!list.length) return "";
-          return `<div class="eyebrow ach-cat">${CATEGORIES[cat]} · ${list.filter((a) => earned[a.id]).length}/${list.length}</div>
+          return `<div class="eyebrow ach-cat">${CN(cat)} · ${list.filter((a) => earned[a.id]).length}/${list.length}</div>
             ${list.map((a) => { const g = earned[a.id]; return `
               <button class="ach-row ${g ? "" : "locked"}" data-ach="${a.id}">
                 ${achMedallion(a, g ? "" : "locked")}
                 <span class="ach-row-body">
-                  <span class="ach-row-name">${a.name}${g && g.count > 1 ? ` <span class="ach-count">×${g.count}</span>` : ""}</span>
-                  <span class="ach-row-desc dim small">${a.desc}</span>
+                  <span class="ach-row-name">${AN(a)}${g && g.count > 1 ? ` <span class="ach-count">×${g.count}</span>` : ""}</span>
+                  <span class="ach-row-desc dim small">${AD(a)}</span>
                 </span>
                 <span class="ach-row-tier tier-text tier-${a.tier}">${tierName(a.tier)}</span>
               </button>`; }).join("")}`;
@@ -2516,8 +2536,8 @@ function renderBuffs() {
             return `<button class="dose-item ${on ? "done" : ""}" data-take="${b.id}@${sl}">
               <span class="di-check">${on ? "✓" : ""}</span>
               <span class="di-body">
-                <span class="di-top"><span class="di-name">${b.name}</span><span class="di-dose mono">${doseStr(b, active[b.id])}</span></span>
-                <span class="di-sub dim small">${b.real}${b.hint ? ` · <span class="di-hint">💡 ${b.hint}</span>` : ""}</span>
+                <span class="di-top"><span class="di-name">${BN(b)}</span><span class="di-dose mono">${doseStr(b, active[b.id])}</span></span>
+                <span class="di-sub dim small">${[BSub(b), b.hint ? `<span class="di-hint">💡 ${b.hint}</span>` : ""].filter(Boolean).join(" · ")}</span>
               </span>
             </button>`;
           }).join("")}
@@ -2538,7 +2558,7 @@ function renderBuffs() {
         return `<div class="stock-card ${low ? "low" : ""}" data-id="${b.id}">
           <span class="medallion">${icon(b.icon)}</span>
           <span class="buff-body">
-            <span class="buff-top"><b class="buff-name">${b.name}</b><button class="buff-dose edit mono" data-dose="${b.id}">${doseStr(b, active[b.id])} ✎</button></span>
+            <span class="buff-top"><b class="buff-name">${BN(b)}</b><button class="buff-dose edit mono" data-dose="${b.id}">${doseStr(b, active[b.id])} ✎</button></span>
             <span class="st-line">${stockLine} · <button class="st-set" data-stock="${b.id}">${typeof serv === "number" ? "пополнить" : "задать запас"}</button></span>
           </span>
           <button class="buff-toggle off" data-remove="${b.id}" title=L("buffOff") aria-label=L("buffOff")>✕</button>
@@ -2560,8 +2580,8 @@ function renderBuffs() {
         return `<div class="buff arsenal ${on ? "on" : ""}" data-id="${b.id}">
           <span class="medallion">${icon(b.icon)}</span>
           <span class="buff-body">
-            <span class="buff-top"><b class="buff-name">${b.name}${custom ? ' <span class="buff-mine">своё</span>' : ""}</b><span class="buff-dose mono dim">${doseStr(b)}</span></span>
-            <span class="buff-real dim small">${b.real}${b.effect ? ` · ${b.effect}` : ""} · ${buffTimes(b).join(", ")}</span>
+            <span class="buff-top"><b class="buff-name">${BN(b)}${custom ? ' <span class="buff-mine">своё</span>' : ""}</b><span class="buff-dose mono dim">${doseStr(b)}</span></span>
+            <span class="buff-real dim small">${[BSub(b), b.effect, buffTimes(b).join(", ")].filter(Boolean).join(" · ")}</span>
           </span>
           ${custom ? `<button class="buff-edit" data-edit="${b.id}" aria-label="Редактировать">✎</button>` : ""}
           <button class="buff-toggle ${on ? "off" : "add"}" aria-label="${on ? "Снять" : "Активировать"}">${on ? "✓" : "+"}</button>
@@ -2584,11 +2604,11 @@ function renderBuffs() {
   const lowAlert = lowList.length
     ? `<div class="buff-reminder due" style="margin-top:10px">
          <div class="br-ico">${icon("flask")}</div>
-         <div class="br-body"><b>Скоро закончится</b><span class="dim small">${lowList.map((b) => `${b.name} (~${stockDaysLeft(b)} дн.)`).join(", ")}</span></div>
+         <div class="br-body"><b>Скоро закончится</b><span class="dim small">${lowList.map((b) => `${BN(b)} (~${stockDaysLeft(b)} дн.)`).join(", ")}</span></div>
        </div>` : "";
 
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">Приём по расписанию, запасы и арсенал. Только натуральное и легальное.</p>
+    <p class="dim small" style="margin-top:2px">${L("buffsNote")}</p>
     ${reminder}${lowAlert}
 
     <div class="rune-divider">${runeSVG}</div>
@@ -2604,10 +2624,10 @@ function renderBuffs() {
     <div id="stock">${stockCards}</div>` : ""}
 
     <div class="rune-divider">${runeSVG}</div>
-    <div class="eyebrow" style="margin-bottom:2px">Арсенал</div>
-    <p class="dim small" style="margin-bottom:8px">«+» — активировать. Доза правится по ✎ в «Запасах».</p>
+    <div class="eyebrow" style="margin-bottom:2px">${L("stockHead")}</div>
+    <p class="dim small" style="margin-bottom:8px">${L("stockHint")}</p>
     ${arsenal}
-    <button class="btn-ghost buff-add-btn" id="buff-add" style="margin-top:12px">+ Добавить свой бафф</button>`;
+    <button class="btn-ghost buff-add-btn" id="buff-add" style="margin-top:12px">${L("buffAdd")}</button>`;
 
   const check = document.getElementById("buff-check");
   if (check) check.onclick = () => { S.buffs.checkedAt = today(); fxTap(); save(); render(); };
@@ -3301,10 +3321,10 @@ function renderProgress() {
           ? `Прошлый квест: ${fmt(p.last.top)} × ${p.last.topReps} в ${plural3(p.last.sets, "подходе", "подходах", "подходах")} · ${plural3(p.sessions, "квест", "квеста", "квестов")} в журнале`
           : "Журнал пока пуст — вес оценён от базовых лифтов"}</div>
       </div>`;
-  }).join("") || `<div class="empty">Пока пусто. Первый квест впишет сюда рабочие веса.</div>`;
+  }).join("") || `<div class="empty">${L("logEmptyW")}</div>`;
 
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">Хроники прокачки: рабочие веса, которые движок ведёт из квеста в квест.</p>
+    <p class="dim small" style="margin-top:2px">${L("logNote")}</p>
     <svg width="0" height="0"><defs><linearGradient id="goldfade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#c9a961" stop-opacity=".35"/><stop offset="1" stop-color="#c9a961" stop-opacity="0"/>
     </linearGradient></defs></svg>
@@ -3331,7 +3351,7 @@ function renderProgress() {
 
     <div class="rune-divider">${runeSVG}</div>
     <div class="panel">
-      <div class="eyebrow" style="margin-bottom:8px">Последние квесты</div>
+      <div class="eyebrow" style="margin-bottom:8px">${L("logLast")}</div>
       <div id="log"></div>
     </div>`;
 
@@ -3348,7 +3368,7 @@ function renderProgress() {
         <b>${LIFT_NAMES[k]}</b>
         <span class="delta ${d > 0.5 ? "up" : "flat"} mono">${fmt(last)} кг ${d > 0.5 ? "▲ +" + fmt(d) : ""}</span>
       </div>
-      ${arr.length ? sparkline(pts.map((p) => p.v)) : `<div class="empty">Пока пусто. Первый квест впишет сюда строку.</div>`}`;
+      ${arr.length ? sparkline(pts.map((p) => p.v)) : `<div class="empty">${L("logEmptyR")}</div>`}`;
     charts.appendChild(card);
   });
 
@@ -3356,10 +3376,10 @@ function renderProgress() {
   const rows = [...S.sessions].reverse().slice(0, 20);
   log.innerHTML = rows.length
     ? rows.map((s) => `<button class="log-row" data-sid="${s.id}">
-        <span>${WORKOUTS[s.workoutId]?.boss || s.workoutId}</span>
+        <span>${questName(WORKOUTS[s.workoutId]) || s.workoutId}</span>
         <span class="dim mono small">${fmtDate(s.date)}</span>
         <span class="${s.cls} mono">${s.score}% ›</span></button>`).join("")
-    : `<div class="empty">Летопись чиста, странник.</div>`;
+    : `<div class="empty">${L("logEmpty")}</div>`;
   log.querySelectorAll(".log-row").forEach((r) => r.onclick = () => showSessionDetail(r.dataset.sid));
 }
 
