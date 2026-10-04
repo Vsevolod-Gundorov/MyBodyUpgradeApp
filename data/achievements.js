@@ -402,9 +402,21 @@ export function migrateLegacyStatuses(statuses) {
 }
 
 /** Сводка: сколько получено по рангам и всего. */
-export function summary(earned) {
+/**
+ * Какие разделы показывать в этой редакции.
+ * В «Чистой» нет уровня, опыта, класса и характеристик — значит и раздел
+ * достижений про них показывать незачем. Сами достижения никуда не деваются:
+ * они начисляются по-прежнему и видны в «Саге», где этим понятиям есть место.
+ */
+const HIDDEN_CATS = { plain: ["hero"] };
+export const catHidden = (key, theme) => (HIDDEN_CATS[theme] || []).includes(key);
+/** Достижения, которые показываются в этой редакции. */
+export const visibleAchievements = (theme) => ACHIEVEMENTS.filter((a) => !catHidden(a.cat, theme));
+
+export function summary(earned, theme) {
   const byTier = Object.fromEntries(TIER_ORDER.map((t) => [t, 0]));
+  const list = visibleAchievements(theme);
   let total = 0;
-  for (const a of ACHIEVEMENTS) if (earned[a.id]) { byTier[a.tier]++; total++; }
-  return { total, of: ACHIEVEMENTS.length, byTier };
+  for (const a of list) if (earned[a.id]) { byTier[a.tier]++; total++; }
+  return { total, of: list.length, byTier };
 }

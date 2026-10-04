@@ -9,7 +9,7 @@ import { EXERCISE_ICONS, exerciseIcon } from "../data/icons-exercise.js";
 import { progressionOf, stateOf, moveLabel, isWarmup, asMax, warmupLadder, restFor, feelOf, priorSetsOf, FEEL, DELOAD, e1rm as e1rmAvg, PROG } from "../data/progression.js";
 import { BODY_VIEWS, shapeSvg, coverLevel, coverVolume, coverLabel, CORE_MUSCLES } from "../data/bodymap.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
-import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, achName, achDesc, catName, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
+import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, CATEGORIES, achName, achDesc, catName, catHidden, visibleAchievements, evaluate as evaluateAchievements, migrateLegacyStatuses, summary as achSummary } from "../data/achievements.js";
 import { THEMES, THEME_ORDER, DEFAULT_THEME, themeOf, say } from "../data/theme.js";
 import { PLAIN_ICONS, PLAIN_VB } from "../data/icons-plain.js";
 
@@ -42,10 +42,6 @@ const icon = (name, cls = "") => {
 };
 // какая иконка у какой характеристики + свой цвет шкалы и акцент
 const STAT_ICONS = { СИЛА: "hammer", МОЩЬ: "bolt", ВЫНОСЛ: "flame", ОБЪЁМ: "layers", ДИСЦИПЛ: "shield", СТОЙКОСТЬ: "gem" };
-// В «Чистой» шкалы характеристик идут одним голубым: шесть разных градиентов —
-// это украшение, а сравнивать столбики проще, когда цвет не мешает длине.
-const STAT_GRAD_PLAIN = "linear-gradient(90deg,#1e6f9e,#38bdf8,#7dd3fc)";
-const statGrad = (k) => (themeNow() === "plain" ? STAT_GRAD_PLAIN : STAT_GRAD[k]);
 const STAT_GRAD = {
   СИЛА: "linear-gradient(90deg,#8f3030,#cf5a4a,#ec8a72)",       // багрянец
   МОЩЬ: "linear-gradient(90deg,#5a3f8f,#8a6bcf,#b49ae8)",       // фиолет
@@ -236,6 +232,8 @@ const BSub = (b) => (themeNow() === "plain" ? "" : (b.real || ""));
 const AN = (a) => achName(a, themeNow());
 const AD = (a) => achDesc(a, themeNow());
 const CN = (k) => catName(k, themeNow());
+/** Достижения, видимые в текущей редакции. */
+const AVIS = () => visibleAchievements(themeNow());
 /** Название тренировки: в «Саге» это имя босса, в «Чистой» — что за день и какой.
  *  Имена боссов остаются в данных: переключил тему обратно — они вернулись. */
 function questName(w) {
@@ -864,15 +862,36 @@ function renderProfile() {
 
   const c = h.cls;
   const achievements = S.achievements || {};
-  const achSum = achSummary(achievements);
+  const achSum = achSummary(achievements, themeNow());
   // полученные знаки: старшие ранги первыми, внутри ранга — свежие
-  const earnedList = ACHIEVEMENTS.filter((a) => achievements[a.id])
+  const earnedList = AVIS().filter((a) => achievements[a.id])
     .sort((a, b) => (TIERS[b.tier].rank - TIERS[a.tier].rank) || ((achievements[b.id].last || "").localeCompare(achievements[a.id].last || "")));
+  // Уровень, опыт, класс и характеристики — это язык «Саги». В «Чистой» вместо них
+  // три числа, которые атлету действительно нужны: сколько тренировок, сколько
+  // поднято и сколько недель подряд без пропусков.
+  const plainHead = () => {
+    let lifetime = 0; S.sessions.forEach((x) => (lifetime += sessionTonnage(x)));
+    const n = S.sessions.length;
+    const word = (v, a, b, c) => plural3(v, a, b, c).replace(/^\S+\s/, "");   // нужно слово без числа
+    const cells = [
+      [n, word(n, "тренировка", "тренировки", "тренировок")],
+      [fmtTonn(lifetime), "поднято"],
+      [weekStreak(S.sessions, 3).streak, "нед. подряд"],
+    ];
+    return `
+    <div class="hero-head">
+      <h1 class="display hero-name">${S.hero.name}</h1>
+      <div class="hero-sum">${cells.map(([v, l]) =>
+        `<span class="hs-cell"><b class="mono">${v}</b><i>${l}</i></span>`).join("")}</div>
+    </div>`;
+  };
+
   app.innerHTML = `
+    ${themeNow() === "plain" ? plainHead() : `
     <div class="hero-head gilded">
       <div class="eyebrow">${L("heroEyebrow")}</div>
       <h1 class="display hero-name">${S.hero.name}</h1>
-      <div class="hero-title">${c.novice ? L("heroNovice") : (themeNow() === "plain" ? S.hero.title : `«${S.hero.title}»`)}</div>
+      <div class="hero-title">${c.novice ? L("heroNovice") : `«${S.hero.title}»`}</div>
       <div class="level-ring">
         <svg viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(var(--t-acc-b),.16)" stroke-width="5"/>
@@ -899,13 +918,13 @@ function renderProfile() {
       <div class="statgrid">
         ${Object.entries(h.stats).map(([k, v]) => `
           <div class="stat">
-            <span class="stat-ico" style="color:${themeNow() === "plain" ? "var(--gold)" : (STAT_ACCENT[k] || "#c9a961")}">${icon(STAT_ICONS[k] || "gem")}</span>
+            <span class="stat-ico" style="color:${STAT_ACCENT[k] || "#c9a961"}">${icon(STAT_ICONS[k] || "gem")}</span>
             <span class="label">${k}</span>
-            <span class="bar"><i style="width:${v}%;background:${statGrad(k) || "linear-gradient(90deg,#8a713e,#c9a961,#e8cd82)"}"></i></span>
-            <span class="val mono" style="color:${themeNow() === "plain" ? "var(--gold)" : (STAT_ACCENT[k] || "#c9a961")}">${v}</span>
+            <span class="bar"><i style="width:${v}%;background:${STAT_GRAD[k] || "linear-gradient(90deg,#8a713e,#c9a961,#e8cd82)"}"></i></span>
+            <span class="val mono" style="color:${STAT_ACCENT[k] || "#c9a961"}">${v}</span>
           </div>`).join("")}
       </div>
-    </div>
+    </div>`}
 
     <div class="panel">
       <div class="ach-head">
@@ -1094,13 +1113,14 @@ function renderCycle() {
           </span>
         </button>
         ${!open ? "" : `
+        ${!tn.kg && themeNow() === "plain" ? "" : `
         <div class="week-tonn ${tn.kg ? "" : "empty"}" id="tonn-${wk.n}">
           ${tn.kg
             ? `<span class="tonn-val mono">${fmtTonn(tn.kg)}</span>
                <span class="tonn-lbl dim small">поднято · ${plural(tn.sets, "рабочий подход", "рабочих подходов")}</span>
                ${tn.delta == null ? "" : `<span class="tonn-delta ${tn.delta > 0 ? "up" : tn.delta < 0 ? "down" : ""}">${tn.delta > 0 ? "▲ +" : tn.delta < 0 ? "▼ " : "= "}${tn.delta}% <span class="dim">к неделе ${tn.vs}</span></span>`}`
             : `<span class="tonn-lbl dim small">нагрузка недели появится, когда закроешь ${L("firstQuest")}</span>`}
-        </div>
+        </div>`}
         ${wk.workouts.map((w) => {
           const idx = ORDER.indexOf(w.id);
           const done = S.sessions.filter((s) => s.workoutId === w.id);
@@ -1617,7 +1637,7 @@ function renderWorkout(wid) {
     <div class="badges qbadges">
       <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>
       ${wk ? `<span class="badge">неделя ${wk.n}</span>` : ""}
-      ${w.wave ? `<span class="badge">волна ${w.wave}</span>` : ""}
+      ${w.wave && themeNow() !== "plain" ? `<span class="badge">волна ${w.wave}</span>` : ""}
       ${w.deload ? `<span class="badge b-deload">разгрузка −${Math.round((1 - DELOAD) * 100)}%</span>` : ""}
       ${w.prog ? `<span class="badge b-prog">+${Math.round(w.prog * 100)}%</span>` : ""}
       <span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span>
@@ -2338,8 +2358,12 @@ function checkAchievements(event, { silent = false } = {}) {
   const ctx = buildAchievementCtx(event || { type: "silent" });
   const { earned, unlocked } = evaluateAchievements(ctx, S.achievements || {}, today());
   S.achievements = earned;
-  if (unlocked.length && !silent) { save(); showAchievementToast(unlocked); }
-  return unlocked;
+  // начисляем все, показываем только видимые в этой редакции: в «Чистой» нет
+  // уровня и характеристик, и всплывашка про «20 уровень» там ничего не значит
+  const shown = unlocked.filter((u) => !catHidden(u.ach.cat, themeNow()));
+  if (shown.length && !silent) { save(); showAchievementToast(shown); }
+  else if (unlocked.length && !silent) save();
+  return shown;
 }
 const tierName = (t) => (TIERS[t] ? TIERS[t].name : t);
 const achMedallion = (a, cls = "") => `<span class="medallion tiered tier-${a.tier} ${cls}">${icon(a.icon || "gem")}</span>`;
@@ -2457,17 +2481,17 @@ function achLogHTML(got) {
 function showAllAchievements() {
   fxTap();
   const earned = S.achievements || {};
-  const sum = achSummary(earned);
-  const cats = Object.keys(CATEGORIES);
+  const sum = achSummary(earned, themeNow());
+  const cats = Object.keys(CATEGORIES).filter((k) => !catHidden(k, themeNow()));
   const o = document.createElement("div");
   o.className = "overlay portion-overlay ach-overlay";
   o.innerHTML = `
     <div class="portion-card ach-card">
       <div class="eyebrow">${L("awards")} · ${sum.total} / ${sum.of}</div>
-      <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}"><i></i>${tierName(t)} ${sum.byTier[t]}/${ACHIEVEMENTS.filter((a) => a.tier === t).length}</span>`).join("")}</div>
+      <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}"><i></i>${tierName(t)} ${sum.byTier[t]}/${AVIS().filter((a) => a.tier === t).length}</span>`).join("")}</div>
       <div class="ach-list">
         ${cats.map((cat) => {
-          const list = ACHIEVEMENTS.filter((a) => a.cat === cat);
+          const list = AVIS().filter((a) => a.cat === cat);
           if (!list.length) return "";
           return `<div class="eyebrow ach-cat">${CN(cat)} · ${list.filter((a) => earned[a.id]).length}/${list.length}</div>
             ${list.map((a) => { const g = earned[a.id]; return `
@@ -2537,7 +2561,7 @@ function renderBuffs() {
               <span class="di-check">${on ? "✓" : ""}</span>
               <span class="di-body">
                 <span class="di-top"><span class="di-name">${BN(b)}</span><span class="di-dose mono">${doseStr(b, active[b.id])}</span></span>
-                <span class="di-sub dim small">${[BSub(b), b.hint ? `<span class="di-hint">💡 ${b.hint}</span>` : ""].filter(Boolean).join(" · ")}</span>
+                ${(() => { const sub = [BSub(b), themeNow() === "plain" ? "" : (b.hint ? `<span class="di-hint">💡 ${b.hint}</span>` : "")].filter(Boolean).join(" · "); return sub ? `<span class="di-sub dim small">${sub}</span>` : ""; })()}
               </span>
             </button>`;
           }).join("")}
@@ -2593,7 +2617,7 @@ function renderBuffs() {
   const reminder = due
     ? `<div class="buff-reminder due">
          <div class="br-ico">${icon("hourglass")}</div>
-         <div class="br-body"><b>${L("buffDue")}</b><span class="dim small">${days === null ? L("buffNever") : `Прошло ${days} дн. с последней сверки.`} Что заканчивается, что обновить.</span></div>
+         <div class="br-body"><b>${L("buffDue")}</b><span class="dim small">${days === null ? L("buffNever") : `Прошло ${days} дн. с последней сверки.`}${themeNow() === "plain" ? "" : " Что заканчивается, что обновить."}</span></div>
          <button class="br-ok" id="buff-check">Сверено</button>
        </div>`
     : `<div class="buff-reminder ok">
@@ -2608,7 +2632,7 @@ function renderBuffs() {
        </div>` : "";
 
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">${L("buffsNote")}</p>
+    ${L("buffsNote") ? `<p class="dim small" style="margin-top:2px">${L("buffsNote")}</p>` : ""}
     ${reminder}${lowAlert}
 
     <div class="rune-divider">${runeSVG}</div>
@@ -2624,9 +2648,16 @@ function renderBuffs() {
     <div id="stock">${stockCards}</div>` : ""}
 
     <div class="rune-divider">${runeSVG}</div>
-    <div class="eyebrow" style="margin-bottom:2px">${L("stockHead")}</div>
-    <p class="dim small" style="margin-bottom:8px">${L("stockHint")}</p>
-    ${arsenal}
+    ${themeNow() === "plain"
+      // Каталог — справочник, в который заглядывают раз в месяц, а занимает он
+      // две трети экрана. Прячем под раскрытие: ежедневный экран — это приём и запасы.
+      ? `<details class="cat-fold">
+           <summary><span class="eyebrow">${L("stockHead")}</span><span class="cat-count dim small">${BUFFS.length}</span></summary>
+           ${arsenal}
+         </details>`
+      : `<div class="eyebrow" style="margin-bottom:2px">${L("stockHead")}</div>
+         ${L("stockHint") ? `<p class="dim small" style="margin-bottom:8px">${L("stockHint")}</p>` : ""}
+         ${arsenal}`}
     <button class="btn-ghost buff-add-btn" id="buff-add" style="margin-top:12px">${L("buffAdd")}</button>`;
 
   const check = document.getElementById("buff-check");
@@ -2907,7 +2938,7 @@ function renderResources() {
           <span class="g-val mono">${Math.round(m.cur)}<span class="g-tgt"> / ${m.tgt} ${m.unit}</span></span>
         </div>
         <div class="g-bar"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%;background:${NUT_GRAD[m.key]}"></i></div>
-        <div class="g-sub mono">${sub}</div>
+        ${themeNow() === "plain" ? "" : `<div class="g-sub mono">${sub}</div>`}
       </div>`;
   }).join("");
 
@@ -2932,11 +2963,13 @@ function renderResources() {
           <button class="meal-del" data-i="${i}" aria-label="Убрать">✕</button>
         </div>`;
       }).join("")
-    : `<div class="empty">Провизии пока нет. Найди продукт и добавь порцию.</div>`;
+    : `<div class="empty">${L("foodEmpty")}</div>`;
 
-  const tip = day.dayType === "training"
+  // Подсказки по таймингу питания — это советы тренера. В «Чистой» их нет:
+  // пользователь пришёл записать съеденное, а не читать методичку.
+  const tip = !L("dayTip") ? "" : day.dayType === "training"
     ? `<div class="nut-tip"><span class="dim small">⚔ Тренировочный день · за 2 ч до похода: ${NUTRITION.timing.pre.carbs.join("–")} г углеводов + ${NUTRITION.timing.pre.protein.join("–")} г белка · после: ${NUTRITION.timing.post.carbs.join("–")} г углеводов + ${NUTRITION.timing.post.protein.join("–")} г белка.</span></div>`
-    : `<div class="nut-tip"><span class="dim small">☾ День отдыха · углеводы ровнее по приёмам, ужин легче. Белок держим ${T.protein} г.</span></div>`;
+    : (L("dayTip") ? `<div class="nut-tip"><span class="dim small">☾ День отдыха · углеводы ровнее по приёмам, ужин легче. Белок держим ${T.protein} г.</span></div>` : "");
 
   // календарь: 7 дней. Окно оканчивается сегодня, либо выбранным днём, если он раньше.
   const winEnd = (date <= today() && date > addDays(today(), -6)) ? today() : date;
@@ -2974,7 +3007,7 @@ function renderResources() {
         </svg>
         <div class="lvl"><b>${readiness}%</b><span>${L("ration")}</span></div>
       </div>
-      <div class="fuel-verdict ${vCls}">${vTxt}</div>
+      ${themeNow() === "plain" ? "" : `<div class="fuel-verdict ${vCls}">${vTxt}</div>`}
       <div class="dim small mono">${T.label} · цель ${T.kcal} ккал · Б ${T.protein} · Ж ${T.fat} · У ${T.carbs}</div>
     </div>
 
@@ -3066,7 +3099,8 @@ function wireFoodSearch(date) {
     const fs = S.nutrition.foodStats || {};
     let pool = Object.values(fs);
     if (!pool.length && (S.nutrition.recent || []).length) pool = S.nutrition.recent.map((f, i) => ({ food: f, count: 1, last: 1e12 - i }));
-    if (!pool.length) { renderList(FOODS.slice(0, 8), "Популярное"); return; }
+    // до первого запроса показываем короткий список: это подсказка, а не каталог
+    if (!pool.length) { renderList(FOODS.slice(0, themeNow() === "plain" ? 4 : 8), "Популярное"); return; }
     const freq = [...pool].sort((a, b) => b.count - a.count || b.last - a.last).filter((x) => x.count >= 2).slice(0, 2);
     const freqIds = new Set(freq.map((x) => x.food.id));
     const byRecent = pool.filter((x) => !freqIds.has(x.food.id)).sort((a, b) => b.last - a.last);
@@ -3324,7 +3358,7 @@ function renderProgress() {
   }).join("") || `<div class="empty">${L("logEmptyW")}</div>`;
 
   app.innerHTML = `
-    <p class="dim small" style="margin-top:2px">${L("logNote")}</p>
+    ${L("logNote") ? `<p class="dim small" style="margin-top:2px">${L("logNote")}</p>` : ""}
     <svg width="0" height="0"><defs><linearGradient id="goldfade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#c9a961" stop-opacity=".35"/><stop offset="1" stop-color="#c9a961" stop-opacity="0"/>
     </linearGradient></defs></svg>
@@ -3368,7 +3402,7 @@ function renderProgress() {
         <b>${LIFT_NAMES[k]}</b>
         <span class="delta ${d > 0.5 ? "up" : "flat"} mono">${fmt(last)} кг ${d > 0.5 ? "▲ +" + fmt(d) : ""}</span>
       </div>
-      ${arr.length ? sparkline(pts.map((p) => p.v)) : `<div class="empty">${L("logEmptyR")}</div>`}`;
+      ${arr.length ? sparkline(pts.map((p) => p.v)) : (L("logEmptyR") ? `<div class="empty">${L("logEmptyR")}</div>` : "")}`;
     charts.appendChild(card);
   });
 

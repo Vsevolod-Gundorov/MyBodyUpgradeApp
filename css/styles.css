@@ -1538,3 +1538,13 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .theme-name { font-weight: 600; font-size: .92rem; }
 .theme-card.on .theme-name { color: var(--gold-bright); }
 .theme-note { line-height: 1.3; }
+
+/* ---------- складной раздел-справочник (каталог добавок) ---------- */
+.cat-fold > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 2px; cursor: pointer; list-style: none;
+}
+.cat-fold > summary::-webkit-details-marker { display: none; }
+.cat-fold > summary::after { content: "▸"; color: var(--dim); font-size: .7rem; }
+.cat-fold[open] > summary::after { content: "▾"; }
+.cat-count { margin-left: auto; }
