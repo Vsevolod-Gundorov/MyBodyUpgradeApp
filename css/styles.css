@@ -1396,6 +1396,15 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .ex-prog.down { color: #c76a5a; }
 .ex-prog.down i { color: #c76a5a; }
 
+/* строка-кнопка в профиле: вес героя меняется прямо отсюда */
+.kv-btn { width: 100%; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
+.kv-btn .mono i { font-style: normal; font-size: .7rem; margin-left: 6px; }
+.bw-edit { display: flex; align-items: center; gap: 8px; }
+.bw-edit input { flex: 1; min-width: 0; background: #0c0b09; border: 1px solid var(--line-strong); color: var(--gold-bright);
+  border-radius: 10px; padding: 10px; font-family: var(--font-mono); font-size: 1.1rem; text-align: center; }
+.bw-edit input:focus { outline: none; border-color: var(--gold); }
+.bw-edit .ex-fix-b { flex: 0 0 64px; }
+
 /* правка рабочего веса: после перерыва догонять шагами по 2,5 кг — месяц зря */
 .ex-fix { margin-top: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
   background: rgba(0,0,0,.2); text-align: left; }
@@ -1427,6 +1436,7 @@ button.log-row:active { background: rgba(224,189,102,.05); }
 .ex-alt-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ex-alt-name { font-size: .87rem; }
 .ex-alt-meta { font-size: .72rem; font-family: var(--font-mono); }
+.ex-alt-meta.warn { color: var(--ember); }
 
 /* ============ модалка-подсказка ============ */
 .info-card { max-height: 84vh; overflow-y: auto; text-align: left; }

@@ -80,6 +80,56 @@ export function warmupLadder(working, step = 2.5) {
   return out;
 }
 
+/**
+ * Сколько отдыхать между подходами: от тяжести движения и числа повторов.
+ * Числа из практики и мета-анализов: многосуставному нужно от двух минут,
+ * изоляции хватает минуты. Короткий отдых — это не «интенсивнее», это просто
+ * меньше повторов в следующем подходе.
+ */
+export function restFor(tier = 2, reps = 10) {
+  const r = reps || 10;
+  if (tier === 1) {
+    if (r <= 3) return 300;
+    if (r <= 5) return 270;
+    if (r <= 6) return 255;
+    if (r <= 8) return 240;
+    if (r <= 10) return 210;
+    if (r <= 12) return 180;
+    if (r <= 15) return 150;
+    return 120;
+  }
+  if (tier === 2) {
+    if (r <= 5) return 210;
+    if (r <= 8) return 180;
+    if (r <= 10) return 150;
+    if (r <= 12) return 130;
+    if (r <= 15) return 105;
+    return 80;
+  }
+  if (r <= 8) return 120;
+  if (r <= 12) return 90;
+  if (r <= 15) return 75;
+  return 60;
+}
+
+/**
+ * Поправка на объём и отдых — то, из-за чего нельзя ставить везде один вес.
+ * Один подход на десять повторов и четыре таких подхода по полторы минуты отдыха
+ * — это разные веса, хотя в плане повторы одни и те же: к последнему подходу
+ * накапливается усталость, и вес, взятый один раз, в четвёртом подходе уже не идёт.
+ *   каждый подход после первого стоит 2%;
+ *   каждые полминуты недоотдыха до 2,5 минут — ещё 1,5%;
+ *   глубже 18% не опускаемся: это уже другая тренировка, а не поправка.
+ * Поправка работает в обе стороны: когда вес назначается — вниз, когда журнал
+ * читается — вверх. Иначе один и тот же квест с каждым разом занижал бы сам себя.
+ */
+export function loadFactor({ sets = 1, rest = 150 } = {}) {
+  const extra = Math.max(0, (sets || 1) - 1);
+  const bySets = 0.02 * extra;
+  const byRest = Math.max(0, (150 - (rest || 150)) / 30) * 0.015;
+  return Math.max(0.82, Math.min(1, 1 - bySets - byRest));
+}
+
 /** Переводы между журнальным весом (что повесил) и системным (по чему считаем проценты). */
 export function spaceOf({ perHand = false, bw = false, bodyweight = 0 } = {}) {
   return {
@@ -127,7 +177,7 @@ export function judge(sets, plan = {}, bw = false) {
  *        — это месяц зря потраченных квестов
  */
 export function workMax(history, o = {}) {
-  const { step = 2.5, reset = null } = o;
+  const { step = 2.5, reset = null, tier = 2 } = o;
   const { toSys, toBar } = spaceOf(o);
   let anchor = reset && reset.one > 0 ? reset.one : 0, best = anchor;
   const moves = [];
@@ -137,9 +187,11 @@ export function workMax(history, o = {}) {
     if (!j) continue;
     const rir = (h.plan && h.plan.rir != null) ? h.plan.rir : 0;
     const floor = o.bw ? 0 : step;                                  // без пояса довесок нулевой — это нормально
-    const at = (w) => asMax(toSys(Math.max(floor, w)), j.hi, rir);  // вес → якорь на языке этой схемы
+    // вес, взятый в четырёх подходах подряд, говорит о большем, чем тот же вес в одном
+    const k = loadFactor({ sets: (h.plan && h.plan.sets) || j.planned, rest: restFor(tier, j.hi) });
+    const at = (w) => asMax(toSys(Math.max(floor, w)) / k, j.hi, rir);  // вес → якорь на языке этой схемы
     const prev = anchor;
-    const due = prev ? toBar(asWeight(prev, j.hi, rir)) : 0;       // что было назначено на этот квест
+    const due = prev ? toBar(asWeight(prev, j.hi, rir) * k) : 0;   // что было назначено на этот квест
     let verdict = j.verdict;
     if (!anchor) {
       anchor = at(j.top);                                    // первый замер: с чего начали
@@ -203,10 +255,13 @@ export function trendPerMonth(moves) {
  *        prog — плановая надбавка недели: применяется только к seed, дальше вес двигают подходы
  */
 export function progressionOf(history, o = {}) {
-  const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0, reset = null } = o;
+  const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0, reset = null, sets = 1, tier = 2 } = o;
   const step = EQUIP_STEP[equip] || 2.5;
   const { toBar } = spaceOf(o);
   const { anchor, moves } = workMax(history, { ...o, step });
+  // вес на сегодня — с поправкой на объём и отдых этой схемы
+  const rest = o.rest || restFor(tier, reps[1]);
+  const k = loadFactor({ sets, rest });
   const rec = bestSet(history, o);
   const round = (v) => Math.max(0, Math.round(v / step) * step);
   const empty = { source: "none", work1RM: 0, oneRM: 0, oneRMBar: 0, best: null, proven: 0,
@@ -215,13 +270,13 @@ export function progressionOf(history, o = {}) {
   let source, target;
   if (anchor > 0) {
     source = reset && reset.one > 0 && !moves.length ? "manual" : "work";
-    target = round(toBar(asWeight(anchor, reps[1], rir)));
+    target = round(toBar(asWeight(anchor, reps[1], rir) * k));
   } else if (seed > 0) {
     source = "estimate";
     // старт без истории: середина коридора повторов — не завышаем и не мельчим,
     // дальше вес двигают сами подходы
     const mid = Math.round((reps[0] + reps[1]) / 2);
-    target = round(toBar(asWeight(seed * (1 + prog), mid, rir)));
+    target = round(toBar(asWeight(seed * (1 + prog), mid, rir) * k));
   } else {
     return empty;
   }
@@ -229,13 +284,13 @@ export function progressionOf(history, o = {}) {
   if (!(target >= 0) || (target === 0 && !o.bw)) return empty;
 
   const last = moves.length ? moves[moves.length - 1] : null;
-  const shift = (v) => round(toBar(asWeight(v, reps[1], rir)));
+  const shift = (v) => round(toBar(asWeight(v, reps[1], rir) * k));
   // пол: ниже этого веса подход уже не рабочий. Округляем вниз — пол не должен
   // оказаться строже, чем есть на самом деле
   const floor = target > 0 ? Math.max(step, Math.floor((target * PROG.FLOOR) / step) * step) : 0;
   return {
     source, work1RM: anchor || seed * (1 + prog),
-    target, floor: floor < target ? floor : 0, step,
+    target, floor: floor < target ? floor : 0, step, rest, loadK: k,
     oneRM: rec ? rec.one : (source === "estimate" ? seed * (1 + prog) : 0),
     oneRMBar: rec ? toBar(rec.one) : (source === "estimate" ? toBar(seed * (1 + prog)) : 0),
     best: rec, proven: provenTop(moves), sessions: moves.length,
