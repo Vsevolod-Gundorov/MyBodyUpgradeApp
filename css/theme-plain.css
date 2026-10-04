@@ -141,3 +141,11 @@
   background: var(--ink-2); border-color: var(--line); color: var(--bone);
 }
 :root[data-theme="plain"] .set-row.active input { border-color: var(--gold); }
+
+/* ---------- разделители: вместо кованого орнамента — обычная линия ---------- */
+:root[data-theme="plain"] .rune-divider {
+  height: 0; margin: 20px 0; border-top: 1px solid var(--line);
+  background: none; filter: none;
+}
+:root[data-theme="plain"] .rune-divider::before,
+:root[data-theme="plain"] .rune-divider::after { display: none; }
