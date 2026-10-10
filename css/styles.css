@@ -1792,3 +1792,44 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .lift-grid { align-items: stretch; }
 .lift-grid .chart-card + .chart-card { margin-top: 0; }
 .search-bar.lr-search { margin: 0 0 8px; }
+
+/* ---------- шапка тренировки: название в две строки, тип дня под ним ---------- */
+.qhead-tb { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.qhead .qhead-title { flex: none; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; font-size: 1.02rem; line-height: 1.15; overflow-wrap: anywhere; }
+.qhead-sub { font-size: .7rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .02em; }
+.qtimer { padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; min-width: 64px; justify-content: center; }
+.qtimer.idle { color: var(--dim); }
+.qtimer:not(.idle) { border-color: rgba(var(--t-acc-c), .55); }
+
+/* ---------- жалобы и заметки к упражнениям ---------- */
+.badge.b-ease { color: var(--ember); border-color: rgba(198,91,60,.45); }
+.ease-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; color: var(--bone); }
+.ease-note .link-btn { padding: 0; }
+.ex-note { margin-top: 8px; padding: 7px 10px; border-left: 2px solid var(--gold); background: rgba(255,255,255,.03);
+  border-radius: 0 8px 8px 0; font-size: .82rem; color: var(--bone); overflow-wrap: anywhere; }
+.ex-tools { flex-wrap: wrap; }
+.ex-tool.on { color: var(--gold); border-color: rgba(var(--t-acc-c), .55); }
+.health-box { display: grid; gap: 8px; margin: 0 0 12px; }
+.hb-check { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid rgba(var(--t-acc-c), .55); border-radius: 12px; background: var(--panel-2); }
+.hb-check b { font-size: .95rem; }
+.hb-btns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+.hb-btns button { min-height: 38px; border-radius: 9px; border: 1px solid var(--line); background: none; color: var(--bone); font: inherit; font-size: .8rem; cursor: pointer; }
+.hb-btns button:active { transform: scale(.97); }
+.hb-active { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; color: var(--dim); }
+.note-card textarea { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-strong);
+  background: rgba(0,0,0,.3); color: var(--bone); font: inherit; font-size: 16px; resize: vertical; min-height: 72px; }
+.note-card textarea:focus { outline: none; border-color: var(--gold); }
+.nt-areas { display: flex; flex-wrap: wrap; gap: 6px; }
+.nt-area { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--bone); font: inherit; font-size: .82rem; cursor: pointer; }
+.nt-area.on { border-color: var(--ember); color: var(--ember); background: rgba(198,91,60,.08); }
+.nt-levels { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.nt-levels[hidden] { display: none; }
+.nt-level { display: grid; gap: 2px; padding: 8px 10px; text-align: left; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--bone); font: inherit; cursor: pointer; }
+.nt-level span { font-size: .72rem; color: var(--dim); }
+.nt-level.on { border-color: var(--gold); }
+.nt-preview { margin-top: 12px; }
+.nt-preview:empty { display: none; }
+.nt-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px solid rgba(var(--t-acc-c), .1); font-size: .85rem; }
+.nt-row b { color: var(--ember); white-space: nowrap; }
+.nt-disclaimer { margin: 10px 0 12px; }

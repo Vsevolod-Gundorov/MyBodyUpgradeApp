@@ -36,6 +36,14 @@ export const AD = (a) => achDesc(a, themeNow());
 
 export const CN = (k) => catName(k, themeNow());
 
+/** Короткое название для шапки тренировки: тип дня уже стоит строкой ниже. */
+export function questTitle(w) {
+  if (!w) return "";
+  if (themeNow() !== "plain") return w.boss || w.title || "";
+  const tpl = TEMPLATES[w.tpl];
+  return (tpl && tpl.name) || w.title || w.boss || "";
+}
+
 /** Название тренировки: в «Саге» это имя босса, в «Чистой» — что за день и какой.
  *  Имена боссов остаются в данных: переключил тему обратно — они вернулись. */
 export function questName(w) {

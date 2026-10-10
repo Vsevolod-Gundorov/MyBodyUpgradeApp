@@ -4,6 +4,7 @@ import { FEEL, PROG, e1rm as e1rmAvg, feelOf, isWarmup, priorSetsOf, progression
 import { exById, setDone } from "../../data/exercises.js";
 import { epley, fmt, today } from "../core/format.js";
 import { ORDER, WORKOUTS, planOf, sessionExercises } from "./catalog.js";
+import { easeToday } from "./health.js";
 import { baselines, currentWeight } from "./profile.js";
 import { S, save } from "./store.js";
 import { L } from "./theme.js";
@@ -51,7 +52,7 @@ export function movementHistory() {
       const key = ex.lift || ex.id;
       (out[key] ||= []).push({ date: sess.date, sets, plan: {
         sets: ex.sets, reps: ex.reps, rir: ex.rir != null ? ex.rir : 1,
-        feel: sess.feel || "norm", deload: !!ex.deload, prior: prior[i] || 0 } });
+        feel: sess.feel || "norm", deload: !!ex.deload, prior: prior[i] || 0, ease: ex.ease || 0 } });
     });
   });
   return (histCache = out);
@@ -67,12 +68,12 @@ export function seed1RM(src) {
 }
 
 /** Вилка рабочего веса движения: из журнала, а без журнала — от базовых лифтов. */
-export function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0, feel = "norm", deload = false, prior = 0 } = {}) {
+export function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0, feel = "norm", deload = false, prior = 0, ease = 1 } = {}) {
   if (!src) return null;
   const key = src.lift || src.id;
   return progressionOf(movementHistory()[key] || [], {
     reps, rir, equip: src.equip, prog, seed: seed1RM(src),
-    sets, tier: src.tier || 2, rest: rest || 0, feel, deload, prior,
+    sets, tier: src.tier || 2, rest: rest || 0, feel, deload, prior, ease,
     bodyweight: currentWeight(), bw: !!src.bw, perHand: !!src.perHand,
     reset: (S.workReset || {})[key] || null,
   });
@@ -92,8 +93,11 @@ export function withWeights(ex) {
   // это уже не упражнение
   const feel = feelToday();
   ex = { ...ex, sets: Math.max(2, (ex.sets || 3) + feelOf(feel).sets) };
+  // жалоба (болит плечо, ноет поясница) облегчает движения, которые грузят эту зону
+  const ease = easeToday(ex.id);
+  ex = { ...ex, ease };
   const p = progressOf(src, { reps: ex.reps, rir: ex.rir, prog: ex.prog || 0, sets: ex.sets, rest,
-    feel, deload: !!ex.deload, prior: ex.prior || 0 });
+    feel, deload: !!ex.deload, prior: ex.prior || 0, ease: ease ? ease.k : 1 });
   const own = src && (src.equip === "bw" || src.bw);
   if (!p || p.source === "none") return { ...ex, w: 0, wSource: "none", wp: p || null, bwOnly: !!own,
     wNote: own ? "свой вес" : "задай вес сам" };

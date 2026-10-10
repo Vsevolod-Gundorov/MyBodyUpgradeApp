@@ -257,6 +257,7 @@ export function sessionRowsView({ s }) {
     return `<div class="sd-ex">
       <div class="sd-ex-top"><span class="sd-name">${ex.name}${ex.main ? ' <span class="main-badge">дв. дня</span>' : ""}</span><span class="sd-ceil mono">1ПМ ${fmt(ceil)}</span></div>
       <div class="sd-sets mono">${setStr}</div>
+      ${s.notes && s.notes[ex.id] ? `<div class="ex-note">✎ ${esc(s.notes[ex.id])}</div>` : ""}
     </div>`;
   }).join("");
 }

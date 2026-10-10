@@ -275,6 +275,11 @@ export function workMax(history, o = {}) {
     if (h.plan && h.plan.deload) {
       verdict = "deload";                                    // разгрузочная неделя рабочий максимум не двигает
       if (!anchor) anchor = at(j.top / DELOAD);              // но если журнал начался с неё — хоть какая-то точка отсчёта
+    } else if (h.plan && h.plan.ease > 0 && h.plan.ease < 1 && (!anchor || j.top < due * 0.97)) {
+      // облегчено из-за жалобы (болит плечо и т. п.) и правда работал легче — не показатель.
+      // Если, несмотря на жалобу, отработал полный вес, — подход судится как обычно
+      verdict = "eased";
+      if (!anchor) anchor = at(j.top / h.plan.ease);
     } else if (!anchor) {
       anchor = at(j.top);                                    // первый замер: с чего начали
     } else if (j.top < due * PROG.LIGHT) {
@@ -339,13 +344,15 @@ export function trendPerMonth(moves) {
 export function progressionOf(history, o = {}) {
   const { reps = [8, 10], rir = 1, equip = "bb", seed = 0, prog = 0, reset = null, sets = 1, tier = 2,
     feel = "norm", deload = false, prior = 0 } = o;
+  // ease — облегчение из-за жалобы: доля веса (0.7 — минус 30%). Максимум не трогает
+  const ease = o.ease > 0 && o.ease < 1 ? o.ease : 1;
   const step = EQUIP_STEP[equip] || 2.5;
   const { toBar } = spaceOf(o);
   const { anchor, moves } = workMax(history, { ...o, step });
   // вес на сегодня — с поправкой на объём и отдых этой схемы
   const rest = Math.round((o.rest || restFor(tier, reps[1])) * feelOf(feel).rest);
   const k = loadFactor({ sets, rest: o.rest || restFor(tier, reps[1]) })
-    * feelOf(feel).k * (deload ? DELOAD : 1) * freshFactor({ priorSets: prior });
+    * feelOf(feel).k * (deload ? DELOAD : 1) * freshFactor({ priorSets: prior }) * ease;
   const rec = bestSet(history, o);
   const round = (v) => Math.max(0, Math.round(v / step) * step);
   const empty = { source: "none", work1RM: 0, oneRM: 0, oneRMBar: 0, best: null, proven: 0,
@@ -374,7 +381,7 @@ export function progressionOf(history, o = {}) {
   const floor = target > 0 ? Math.max(step, Math.floor((target * PROG.FLOOR) / step) * step) : 0;
   return {
     source, work1RM: anchor || seed * (1 + prog),
-    target, floor: floor < target ? floor : 0, step, rest, loadK: k, deload: !!deload, feel: feelOf(feel).key,
+    target, floor: floor < target ? floor : 0, step, rest, loadK: k, deload: !!deload, feel: feelOf(feel).key, ease,
     prior, freshK: freshFactor({ priorSets: prior }),
     oneRM: rec ? rec.one : (source === "estimate" ? seed * (1 + prog) : 0),
     oneRMBar: rec ? toBar(rec.one) : (source === "estimate" ? toBar(seed * (1 + prog)) : 0),
@@ -395,10 +402,11 @@ export function stateOf(p) {
   if (p.move === "deload") return { key: "deload", text: "Прошлый заход был разгрузочным — максимум на месте", cls: "verdict-mid" };
   if (p.move === "down") return { key: "drop", text: "Откат — рабочий вес опустился на шаг", cls: "verdict-fail" };
   // разгрузка и лёгкий день — не застой: они и не должны двигать вес
-  const tail = p.moves.slice(1).filter((m) => m.verdict !== "deload" && m.verdict !== "light").slice(-PROG.STALL);
+  const tail = p.moves.slice(1).filter((m) => !["deload", "light", "eased"].includes(m.verdict)).slice(-PROG.STALL);
   if (tail.length >= PROG.STALL && tail.every((m) => m.to <= m.from))
     return { key: "stall", text: `Застой: ${PROG.STALL} раза подряд без прибавки — пора делоад или смена движения`, cls: "verdict-fail" };
   if (p.move === "light") return { key: "hold", text: "Прошлый раз был лёгким — вес стоит на месте", cls: "verdict-mid" };
+  if (p.move === "eased") return { key: "hold", text: "Прошлый раз облегчали из-за жалобы — максимум на месте", cls: "verdict-mid" };
   if (p.move === "up") return { key: "grow", text: "Рост — рабочий вес поднялся на шаг", cls: "verdict-gold" };
   return { key: "hold", text: "Держим вес — добираем повторы до верхней границы", cls: "verdict-mid" };
 }
@@ -416,5 +424,6 @@ export function moveLabel(p) {
   if (p.move === "down") return { icon: "▼", text: p.deltaKg ? `${num(p.deltaKg)} кг после недобора` : "минус шаг после недобора" };
   if (p.move === "deload") return { icon: "↓", text: `разгрузка: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
   if (p.move === "light") return { icon: "=", text: `лёгкий день: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
+  if (p.move === "eased") return { icon: "=", text: `облегчали из-за жалобы: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
   return { icon: "=", text: `держим вес: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
 }

@@ -4,8 +4,9 @@ import { exerciseIcon } from "../../data/icons-exercise.js";
 import { METHOD_ICON } from "../../data/icons-ui.js";
 import { METHODS, SESSION_CAP, TYPE_NAMES } from "../../data/program.js";
 import { DELOAD, FEEL, isWarmup } from "../../data/progression.js";
-import { fmt, fmtDate, plural, plural3 } from "../core/format.js";
-import { L, questName, themeNow } from "../model/theme.js";
+import { AREAS, AREA_ORDER, LEVELS } from "../../data/complaints.js";
+import { esc, fmt, fmtDate, plural, plural3 } from "../core/format.js";
+import { L, questName, questTitle, themeNow } from "../model/theme.js";
 import { feelToday } from "../model/training.js";
 import { icon } from "./icons.js";
 
@@ -37,17 +38,17 @@ export function workoutView({ LOAD_TXT, hot, sl, w, wk }) {
     <div class="qhead">
       <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
       <span class="medallion medallion--sm">${icon(w.icon || "anvil")}</span>
-      <h2 class="qhead-title display">${questName(w)}</h2>
-      <span class="qtimer mono" id="quest-timer">${icon("stopwatch")}<b>0:00</b></span>
+      <div class="qhead-tb">
+        <h2 class="qhead-title display">${questTitle(w)}</h2>
+        <span class="qhead-sub">${[TYPE_NAMES[w.type], wk ? `неделя ${wk.n}` : "", w.wave && themeNow() !== "plain" ? `волна ${w.wave}` : ""].filter(Boolean).join(" · ")}</span>
+      </div>
+      <span class="qtimer mono idle" id="quest-timer" role="timer" aria-label="Время тренировки">${icon("stopwatch")}<b>0:00</b></span>
       <button class="icon-btn" id="q-help" aria-label="${L("questAbout")}">${icon("help")}</button>
     </div>
     <div class="badges qbadges">
-      <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>
-      ${wk ? `<span class="badge">неделя ${wk.n}</span>` : ""}
-      ${w.wave && themeNow() !== "plain" ? `<span class="badge">волна ${w.wave}</span>` : ""}
       ${w.deload ? `<span class="badge b-deload">разгрузка −${Math.round((1 - DELOAD) * 100)}%</span>` : ""}
       ${w.prog ? `<span class="badge b-prog">+${Math.round(w.prog * 100)}%</span>` : ""}
-      <span class="badge ${sl.level === "high" ? "b-load" : ""}">${LOAD_TXT[sl.level]}</span>
+      <span class="badge ${sl.level === "high" ? "b-load" : ""}">нагрузка ${{ low: "лёгкая", mid: "средняя", high: "высокая" }[sl.level] || LOAD_TXT[sl.level]}</span>
       ${hot.length ? `<span class="badge b-focus ${hot[0].level === "high" ? "deep" : ""}" id="q-focus">${(MUSCLES[hot[0].group] || "").toLowerCase()} ${hot[0].sets}</span>` : ""}
       ${sl.overload ? `<span class="badge b-warn" id="q-warn">⚠ перегруз</span>` : ""}
     </div>
@@ -57,19 +58,20 @@ export function workoutView({ LOAD_TXT, hot, sl, w, wk }) {
         `<button class="feel ${feelToday() === k ? "on" : ""}" data-feel="${k}">${FEEL[k].name}</button>`).join("")}
     </div>
     ${feelToday() === "norm" ? "" : `<div class="feel-note dim small">${FEEL[feelToday()].hint}</div>`}
+    <div id="health-box"></div>
     <div id="ex-list"></div>
     <button class="btn-ghost add-ex-btn" id="add-ex">+ движение</button>
     <button class="finish-btn" id="finish">${L("questOne")}</button>`;
 }
 
-export function exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, src, target, wNoteShort }) {
+export function exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, src, target, wNoteShort, note = "" }) {
   return `
       <button class="ex-head" aria-expanded="false">
         <span class="ex-ico">${icon(exerciseIcon(src))}</span>
         <span class="ex-main">
           <span class="ex-title">
             <span class="name">${ex.name}</span>
-            ${ex.main ? '<span class="badge b-main">движение дня</span>' : ""}${ex.added ? '<span class="badge b-alt">добавлено</span>' : ""}${ex.swappedFrom ? '<span class="badge b-alt">замена</span>' : ""}${ex.method && METHODS[ex.method] ? `<span class="badge b-method">${METHODS[ex.method].name}</span>` : ""}
+            ${ex.main ? '<span class="badge b-main">движение дня</span>' : ""}${ex.added ? '<span class="badge b-alt">добавлено</span>' : ""}${ex.swappedFrom ? '<span class="badge b-alt">замена</span>' : ""}${ex.method && METHODS[ex.method] ? `<span class="badge b-method">${METHODS[ex.method].name}</span>` : ""}${ex.ease ? `<span class="badge b-ease">облегчено −${Math.round((1 - ex.ease.k) * 100)}%</span>` : ""}
           </span>
           <span class="ex-brief">
             ${target
@@ -98,6 +100,8 @@ export function exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, sr
           ${prev ? `<details class="eg-prev"><summary>прошлый раз</summary><span>${fmtDate(prev.date)}: <b class="mono">${prev.txt}</b></span></details>` : ""}
           ${ex.wp && ex.wp.freshK < 1 && src.group ? `<div class="eg-line note fatigue-note">${(MUSCLES[src.group] || "группа").toLowerCase()} к этому моменту уже отработал${/[аь]$/.test(MUSCLES[src.group] || "") ? "а" : ""} ${plural3(Math.round(ex.wp.prior), "подход", "подхода", "подходов")} — вес на ${Math.round((1 - ex.wp.freshK) * 100)}% ниже, чем на свежую мышцу</div>` : ""}
           ${ex.method && METHODS[ex.method] ? `<div class="eg-line note" data-method="${ex.method}">${icon(METHOD_ICON(ex.method))} ${METHODS[ex.method].name} на последнем подходе — как делать</div>` : ""}
+          ${easeLineView(ex)}
+          ${note ? `<div class="ex-note">✎ ${esc(note)}</div>` : ""}
         </div>
 
         <div class="set-head"><span>#</span><span>вес, кг</span><span>повторы</span><span></span></div>
@@ -111,10 +115,65 @@ export function exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, sr
           <button class="ex-tool" data-swap="${ex.id}">⇄<span>замена</span></button>
           <button class="ex-tool" data-info="${ex.id}">◎<span>разбор</span></button>
           <button class="ex-tool" data-pair="${ex.id}">⛓<span>в суперсет</span></button>
+          <button class="ex-tool ${note ? "on" : ""}" data-note="${ex.id}">✎<span>заметка</span></button>
           <button class="ex-tool danger" data-drop="${ex.id}">✕<span>убрать</span></button>
         </div>
       </div>`;
 }
+
+/** Почему вес ниже обычного: жалоба на зону, которую грузит движение. */
+export function easeLineView(ex) {
+  if (!ex.ease) return "";
+  const why = ex.ease.reasons.map((r) => `${AREAS[r.area].name.toLowerCase()} (${LEVELS[r.level].name.toLowerCase()})`).join(", ");
+  return `<div class="eg-line note ease-note"><span>Облегчено: ${why} — вес −${Math.round((1 - ex.ease.k) * 100)}%, максимум не трогаем.</span>${
+    ex.ease.swap ? `<button class="link-btn" data-safe="${ex.id}">Заменить на щадящее</button>` : ""}</div>`;
+}
+
+/** Плашка над упражнениями: «как плечо?» и что сейчас облегчается. */
+export function healthBoxView({ check, active, today }) {
+  if (!check.length && !active.length) return "";
+  const ago = (d) => { const n = Math.round((new Date(today + "T00:00:00Z") - new Date(d + "T00:00:00Z")) / 864e5); return n <= 1 ? "вчера" : `${plural3(n, "день", "дня", "дней")} назад`; };
+  return `
+    <div class="health-box" role="region" aria-label="Самочувствие суставов">
+      ${check.map((c) => `
+        <div class="hb-check">
+          <b>Как ${AREAS[c.area].name.toLowerCase()}${c.area === "hip" ? " сустав" : ""}?</b>
+          <span class="dim small">${LEVELS[c.level].name} — отмечено ${ago(c.checkedAt)}</span>
+          <div class="hb-btns">
+            <button data-hc="${c.id}" data-ans="gone">Прошло</button>
+            <button data-hc="${c.id}" data-ans="same">Ещё беспокоит</button>
+            <button data-hc="${c.id}" data-ans="worse">Хуже</button>
+          </div>
+        </div>`).join("")}
+      ${active.length && !check.length ? `<div class="hb-active small"><span>Облегчаем: ${active.map((c) => `${AREAS[c.area].name.toLowerCase()} — ${LEVELS[c.level].name.toLowerCase()}`).join(", ")}</span>
+        <button class="link-btn" id="hb-manage">Изменить</button></div>` : ""}
+    </div>`;
+}
+
+/** Лист заметки к упражнению: текст, быстрые зоны, сила и что изменится. */
+export function noteSheetView({ name, text, sel }) {
+  return `
+    <div class="portion-card note-card">
+      <div class="eyebrow">Заметка · ${esc(name)}</div>
+      <textarea id="nt-text" rows="3" maxlength="300" placeholder="Например: болело плечо на последнем подходе" aria-label="Заметка к упражнению">${esc(text)}</textarea>
+      <div class="ob-label" style="margin:12px 0 6px">Что беспокоит</div>
+      <div class="nt-areas">${AREA_ORDER.map((k) => `<button class="nt-area ${sel[k] ? "on" : ""}" data-area="${k}" aria-pressed="${!!sel[k]}">${AREAS[k].name}</button>`).join("")}</div>
+      <div class="nt-levels" ${Object.keys(sel).length ? "" : "hidden"}>
+        ${Object.keys(LEVELS).map((l) => `<button class="nt-level ${Object.values(sel).some((v) => v === l) ? "on" : ""}" data-level="${l}"><b>${LEVELS[l].name}</b><span>${LEVELS[l].note}</span></button>`).join("")}
+      </div>
+      <div class="nt-preview" id="nt-preview" aria-live="polite"></div>
+      <p class="dim small nt-disclaimer">Это не диагноз. Острая боль, онемение или отёк — повод показаться врачу, а не заменить упражнение.</p>
+      <div class="portion-actions">
+        <button class="btn-ghost" id="nt-cancel">Отмена</button>
+        <button class="finish-btn" id="nt-save" style="margin-top:0">Сохранить</button>
+      </div>
+    </div>`;
+}
+
+/** Что изменится: какие движения этой тренировки облегчатся и насколько. */
+export const notePreviewView = (rows) => !rows.length ? "" : `
+  <div class="eyebrow" style="margin-bottom:6px">Что изменится</div>
+  ${rows.map((r) => `<div class="nt-row"><span>${esc(r.name)}</span><b class="mono">−${Math.round((1 - r.k) * 100)}%${r.swap ? " · замена" : ""}</b></div>`).join("")}`;
 
 export function setRowView({ si }) {
   return `
@@ -129,7 +188,7 @@ export function supersetCardView({ meta, pair, rounds, sameMuscle }) {
       <button class="ex-head" aria-expanded="false">
         <span class="ss-duo">${meta.map((m) => `<span class="ex-ico">${icon(exerciseIcon(m.src))}</span>`).join("")}</span>
         <span class="ex-main">
-          <span class="ex-title"><span class="name">Суперсет</span><span class="badge ${sameMuscle ? "b-load" : "b-ss"}">${sameMuscle ? "одна группа" : "без отдыха внутри"}</span></span>
+          <span class="ex-title"><span class="name">Суперсет</span><span class="badge ${sameMuscle ? "b-load" : "b-ss"}">${sameMuscle ? "одна группа" : "без отдыха внутри"}</span>${(() => { const k = Math.min(...meta.map((m) => (m.ex.ease ? m.ex.ease.k : 1))); return k < 1 ? `<span class="badge b-ease">облегчено −${Math.round((1 - k) * 100)}%</span>` : ""; })()}</span>
           <span class="ex-brief"><span class="u">${meta.map((m) => m.ex.short || m.ex.name).join(" + ")}</span></span>
         </span>
         <span class="ex-count">
@@ -188,4 +247,17 @@ export function workoutHelpView({ LOAD_TXT, gl, hot, sl, w }) {
         <div><span class="badge b-ss">суперсет</span> два движения подряд без отдыха: собрать пару можно кнопкой «в суперсет» в карточке, разбить — «разбить пару». Если в паре одна группа мышц, рабочий вес пересчитывается вниз: мышца там не отдыхает</div>
         <div><span class="badge b-dim">≈</span> разминка: подход легче 80% рабочего веса. Он не занимает слот плана, не считается недобором и вес движения не двигает — двадцать килограммов при рабочих ста это не упавшие силовые</div>
       </div>`;
+}
+
+/** Действующие жалобы: что облегчается и кнопка «прошло». */
+export function complaintsSheetView({ list }) {
+  return `
+    <div class="portion-card">
+      <div class="portion-name display">Облегчение по жалобам</div>
+      <p class="dim small" style="margin:6px 0 12px">Движения, которые грузят эти зоны, идут с меньшим весом. Прошло — отметь, и вес вернётся.</p>
+      ${list.length ? list.map((c) => `
+        <div class="kv"><span>${AREAS[c.area].name} · ${LEVELS[c.level].name.toLowerCase()}</span>
+          <button class="link-btn" data-gone="${c.id}">Прошло</button></div>`).join("") : `<div class="empty">Жалоб нет.</div>`}
+      <button class="btn-ghost" id="cm-close" style="width:100%;margin-top:12px">Готово</button>
+    </div>`;
 }
