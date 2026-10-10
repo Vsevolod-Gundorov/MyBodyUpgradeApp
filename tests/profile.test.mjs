@@ -104,3 +104,16 @@ test("1ПМ по подходу: Эпли + Бжицки, кратно 2,5", () 
   assert.equal(oneRepMax(0, 5), 0);
   assert.equal(oneRepMax(100, 20), oneRepMax(100, 10), "повторы выше 10 не завышают оценку");
 });
+
+test("тренд веса: сглаживает скачки воды, учитывает пропуски, изменение за 30 дней", async () => {
+  const { weightTrendSeries, trendChange } = await import("../data/profile.js");
+  const s = weightTrendSeries([{ date: "2026-10-01", kg: 90 }, { date: "2026-10-02", kg: 92 }, { date: "2026-10-03", kg: 90 }]);
+  assert.equal(s[0].trend, 90);
+  assert.ok(s[1].trend > 90 && s[1].trend < 90.5, "скачок на +2 кг сдвигает тренд на 10%");
+  const gap = weightTrendSeries([{ date: "2026-10-01", kg: 90 }, { date: "2026-10-11", kg: 92 }]);
+  assert.ok(gap[1].trend > s[1].trend, "после 10 дней перерыва новое взвешивание весит больше");
+  const long = Array.from({ length: 40 }, (_, i) => ({ date: new Date(Date.UTC(2026, 8, 1) + i * 864e5).toISOString().slice(0, 10), kg: 95 - i * 0.05 }));
+  const ch = trendChange(weightTrendSeries(long), 30, new Date(Date.UTC(2026, 9, 10)));
+  assert.ok(ch < -1 && ch > -2, String(ch));
+  assert.equal(trendChange(weightTrendSeries([{ date: "2026-10-01", kg: 90 }])), null);
+});

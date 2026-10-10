@@ -89,7 +89,7 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
         return `<div class="kv"><span>${LIFT_NAMES[k]}</span>
           <span class="mono">${fmt(v.cur)} кг ${d > 0.5 ? `<span class="verdict-gold">+${fmt(d)}</span>` : `<span class="dim">база</span>`}</span></div>`;
       }).join("")}
-      <button class="kv kv-btn" id="edit-bw"><span>${L("bodyweight")}</span><span class="mono">${bw} кг <i class="dim">изменить</i></span></button>
+      <button class="kv kv-btn" id="edit-bw"><span>${L("bodyweight")}</span><span class="mono">${fmt(bw)} кг <i class="dim">изменить</i></span></button>
     </div>
 
     <div class="panel">
@@ -123,21 +123,4 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
     </div>` : ""}
 
 `;
-}
-
-export function bodyweightEditorView() {
-  return `
-      <div class="portion-card">
-        <div class="eyebrow">Вес героя</div>
-        <div class="portion-name display">Сколько весишь сейчас</div>
-        <p class="dim small" style="margin:8px 0 12px">От него считаются подтягивания, брусья и гиперэкстензия:
-          там рабочий вес — это довесок к своему.</p>
-        <div class="bw-edit">
-          <button class="ex-fix-b" data-bw="-1">−1</button>
-          <input id="bw-in" class="mono" inputmode="decimal" enterkeyhint="done" value="${S.hero.bodyweight || 90}" aria-label="вес тела" />
-          <button class="ex-fix-b" data-bw="1">+1</button>
-        </div>
-        <button class="finish-btn" id="bw-save" style="margin-top:14px">Сохранить</button>
-        <button class="btn-ghost" id="bw-close">Отмена</button>
-      </div>`;
 }

@@ -1,5 +1,6 @@
 // Контроллер экрана прогресса.
 import { baselines } from "../model/profile.js";
+import { mountWeightCard } from "./body.js";
 import { showSessionDetail } from "./overlays.js";
 import { epley } from "../core/format.js";
 import { sessionExercises } from "../model/catalog.js";
@@ -31,6 +32,7 @@ export function renderProgress() {
   const anCards = limitCardsView({ keys });
 
   app.innerHTML = progressView({ anCards });
+  mountWeightCard(document.getElementById("weight-card"));
 
   const charts = document.getElementById("charts");
   Object.entries(liftSeries).forEach(([k, arr]) => {

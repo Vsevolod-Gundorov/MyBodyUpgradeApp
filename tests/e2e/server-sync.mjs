@@ -98,8 +98,8 @@ await shot(d2.page, "2-second-device.png");
 
 /* 3. Правка на втором устройстве уезжает на сервер */
 await d2.page.click("#edit-bw");
-await d2.page.fill("#bw-in", "91.5");
-await d2.page.click("#bw-save");
+await d2.page.fill("#ws-kg", "91.5");
+await d2.page.click("#ws-save");
 await settle(d2.page, "сохраняю…");
 check("правка: отправлена", await settle(d2.page));
 row = await serverRow();
@@ -114,13 +114,13 @@ check("первое устройство: правка приехала", l1.her
 /* 5. Конфликт: оба меняли, пока одно было без сети */
 await d1.ctx.route(/\/api\//, (r) => r.abort());
 await d1.page.evaluate(() => { document.getElementById("edit-bw").click(); });
-await d1.page.fill("#bw-in", "90");
-await d1.page.click("#bw-save");
+await d1.page.fill("#ws-kg", "90");
+await d1.page.click("#ws-save");
 check("без сети: статус честный, журнал на устройстве", await settle(d1.page, "нет сети · сохранено здесь"));
 await shot(d1.page, "3-offline.png");
 await d2.page.click("#edit-bw");
-await d2.page.fill("#bw-in", "92");
-await d2.page.click("#bw-save");
+await d2.page.fill("#ws-kg", "92");
+await d2.page.click("#ws-save");
 await settle(d2.page, "сохраняю…"); await settle(d2.page);
 await d1.ctx.unroute(/\/api\//);
 await d1.page.reload();

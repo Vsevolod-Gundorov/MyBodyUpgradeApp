@@ -9,20 +9,20 @@ import { S, save } from "../model/store.js";
 import { initSync, onServerState, serverState } from "../model/server.js";
 import { cloudState, onCloudState } from "../model/sync.js";
 import { AVIS, themeNow } from "../model/theme.js";
-import { invalidateE1RM } from "../model/training.js";
-import { app, overlayRoot } from "../view/dom.js";
-import { fxChime, fxTap, haptic } from "../view/fx.js";
-import { bodyweightEditorView, profileView, syncNoteText } from "../view/profile.js";
+import { app } from "../view/dom.js";
+import { fxTap, haptic } from "../view/fx.js";
+import { profileView, syncNoteText } from "../view/profile.js";
+import { openWeightSheet } from "./body.js";
 import { goalsPanelView } from "../view/onboarding.js";
 import { openProfileWizard } from "./onboarding.js";
 import { openNutritionPlan } from "./nutplan.js";
-import { profile, targetsFor } from "../model/profile.js";
+import { currentWeight, profile, targetsFor } from "../model/profile.js";
 
 /* ================= ПРОФИЛЬ ================= */
 export function renderProfile() {
   const h = heroStats();
   const ring = 2 * Math.PI * 52;
-  const bw = S.hero.bodyweight;
+  const bw = currentWeight();
 
   const c = h.cls;
   const achievements = S.achievements || {};
@@ -51,29 +51,9 @@ export function renderProfile() {
   const gNut = document.getElementById("goals-nut");
   if (gNut) gNut.onclick = () => { fxTap(); openNutritionPlan(); };
 
-  // Вес героя меняется: от него считаются подтягивания, брусья и гиперэкстензия —
-  // там рабочий вес это довесок к своему, и устаревшие 93 кг врут в каждом подходе
-  document.getElementById("edit-bw").onclick = () => {
-    fxTap();
-    const o = document.createElement("div");
-    o.className = "overlay portion-overlay";
-    o.innerHTML = bodyweightEditorView();
-    overlayRoot.appendChild(o);
-    const inp = o.querySelector("#bw-in");
-    o.querySelectorAll("[data-bw]").forEach((b) => b.onclick = () => {
-      inp.value = Math.max(30, Math.min(250, (parseFloat(inp.value.replace(",", ".")) || 0) + Number(b.dataset.bw)));
-    });
-    const commit = () => {
-      const v = parseFloat(String(inp.value).replace(",", ".")) || 0;
-      if (v < 30 || v > 250) { inp.focus(); return; }
-      S.hero.bodyweight = Math.round(v * 10) / 10;
-      invalidateE1RM(); save(); o.remove(); fxChime(); renderProfile();
-    };
-    o.querySelector("#bw-save").onclick = commit;
-    inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } };
-    o.querySelector("#bw-close").onclick = () => o.remove();
-    o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
-  };
+  // Вес меняется: от него считаются нормы питания, подтягивания, брусья и гиперэкстензия.
+  // Запись идёт в историю взвешиваний — график и тренд на вкладке «Прогресс».
+  document.getElementById("edit-bw").onclick = () => { fxTap(); openWeightSheet(() => renderProfile()); };
   app.querySelectorAll("[data-theme-pick]").forEach((b) => b.onclick = () => { fxTap(); setTheme(b.dataset.themePick); });
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };

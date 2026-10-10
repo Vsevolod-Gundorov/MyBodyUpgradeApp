@@ -218,3 +218,34 @@ export function oneRepMax(w, r) {
   if (reps === 1) return w;
   return round((w * (1 + reps / 30) + w * 36 / (37 - reps)) / 2, 2.5);
 }
+
+/* ---------------- тренд веса ----------------
+   Вес за день гуляет на 1–2 кг из-за воды и соли, поэтому смотреть надо на тренд:
+   экспоненциальное сглаживание с шагом 10% в день (как в «Hacker's Diet»,
+   Happy Scale, Libra). Пропущенные дни учитываются: чем дольше перерыв, тем
+   сильнее новое взвешивание сдвигает тренд. */
+export function weightTrendSeries(entries, alpha = 0.1) {
+  const out = [];
+  let trend = null, prevT = null;
+  for (const e of [...(entries || [])].sort((a, b) => a.date.localeCompare(b.date))) {
+    const t = new Date(e.date + "T00:00:00Z").getTime();
+    if (trend == null) trend = e.kg;
+    else {
+      const gap = Math.max(1, Math.round((t - prevT) / 864e5));
+      trend += (1 - Math.pow(1 - alpha, gap)) * (e.kg - trend);
+    }
+    prevT = t;
+    out.push({ date: e.date, kg: e.kg, trend: Math.round(trend * 10) / 10 });
+  }
+  return out;
+}
+
+/** Изменение тренда за последние days дней (null — данных мало). */
+export function trendChange(series, days = 30, now = new Date()) {
+  if (!series || series.length < 2) return null;
+  const from = new Date(now.getTime() - days * 864e5).toISOString().slice(0, 10);
+  const base = [...series].reverse().find((p) => p.date <= from) || series[0];
+  const last = series[series.length - 1];
+  if (base === last) return null;
+  return Math.round((last.trend - base.trend) * 10) / 10;
+}

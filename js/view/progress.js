@@ -11,6 +11,7 @@ import { runeSVG, sparkline } from "./components.js";
 export function progressView({ anCards }) {
   return `
     ${L("logNote") ? `<p class="dim small" style="margin-top:2px">${L("logNote")}</p>` : ""}
+    <div id="weight-card"></div>
     <svg width="0" height="0"><defs><linearGradient id="goldfade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#c9a961" stop-opacity=".35"/><stop offset="1" stop-color="#c9a961" stop-opacity="0"/>
     </linearGradient></defs></svg>
