@@ -40,7 +40,7 @@ export function renderProfile() {
     ];
   })() : null;
 
-  const serverOn = () => !["off", "denied"].includes(serverState);
+  const serverOn = () => !["off", "denied", "full"].includes(serverState);
   app.innerHTML = profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn: serverOn() });
 
   // Вес героя меняется: от него считаются подтягивания, брусья и гиперэкстензия —
@@ -79,7 +79,7 @@ export function renderProfile() {
     const TXT = {
       idle: "ожидает", saving: "сохраняю…", saved: "синхронизировано", off: "только на устройстве",
       error: "ошибка облака", serverError: "ошибка сервера", offline: "нет сети · сохранено здесь",
-      denied: "нет доступа к серверу", expired: "переоткройте приложение",
+      denied: "нет доступа к серверу", expired: "переоткройте приложение", full: "сервер занят · журнал здесь",
     };
     const paint = () => {
       const st = serverState !== "off" ? serverState : cloudState;

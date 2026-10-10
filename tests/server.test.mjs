@@ -64,10 +64,12 @@ test("подпись берётся только из заголовка Authori
   assert.equal(initDataFromRequest(r({})), "");
 });
 
-/* ================= закрытая бета ================= */
-test("закрытая бета: по умолчанию никого; @username без учёта регистра; id числом", () => {
-  const none = config({}).allowed;
-  assert.equal(isAllowed({ id: "1", username: "vsevolod214" }, none), false);
+/* ================= кого пускать ================= */
+test("без ALLOWED_USERS пускаем всех с подписью; со списком — по @username без учёта регистра и id", () => {
+  const open = config({}).allowed;
+  assert.equal(isAllowed({ id: "1", username: "anyone" }, open), true);
+  assert.equal(isAllowed({ id: "1", username: null }, open), true);
+  assert.equal(isAllowed(null, open), false, "без проверенного пользователя — никого");
   const al = config({ ALLOWED_USERS: " @Vsevolod214 , 42,, friend " }).allowed;
   assert.equal(isAllowed({ id: "9", username: "VSEVOLOD214" }, al), true);
   assert.equal(isAllowed({ id: "42", username: null }, al), true);

@@ -9,6 +9,7 @@ import { fakeBotToken, signInitData } from "../helpers/telegram-sign.mjs";
 import { config, LIMITS } from "../../server/config.js";
 import { createDb, pgExecutor } from "../../server/db/client.js";
 import { ensureSchema, _resetSchemaCache } from "../../server/db/migrate.js";
+import { MIGRATIONS } from "../../server/db/migrations.js";
 import { getJournal, pruneVersions, saveJournal } from "../../server/models/journal.js";
 import { touchUser } from "../../server/models/user.js";
 import { handleJournal } from "../../server/controllers/journal.js";
@@ -39,6 +40,12 @@ after(async () => {
 });
 
 /* ---------- помощники ---------- */
+// взгляд суперпользователя: счёт строк и сдвиг времени мимо RLS, только для проверок
+async function su(text, params = []) {
+  const c = new pg.Client({ connectionString: base.adminUrl });
+  await c.connect();
+  try { return (await c.query(text, params)).rows; } finally { await c.end(); }
+}
 let ipSeq = 0;
 const freshIp = () => `10.0.${Math.floor(++ipSeq / 250)}.${ipSeq % 250}`;
 function req(method, { user = A, initData, body, headers = {}, ip = freshIp(), path = "/api/journal" } = {}) {
@@ -56,16 +63,35 @@ const put = (payload, opts = {}) => call(req("PUT", { ...opts, body: typeof payl
 const journal = (n = 1) => ({ hero: { name: "Всеволод", bodyweight: 93 }, sessions: Array.from({ length: n }, (_, i) => ({ id: `s${i}`, date: "2026-10-01" })), settings: { theme: "plain" }, rev: n });
 
 /* ================= схема и права ================= */
-test("миграции: применяются один раз и переживают одновременный старт", { skip }, async () => {
+test("миграции: обновление рабочей базы со схемы 1 до 2 не трогает данные; повтор и одновременный старт безопасны", { skip }, async () => {
+  // как на проде: схема 1 уже стоит, в ней журнал и версия
+  await db.owner([
+    { text: "CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())" },
+    { text: MIGRATIONS[0].sql },
+  ]);
+  const old = JSON.stringify(journal(3));
+  const P = 101010101;   // пользователь, который уже был на проде до обновления схемы
+  await db.asUser(P, [touchUser(P, "prod_user"),
+    { text: "INSERT INTO journals (user_id, data, rev, size_bytes) VALUES ($1::bigint, $2::jsonb, 3, $3::integer)", params: [String(P), old, old.length] },
+    { text: "INSERT INTO journal_versions (user_id, rev, data, reason) VALUES ($1::bigint, 3, $2::jsonb, 'migrate')", params: [String(P), old] }]);
+
   _resetSchemaCache();
   const exec2 = await pgExecutor(base.ownerUrl);
   const [v1, v2] = await Promise.all([ensureSchema(db), (async () => { _resetSchemaCache(); return ensureSchema(createDb(exec2)); })()]);
-  assert.equal(v1, 1); assert.equal(v2, 1);
+  assert.equal(v1, 2); assert.equal(v2, 2);
   _resetSchemaCache();
-  assert.equal(await ensureSchema(db), 1);
+  assert.equal(await ensureSchema(db), 2);
   const [[n]] = await db.owner([{ text: "SELECT count(*)::int AS n FROM schema_migrations" }]);
-  assert.equal(n.n, 1);
+  assert.equal(n.n, 2);
   await exec2.end();
+
+  // старый журнал цел, а размер старой версии база посчитала сама (даже если владелец не обходит RLS)
+  const [[j], [ver]] = await db.asUser(P, [getJournal(P), { text: "SELECT size_bytes, reason FROM journal_versions" }]);
+  assert.equal(Number(j.rev), 3);
+  assert.deepEqual(j.data, JSON.parse(old));
+  assert.ok(ver.size_bytes > 0 && ver.reason === "migrate");
+  // и записать размер вручную нельзя
+  await assert.rejects(db.asUser(P, [{ text: "UPDATE journal_versions SET size_bytes = 0" }]), (e) => ["428C9", "42501"].includes(e.code));
 });
 
 test("роль приложения: не обходит RLS, не входит сама, не меняет схему", { skip }, async () => {
@@ -167,7 +193,7 @@ test("оптимистичная блокировка: устаревшая за
   assert.equal(Number(fin.rev), Number(winners[0][0][0].saved_rev));
 });
 
-test("версии: хранятся последние 30, переезд помечен отдельно", { skip }, async () => {
+test("версии: последние 30, переезд — навсегда, старые вытесняются", { skip }, async () => {
   const id = 555555555;
   await db.asUser(id, [touchUser(id, null)]);
   const d0 = JSON.stringify(journal(1));
@@ -176,11 +202,44 @@ test("версии: хранятся последние 30, переезд по�
   assert.deepEqual({ rev: Number(first.rev), reason: first.reason }, { rev: 1, reason: "migrate" }, "переезд записан в историю отдельной пометкой");
   for (let rev = 2; rev <= 40; rev++) {
     const d = JSON.stringify(journal(rev));
-    await db.asUser(id, [saveJournal({ userId: id, dataJson: d, rev, baseRev: rev - 1, sizeBytes: d.length, reason: "save" }), pruneVersions(id, LIMITS.VERSIONS_KEPT)]);
+    await db.asUser(id, [saveJournal({ userId: id, dataJson: d, rev, baseRev: rev - 1, sizeBytes: d.length, reason: "save" }), pruneVersions(id, LIMITS.VERSIONS_KEPT, LIMITS.VERSIONS_BYTES)]);
   }
   const [v] = await db.asUser(id, [{ text: "SELECT rev, reason FROM journal_versions ORDER BY id" }]);
-  assert.equal(v.length, 30);
-  assert.equal(Number(v[0].rev), 11); assert.equal(Number(v.at(-1).rev), 40);
+  assert.equal(v.length, 31, "30 последних + исходный журнал переезда");
+  assert.deepEqual([Number(v[0].rev), v[0].reason], [1, "migrate"]);
+  assert.equal(Number(v[1].rev), 11); assert.equal(Number(v.at(-1).rev), 40);
+});
+
+test("версии: не чаще раза в 15 минут — история на дни, а не на одну тренировку", { skip }, async () => {
+  const id = 556555555;
+  await db.asUser(id, [touchUser(id, null)]);
+  for (let rev = 1; rev <= 10; rev++) {
+    const d = JSON.stringify(journal(rev));
+    await db.asUser(id, [saveJournal({ userId: id, dataJson: d, rev, baseRev: rev === 1 ? null : rev - 1, sizeBytes: d.length, reason: "save", versionEverySec: LIMITS.VERSION_EVERY_SEC })]);
+  }
+  let [v] = await db.asUser(id, [{ text: "SELECT rev FROM journal_versions" }]);
+  assert.deepEqual(v.map((r) => Number(r.rev)), [1], "десять сохранений подряд — одна версия");
+  // прошло 16 минут — следующая правка снова попадает в историю
+  await su("UPDATE journal_versions SET created_at = now() - interval '16 minutes' WHERE user_id = $1::bigint", [String(id)]);
+  const d = JSON.stringify(journal(11));
+  await db.asUser(id, [saveJournal({ userId: id, dataJson: d, rev: 11, baseRev: 10, sizeBytes: d.length, reason: "save", versionEverySec: LIMITS.VERSION_EVERY_SEC })]);
+  [v] = await db.asUser(id, [{ text: "SELECT rev FROM journal_versions ORDER BY id" }]);
+  assert.deepEqual(v.map((r) => Number(r.rev)), [1, 11]);
+  const [[j]] = await db.asUser(id, [getJournal(id)]);
+  assert.equal(Number(j.rev), 11, "сам журнал при этом сохраняется каждый раз");
+});
+
+test("версии: не больше 15 МБ на человека — раздуть базу историей нельзя", { skip }, async () => {
+  const id = 557555555;
+  await db.asUser(id, [touchUser(id, null)]);
+  const big = (rev) => JSON.stringify({ rev, pad: Array.from({ length: 140 }, () => "x".repeat(19_000)) });   // ≈2,6 МБ
+  for (let rev = 1; rev <= 12; rev++) {
+    const d = big(rev);
+    await db.asUser(id, [saveJournal({ userId: id, dataJson: d, rev, baseRev: rev === 1 ? null : rev - 1, sizeBytes: Buffer.byteLength(d), reason: "save" }), pruneVersions(id, LIMITS.VERSIONS_KEPT, LIMITS.VERSIONS_BYTES)]);
+  }
+  const [[t]] = await db.asUser(id, [{ text: "SELECT count(*)::int AS n, sum(size_bytes)::bigint AS bytes, max(rev)::int AS last FROM journal_versions" }]);
+  assert.ok(Number(t.bytes) <= LIMITS.VERSIONS_BYTES, `${t.bytes} байт`);
+  assert.equal(t.n, 5); assert.equal(t.last, 12, "свежие остаются, вытесняются старые");
 });
 
 /* ================= API: вход ================= */
@@ -204,14 +263,61 @@ test("API: без подписи, с поддельной, с чужим ток�
   assert.deepEqual(Object.keys(r.body), ["error"]);
 });
 
-test("API: закрытая бета пускает только приглашённых (по @username без учёта регистра и по id)", { skip }, async () => {
+test("API: со списком ALLOWED_USERS — только приглашённые (по @username без учёта регистра и по id)", { skip }, async () => {
   assert.equal((await call(req("GET", { user: A }))).status, 200);
   assert.equal((await call(req("GET", { user: B }))).status, 200);
   const c = await call(req("GET", { user: C }));
   assert.deepEqual([c.status, c.body.error], [403, "not_invited"]);
-  // пустой список — не пускаем никого
-  const closed = { ...deps, cfg: config({ DATABASE_URL: base.ownerUrl, BOT_TOKEN: botToken, ALLOWED_USERS: "" }) };
-  assert.equal((await handleJournal(req("GET", { user: A }), closed)).status, 403);
+  const [none] = await db.asUser(C.id, [{ text: "SELECT id FROM users" }]);
+  assert.deepEqual(none, [], "не приглашённый в базу не попадает");
+});
+
+/* ================= открытая регистрация ================= */
+const openDeps = (limits) => ({ ...deps, cfg: config({ DATABASE_URL: base.ownerUrl, BOT_TOKEN: botToken }), limits: limits ? { ...LIMITS, ...limits } : LIMITS });
+
+test("регистрация: без списка любой с подписью Telegram заводится в базе сам при первом запуске", { skip }, async () => {
+  const user = { id: 910000001, username: "new_friend", first_name: "Новый" };
+  const r = await handleJournal(req("GET", { user }), openDeps());
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { exists: false });
+  const [[u]] = await db.asUser(user.id, [{ text: "SELECT id, username, created_at, last_seen_at FROM users" }]);
+  assert.deepEqual([Number(u.id), u.username], [user.id, "new_friend"]);
+  // повторный визит не заводит второго, а отмечает время и новое имя
+  await su("UPDATE users SET last_seen_at = now() - interval '1 day' WHERE id = $1::bigint", [String(user.id)]);
+  await handleJournal(req("GET", { user: { ...user, username: "renamed" } }), openDeps());
+  const [rows] = await db.asUser(user.id, [{ text: "SELECT username, last_seen_at > now() - interval '1 minute' AS fresh FROM users" }]);
+  assert.deepEqual(rows, [{ username: "renamed", fresh: true }]);
+  // без подписи регистрации нет
+  assert.equal((await handleJournal(req("GET", { user: null }), openDeps())).status, 401);
+  // и сразу можно сохранить журнал
+  const p = await handleJournal(req("PUT", { user, body: JSON.stringify({ rev: 1, baseRev: null, data: journal(1) }) }), openDeps());
+  assert.equal(p.status, 200);
+});
+
+test("регистрация: с одного адреса — не больше 5 новых аккаунтов в сутки, повторы не съедают лимит", { skip }, async () => {
+  const ip = "198.51.100.23";
+  const codes = [];
+  for (let i = 0; i < 7; i++) {
+    const r = await handleJournal(req("GET", { user: { id: 920000000 + i, username: `bot_${i}` }, ip }), openDeps());
+    codes.push(r.status);
+  }
+  assert.deepEqual(codes, [200, 200, 200, 200, 200, 429, 429]);
+  // уже заведённые с этого адреса продолжают работать
+  assert.equal((await handleJournal(req("GET", { user: { id: 920000000, username: "bot_0" }, ip }), openDeps())).status, 200);
+  const [n] = await su("SELECT count(*)::int AS n FROM users WHERE id BETWEEN 920000000 AND 920000099");
+  assert.equal(n.n, 5);
+});
+
+test("регистрация: всего не больше N в час и стоп у предела места в базе — старые пользователи работают", { skip }, async () => {
+  const hourly = openDeps({ SIGNUP_ALL: { windowSec: 3600, max: 0 } });
+  const r = await handleJournal(req("GET", { user: { id: 930000001, username: "late" } }), hourly);
+  assert.deepEqual([r.status, (await r.json()).error], [429, "signup_limited"]);
+  const full = openDeps({ DB_CAP_BYTES: 1 });
+  const f = await handleJournal(req("GET", { user: { id: 930000002, username: "late2" } }), full);
+  assert.deepEqual([f.status, (await f.json()).error], [503, "capacity"]);
+  assert.equal((await handleJournal(req("GET", { user: A }), full)).status, 200, "уже заведённым место не мешает");
+  const [n] = await su("SELECT count(*)::int AS n FROM users WHERE id IN (930000001, 930000002)");
+  assert.equal(n.n, 0);
 });
 
 test("API: чужие сайты, методы и типы содержимого отклоняются", { skip }, async () => {
@@ -286,7 +392,7 @@ test("API: тело запроса проверяется до базы", { skip
   });
   assert.equal((await handleJournal(bin, deny)).status, 400);
   // ничего из этого в базу не попало
-  const [[n]] = await db.owner([{ text: "SELECT count(*)::int AS n FROM journals WHERE user_id = 777777777" }]);
+  const [n] = await su("SELECT count(*)::int AS n FROM journals WHERE user_id = 777777777");
   assert.equal(n.n, 0);
 });
 
@@ -313,7 +419,7 @@ test("лимиты: перебор подписей с одного адреса
 test("/api/health: база отвечает, схема на месте, роль приложения под RLS", { skip }, async () => {
   const res = await handleHealth(req("GET", { user: null, path: "/api/health" }), deps);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, configured: true, db: "ok", schema: 1, rls: true, isolation: "role" });
+  assert.deepEqual(await res.json(), { ok: true, configured: true, db: "ok", schema: 2, rls: true, isolation: "role" });
   const off = await handleHealth(req("GET", { user: null, path: "/api/health" }), { cfg: config({}), db: null });
   assert.deepEqual(await off.json(), { ok: false, configured: false });
 });

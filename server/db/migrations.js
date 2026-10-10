@@ -85,6 +85,22 @@ BEGIN
 END
 $mig$;`,
   },
+  {
+    version: 2,
+    name: "размер версии журнала — для ограничения истории по объёму",
+    // Столбец вычисляет сама база, в том числе для уже лежащих версий: ALTER TABLE
+    // пересчитывает их без участия RLS, а приложение не может записать туда неправду.
+    sql: `
+DO $mig$
+BEGIN
+  IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = 2) THEN RETURN; END IF;
+  ALTER TABLE journal_versions
+    ADD COLUMN size_bytes integer GENERATED ALWAYS AS (octet_length(data::text)) STORED;
+  CREATE INDEX journal_versions_recent_idx ON journal_versions (user_id, created_at DESC);
+  INSERT INTO schema_migrations (version, name) VALUES (2, 'version size');
+END
+$mig$;`,
+  },
 ];
 
 export const SCHEMA_VERSION = Math.max(...MIGRATIONS.map((m) => m.version));

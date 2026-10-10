@@ -20,14 +20,15 @@ export const BACKUP_KEY = `${DB_KEY}.before-pull`;         // локальная
 
 /* ---- состояние и подписки ---- */
 // off — сервер не используется; idle, saving, saved; offline — нет связи (журнал цел на устройстве);
-// denied — нет приглашения; expired — подпись устарела (переоткрыть приложение); error — сбой сервера
+// denied — нет приглашения; expired — подпись устарела (переоткрыть приложение);
+// full — регистрация новых сейчас закрыта лимитом или местом в базе; error — сбой сервера
 export let serverState = "off";
 const stateListeners = new Set();
 const setServerState = (v) => { serverState = v; stateListeners.forEach((f) => f(v)); };
 export const onServerState = (f) => { stateListeners.add(f); return () => stateListeners.delete(f); };
 // после отказа в доступе или устаревшей подписи не стучимся: повтор не поможет,
 // а неудачные входы сервер считает и в конце концов закрывает адрес
-export const serverActive = () => !["off", "denied", "expired"].includes(serverState);
+export const serverActive = () => !["off", "denied", "expired", "full"].includes(serverState);
 
 const hooks = { onPulled: () => {}, askConflict: () => false };
 export function configureServerSync({ onPulled, askConflict } = {}) {
@@ -102,6 +103,7 @@ function acceptStatus(status, json) {
   if (status === 0) setServerState("offline");
   else if (status === 401) setServerState("expired");
   else if (status === 403 && json && json.error === "not_invited") setServerState("denied");
+  else if (json && ["signup_limited", "capacity"].includes(json.error)) setServerState("full");   // до следующего запуска
   else if (status === 503 && json && json.error === "not_configured") setServerState("off");
   else setServerState("error");
   return false;

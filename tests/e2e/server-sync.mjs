@@ -27,6 +27,7 @@ const SEED_SESSIONS = seed.sessions.length;
 
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
+await db.query("DELETE FROM users WHERE id = ANY($1::bigint[])", [[OWNER.id, GUEST.id]]).catch(() => {});   // журналы и версии — каскадом
 await db.query("DELETE FROM journals WHERE user_id = ANY($1::bigint[])", [[OWNER.id, GUEST.id]]).catch(() => {});
 await db.query("DELETE FROM journal_versions WHERE user_id = ANY($1::bigint[])", [[OWNER.id, GUEST.id]]).catch(() => {});
 await db.query("DELETE FROM rate_limits").catch(() => {});
@@ -128,14 +129,24 @@ check("конфликт: взята версия с сервера (OK)", l1c.he
 const bak = await d1.page.evaluate((k) => localStorage.getItem(k), `bodyupgrade.v1.u${OWNER.id}.before-pull`);
 check("конфликт: своя версия сохранена резервной копией", !!bak && JSON.parse(bak).hero.bodyweight === 90);
 
-/* 6. Не приглашённый: сервер не пускает, приложение работает как раньше */
+/* 6. Новый человек. Без ALLOWED_USERS — заводится в базе сам при первом запуске;
+      со списком и не в нём — сервер не пускает, приложение работает как раньше */
+const open = !process.env.ALLOWED_USERS;
 const g = await device(GUEST, { local: { ...seed, hero: { ...seed.hero, name: "Гость" } } });
-check("гость: «нет доступа к серверу»", await settle(g.page, "нет доступа к серверу"));
-const gRow = (await db.query("SELECT 1 FROM journals WHERE user_id = $1::bigint", [GUEST.id])).rows;
-check("гость: на сервере ничего", gRow.length === 0);
+const gUser = async () => (await db.query("SELECT username FROM users WHERE id = $1::bigint", [GUEST.id])).rows;
+const gRow = async () => (await db.query("SELECT 1 FROM journals WHERE user_id = $1::bigint", [GUEST.id])).rows;
+if (open) {
+  check("новый: синхронизировано", await settle(g.page));
+  check("новый: сам завёлся в базе при запуске", (await gUser()).length === 1 && (await gUser())[0].username === GUEST.username);
+  check("новый: его журнал на сервере", (await gRow()).length === 1);
+  await shot(g.page, "4-new-user.png");
+} else {
+  check("гость: «нет доступа к серверу»", await settle(g.page, "нет доступа к серверу"));
+  check("гость: в базе его нет", (await gUser()).length === 0 && (await gRow()).length === 0);
+  await shot(g.page, "4-not-invited.png");
+}
 const gl = await local(g.page, GUEST.id);
-check("гость: журнал на устройстве цел", gl.sessions.length === SEED_SESSIONS);
-await shot(g.page, "4-not-invited.png");
+check("журнал на устройстве цел", gl.sessions.length === SEED_SESSIONS);
 
 /* 7. Обычный браузер без Telegram — ни одного запроса к серверу */
 const plainCtx = await b.newContext({ viewport: { width: 414, height: 900 } });
