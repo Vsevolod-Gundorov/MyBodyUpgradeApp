@@ -6,12 +6,13 @@ import { fmtTonn, plural3 } from "../core/format.js";
 import { sessionTonnage, weekStreak } from "../model/achievements.js";
 import { heroStats } from "../model/hero.js";
 import { S, save } from "../model/store.js";
-import { cloudState, initCloudSync, onCloudState } from "../model/sync.js";
+import { initSync, onServerState, serverState } from "../model/server.js";
+import { cloudState, onCloudState } from "../model/sync.js";
 import { AVIS, themeNow } from "../model/theme.js";
 import { invalidateE1RM } from "../model/training.js";
 import { app, overlayRoot } from "../view/dom.js";
 import { fxChime, fxTap, haptic } from "../view/fx.js";
-import { bodyweightEditorView, profileView } from "../view/profile.js";
+import { bodyweightEditorView, profileView, syncNoteText } from "../view/profile.js";
 
 /* ================= ПРОФИЛЬ ================= */
 export function renderProfile() {
@@ -39,7 +40,8 @@ export function renderProfile() {
     ];
   })() : null;
 
-  app.innerHTML = profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring });
+  const serverOn = () => !["off", "denied"].includes(serverState);
+  app.innerHTML = profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn: serverOn() });
 
   // Вес героя меняется: от него считаются подтягивания, брусья и гиперэкстензия —
   // там рабочий вес это довесок к своему, и устаревшие 93 кг врут в каждом подходе
@@ -71,18 +73,25 @@ export function renderProfile() {
   app.querySelectorAll(".status-badge").forEach((b) => b.onclick = () => showAchievementDetail(ACH_BY_ID[b.dataset.ach]));
   document.getElementById("ach-all").onclick = showAllAchievements;
 
-  // живой статус синхронизации в шапке блока аккаунта
+  // живой статус синхронизации в шапке блока аккаунта: сервер, если он есть, иначе облако Telegram
   const syncBadge = document.getElementById("sync-badge");
   if (syncBadge) {
-    const TXT = { idle: "ожидает", saving: "сохраняю…", saved: "синхронизировано", error: "ошибка облака", off: "только на устройстве" };
-    const paint = (st) => {
-      syncBadge.textContent = TXT[st] || st;
-      syncBadge.className = `badge ${st === "saved" ? "b-vol" : (st === "error" ? "b-load" : "b-dim")}`;
+    const TXT = {
+      idle: "ожидает", saving: "сохраняю…", saved: "синхронизировано", off: "только на устройстве",
+      error: "ошибка облака", serverError: "ошибка сервера", offline: "нет сети · сохранено здесь",
+      denied: "нет доступа к серверу", expired: "переоткройте приложение",
     };
-    paint(cloudState);
-    const off = onCloudState(paint);
-    app.addEventListener("view-change", off, { once: true });
+    const paint = () => {
+      const st = serverState !== "off" ? serverState : cloudState;
+      syncBadge.textContent = (st === "error" && serverState !== "off" ? TXT.serverError : TXT[st]) || st;
+      syncBadge.className = `badge ${st === "saved" ? "b-vol" : (["error", "expired"].includes(st) ? "b-load" : "b-dim")}`;
+      const note = document.getElementById("sync-note");
+      if (note) note.textContent = syncNoteText(serverOn());
+    };
+    paint();
+    const offCloud = onCloudState(paint), offServer = onServerState(paint);
+    app.addEventListener("view-change", () => { offCloud(); offServer(); }, { once: true });
   }
   const syncBtn = document.getElementById("btn-sync");
-  if (syncBtn) syncBtn.onclick = async () => { fxTap(); await initCloudSync(); renderProfile(); };
+  if (syncBtn) syncBtn.onclick = async () => { fxTap(); await initSync(); renderProfile(); };
 }

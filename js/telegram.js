@@ -137,6 +137,13 @@ export async function cloudInfo() {
 export function tgUser() {
   return (inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
 }
+/**
+ * Подписанные Telegram данные запуска — пропуск на сервер приложения.
+ * Отдаются только модели сервера (js/model/server.js), и только на свой /api/.
+ */
+export function tgInitData() {
+  return (inTelegram && typeof tg.initData === "string" && tg.initData) || "";
+}
 export function tgUserId() {
   const u = tgUser();
   return u && u.id != null ? String(u.id) : null;

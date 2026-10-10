@@ -71,12 +71,23 @@ test("внешний поиск продуктов можно выключить
   assert.ok(!/initData|user\.id|localStorage/.test(nut), "во внешний запрос не должно попадать ничего из журнала");
 });
 
-test("данные Telegram используются только локально", () => {
+test("подпись Telegram уходит только на свой сервер /api/ и больше никуда", () => {
   const tg = read("js/telegram.js");
   assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon/.test(tg), "модуль Telegram не должен никуда ходить сам");
   assert.match(tg, /initDataUnsafe/, "id пользователя берётся из SDK");
-  const app = CLIENT.filter((f) => f !== "js/telegram.js").map(read).join("\n");
-  assert.ok(!/initData[^U]/.test(app), "подписанный initData никуда не передаётся");
+  // подписанные данные читает только telegram.js, а пользуется ими только модель сервера
+  for (const f of CLIENT.filter((x) => x !== "js/telegram.js")) {
+    const src = read(f).replace(/^\s*\/\/.*$/gm, "");   // комментарии не в счёт
+    assert.ok(!/\.initData\b|initData\s*[:=]/.test(src), `${f}: initData читается в обход telegram.js`);
+    if (f !== "js/model/server.js") assert.ok(!/tgInitData/.test(src), `${f}: подпись Telegram используется вне модели сервера`);
+  }
+  const srv = read("js/model/server.js");
+  const fetches = [...srv.matchAll(/fetch\(([^,)]+)/g)].map((m) => m[1].trim());
+  assert.deepEqual(fetches, ["API"], "модель сервера ходит только по одному адресу");
+  assert.match(srv, /const API = "\/api\/journal";/, "адрес — свой, относительный");
+  assert.match(srv, /credentials: "omit"/, "без cookies");
+  assert.match(srv, /redirect: "error"/, "подпись не уходит по перенаправлению");
+  assert.match(srv, /authorization: `tma \$\{tgInitData\(\)\}`/);
 });
 
 test("политика безопасности на сервере совпадает со списком разрешённых адресов", () => {

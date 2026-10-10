@@ -12,12 +12,14 @@ import { initKeyboard } from "./controller/keyboard.js";
 import { showAchievementToast } from "./controller/overlays.js";
 import { checkAchievements, onAchievements } from "./model/achievements.js";
 import { S, save, onSaved } from "./model/store.js";
-import { configureCloudSync, initCloudSync, queueCloudSync } from "./model/sync.js";
+import { configureServerSync, initSync, queueServerSync } from "./model/server.js";
+import { configureCloudSync, queueCloudSync } from "./model/sync.js";
 
 /* ---- связи модели с интерфейсом ---- */
-onSaved(() => queueCloudSync());
+onSaved(() => { queueServerSync(); queueCloudSync(); });
 onAchievements((list) => showAchievementToast(list));
 configureCloudSync({ onPulled: () => render(), askConflict: (msg) => confirm(msg) });
+configureServerSync({ onPulled: () => render(), askConflict: (msg) => confirm(msg) });
 
 /* ================= старт ================= */
 initKeyboard();
@@ -30,9 +32,14 @@ if (inTelegram && !(S.sessions || []).length && !S.rev) {
   const n = tgUserName();
   if (n && n !== S.hero.name) { S.hero.name = n; save(); }
 }
-// подтягиваем журнал этого пользователя из его облака
-initCloudSync();
-
-// тихая сверка знаков отличия: подхватывает уже заслуженное (в т.ч. после миграции и обновлений правил)
-checkAchievements({ type: "silent" }, { silent: true }); save();
 render();
+// Сверяем журнал с сервером приложения (первый раз — переносим его туда);
+// без сервера — как раньше, с облаком Telegram. Тихая сверка знаков отличия
+// идёт уже после: служебная запись до ответа сервера выглядела бы как правка
+// на этом устройстве, и при изменениях с другого устройства человека зря
+// спрашивали бы, какую версию оставить. Сохраняем, только если что-то изменилось.
+initSync().finally(() => {
+  const before = JSON.stringify(S);
+  checkAchievements({ type: "silent" }, { silent: true });
+  if (JSON.stringify(S) !== before) { save(); render(); }
+});

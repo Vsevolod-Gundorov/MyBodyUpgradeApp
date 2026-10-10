@@ -19,7 +19,12 @@ export function heroSummaryView(cells) {
     </div>`;
 }
 
-export function profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring }) {
+/** Подпись под аккаунтом: где живёт журнал. */
+export const syncNoteText = (serverOn) => (serverOn
+  ? "Журнал хранится на сервере, копия — в облаке Telegram."
+  : "Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.");
+
+export function profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn }) {
   return `
     ${summary ? heroSummaryView(summary) : `
     <div class="hero-head gilded">
@@ -111,7 +116,7 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
         <span class="badge b-dim" id="sync-badge">синхронизация…</span>
       </div>
       <div class="kv"><span>${tgUserName() || "Герой"}</span><span class="dim mono">${tgUserHandle() || ""}</span></div>
-      <div class="dim small" style="margin-top:6px">Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.</div>
+      <div class="dim small" id="sync-note" style="margin-top:6px">${syncNoteText(serverOn)}</div>
       <button class="btn-ghost" id="btn-sync" style="margin-top:12px">Синхронизировать сейчас</button>
     </div>` : ""}
 
