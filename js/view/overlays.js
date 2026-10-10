@@ -10,6 +10,7 @@ import { sessionExercises } from "../model/catalog.js";
 import { S } from "../model/store.js";
 import { AD, AN, CN, L, plainNow, questName } from "../model/theme.js";
 import { poolWeight } from "../model/training.js";
+import { currentWeight } from "../model/profile.js";
 import { durationTrusted, fmtDuration } from "../timing.js";
 import { achLogHTML, achMedallion, num, poolRow, vcls } from "./components.js";
 import { icon } from "./icons.js";
@@ -34,12 +35,12 @@ export function exerciseDetailView({ alts, ex, opts, strength, used, volume, ww 
       <div class="ex-w-grid">
         <div class="ex-w-cell">
           <span class="ex-w-l">Силовой режим</span>
-          <span class="ex-w-v mono">${strength && strength.est1RM ? fmt(strength.target) : "—"}</span>
+          <span class="ex-w-v mono">${strength && strength.est1RM ? (ex.bw && !strength.target ? "свой вес" : fmt(strength.target)) : "—"}</span>
           <span class="dim small">${SCHEME.strength.acc.reps[0]}–${SCHEME.strength.acc.reps[1]} повт.</span>
         </div>
         <div class="ex-w-cell">
           <span class="ex-w-l">Объёмный режим</span>
-          <span class="ex-w-v mono">${volume && volume.est1RM ? fmt(volume.target) : "—"}</span>
+          <span class="ex-w-v mono">${volume && volume.est1RM ? (ex.bw && !volume.target ? "свой вес" : fmt(volume.target)) : "—"}</span>
           <span class="dim small">${SCHEME.volume.acc.reps[0]}–${SCHEME.volume.acc.reps[1]} повт.</span>
         </div>
       </div>
@@ -50,8 +51,16 @@ export function exerciseDetailView({ alts, ex, opts, strength, used, volume, ww 
               }[ww.source] || "◎ оценка от базовых лифтов — уточнится после первых подходов"}${ex.bw ? " · вес указан как довесок к своему" : (ex.perHand ? " · на каждую руку" : "")}`
           : "Вес не оценивается — работа со своим весом или на время"}
       </div>
-      ${ww && ww.est1RM ? `<div class="ex-fix">
-        <span class="ex-fix-l">Поправить рабочий вес <i class="dim">после перерыва или болезни</i></span>
+      ${ww && (ww.est1RM || ex.bw) ? `<div class="ex-fix">
+        <span class="ex-fix-l">Мой подход на пределе <i class="dim">вес пересчитается от него</i></span>
+        <div class="ex-set-row">
+          <label class="ex-set-in"><input id="ex-set-w" inputmode="decimal" placeholder="${ex.bw ? "0" : "вес"}" aria-label="${ex.bw ? "Довесок, кг" : "Вес, кг"}" /><i>${ex.bw ? "кг довеска" : "кг"}</i></label>
+          <span class="ex-set-x">×</span>
+          <label class="ex-set-in"><input id="ex-set-r" inputmode="numeric" placeholder="повт" aria-label="Повторы" /><i>раз</i></label>
+          <button class="finish-btn ex-set-go" id="ex-set-go">Задать</button>
+        </div>
+        <div class="ex-set-note dim small" id="ex-set-note">${ex.bw ? `Довесок на поясе; без пояса — 0. Считается вместе с весом тела ${fmt(currentWeight())} кг.` : "Подход, после которого ещё одно повторение уже не сделать."}</div>
+        <span class="ex-fix-l" style="margin-top:10px">Или поправить на процент <i class="dim">после перерыва или болезни</i></span>
         <div class="ex-fix-row">
           <button class="ex-fix-b" data-fix="0.9">−10%</button>
           <button class="ex-fix-b" data-fix="0.95">−5%</button>

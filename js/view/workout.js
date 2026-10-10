@@ -7,7 +7,7 @@ import { DELOAD, FEEL, isWarmup } from "../../data/progression.js";
 import { AREAS, AREA_ORDER, LEVELS } from "../../data/complaints.js";
 import { esc, fmt, fmtDate, plural, plural3 } from "../core/format.js";
 import { L, questName, questTitle, themeNow } from "../model/theme.js";
-import { feelToday } from "../model/training.js";
+import { feelToday, spaceFor } from "../model/training.js";
 import { icon } from "./icons.js";
 
 export function restBarView() {
@@ -81,8 +81,8 @@ export function exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, sr
           </span>
         </span>
         <span class="ex-count">
-          <span class="ex-status ${saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w)).length >= ex.sets ? "ok" : ""}">${saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w)).length}<i>/${ex.sets}</i></span>
-          <span class="ex-dots">${dotsView(saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w)).length, ex.sets)}</span>
+          <span class="ex-status ${saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w, spaceFor(src))).length >= ex.sets ? "ok" : ""}">${saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w, spaceFor(src))).length}<i>/${ex.sets}</i></span>
+          <span class="ex-dots">${dotsView(saved.filter((x) => setDone(x, src) && !isWarmup(x, ex.w, spaceFor(src))).length, ex.sets)}</span>
         </span>
       </button>
       <div class="ex-body">

@@ -20,10 +20,24 @@ export function currentWeight() {
 
 export const weightLog = () => weights();
 
+/** Вес тела на дату: последнее взвешивание не позже неё. null — взвешиваний до этой даты нет. */
+export function weightOn(date) {
+  let v = null;
+  for (const e of weights()) { if (e.date <= date) v = e.kg; else break; }
+  return v;
+}
+
 /** Записать вес на дату (одна запись в день — новая заменяет прежнюю). */
 export function logWeight(kg, date = today()) {
   const v = Math.round(kg * 10) / 10;
   if (!(v >= 30 && v <= 300)) return false;
+  // первое взвешивание: прежний вес из профиля героя становится точкой «до» — с ним
+  // считаются старые подходы подтягиваний и брусьев, а не с сегодняшним весом
+  const legacy = S.hero && +S.hero.bodyweight;
+  if (!weights().length && legacy >= 30 && legacy <= 300 && Math.abs(legacy - v) >= 0.05 && S.sessions && S.sessions.length) {
+    const first = [...S.sessions].map((x) => x.date).sort()[0];
+    if (first && first < date) weights().push({ date: first, kg: Math.round(legacy * 10) / 10 });
+  }
   const w = weights().filter((e) => e.date !== date);
   w.push({ date, kg: v });
   w.sort((a, b) => a.date.localeCompare(b.date));

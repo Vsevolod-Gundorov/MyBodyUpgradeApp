@@ -1909,3 +1909,14 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .rm-time input { background: none; border: 0; color: var(--bone); font: 600 .9rem var(--font-mono); min-width: 0; color-scheme: dark; }
 .toggle-row[disabled] { opacity: .55; }
 .toggle-row > span:first-child { text-align: left; }
+
+/* ---------- рабочий вес по подходу на пределе ---------- */
+.ex-set-row { display: grid; grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1fr) auto; align-items: center; gap: 6px; margin-top: 6px; }
+.ex-set-in { display: flex; align-items: center; gap: 4px; padding: 0 10px; height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: rgba(0,0,0,.3); min-width: 0; }
+.ex-set-in input { width: 100%; min-width: 0; background: none; border: 0; color: var(--bone); font: 600 16px var(--font-mono); }
+.ex-set-in input:focus { outline: none; }
+.ex-set-in i { font-style: normal; font-size: .68rem; color: var(--dim); white-space: nowrap; }
+.ex-set-x { color: var(--dim); }
+.ex-set-go { margin: 0 !important; height: 44px; padding: 0 14px; width: auto; font-size: .85rem; }
+.ex-set-note { margin-top: 6px; }
+.ex-set-in input { background: none !important; padding: 0 !important; }
