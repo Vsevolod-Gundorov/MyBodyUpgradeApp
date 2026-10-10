@@ -1,6 +1,6 @@
 // Модель: контекст и начисление достижений.
 import { PROGRAM } from "../../data/program.js";
-import { TIERS, catHidden, evaluate as evaluateAchievements } from "../../data/achievements.js";
+import { TIERS, achCards, achVisible, collapseUnlocked, evaluate as evaluateAchievements } from "../../data/achievements.js";
 import { addDays, isoWeekStart, today } from "../core/format.js";
 import { buffById, buffTimes } from "./buffs.js";
 import { ORDER } from "./catalog.js";
@@ -96,15 +96,20 @@ export function checkAchievements(event, { silent = false } = {}) {
   const ctx = buildAchievementCtx(event || { type: "silent" });
   const { earned, unlocked } = evaluateAchievements(ctx, S.achievements || {}, today());
   S.achievements = earned;
-  // начисляем все, показываем только видимые в этой редакции: в «Чистой» нет
-  // уровня и характеристик, и всплывашка про «20 уровень» там ничего не значит
-  const shown = unlocked.filter((u) => !catHidden(u.ach.cat, themeNow()));
+  // начисляем все, показываем только видимые в этой редакции (в «Чистой» нет
+  // уровня и «даров судьбы»), и из одной серии — только старший ранг: «10» и «50
+  // тренировок» разом после импорта журнала — это одна новость, а не две
+  const shown = collapseUnlocked(unlocked.filter((u) => achVisible(u.ach, themeNow())));
   if (shown.length && !silent) { save(); achListeners.forEach((f) => f(shown)); }
   else if (unlocked.length && !silent) save();
   return shown;
 }
 
 export const tierName = (t) => (TIERS[t] ? TIERS[t].name : t);
+
+/** Карточки достижений в текущей редакции, с прогрессом к следующему рангу. */
+export const achievementCards = (withProgress = false) =>
+  achCards(S.achievements || {}, themeNow(), withProgress ? buildAchievementCtx({ type: "silent" }) : null);
 
 /** Подписаться на новые достижения (показ всплывашки — забота контроллера). */
 const achListeners = new Set();

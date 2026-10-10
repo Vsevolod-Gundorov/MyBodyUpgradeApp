@@ -553,7 +553,7 @@ export function renderWorkout(wid) {
       session: { score: res.score, doneSets: res.doneSets, plannedSets: res.plannedSets, tonn, durationSec,
         prLifts, prDetails, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
         hour: now.getHours(), feel: feelToday(), totalReps, gapDays, workoutId: wid,
-        quest: w.boss, timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+        quest: questName(w), timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
         durationStr: durationSec ? fmtDuration(durationSec) : "" },
     }, { silent: true });
     save();

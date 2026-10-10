@@ -401,22 +401,103 @@ export function migrateLegacyStatuses(statuses) {
   return out;
 }
 
-/** Сводка: сколько получено по рангам и всего. */
+/* ---------------- серии ----------------
+   Одно и то же достижение разных рангов: «10 тренировок» → «50» → «100». В списке
+   серия — одна карточка: виден только старший полученный ранг, а рядом — сколько
+   осталось до следующего. Так девяносто знаков превращаются в пару десятков карточек,
+   и ни один не теряется: каждый ранг по-прежнему начисляется и хранится.
+   value(ctx) — текущее значение для полосы прогресса; у повторяемых его нет. */
+const S_ = (key, ids, value, goals, unit) => ({ key, ids, value, goals, unit });
+export const SERIES = [
+  S_("sessions", ["awakened", "grind10", "grind50", "grind100", "grind250", "grind500"], (c) => totals(c).sessions, [1, 10, 50, 100, 250, 500], ""),
+  S_("cycles", ["cycle1", "cycle3", "cycle6"], (c) => totals(c).cycles, [1, 3, 6], ""),
+  S_("quality", ["overkill", "flawless", "perfect"]),
+  S_("pr", ["pr", "pr_main", "pr_double"]),
+  S_("iron", ["iron8", "iron10", "iron12", "iron15"]),
+  S_("life", ["life50", "life100", "life250", "life500", "life1000", "life2500"], (c) => totals(c).lifetimeT, [50, 100, 250, 500, 1000, 2500], "т"),
+  S_("bench", ["bench150", "bench160", "bench170"], (c) => lift(c, "bench"), [150, 160, 170], "кг"),
+  S_("squat", ["squat180", "squat200", "squat220"], (c) => lift(c, "squat"), [180, 200, 220], "кг"),
+  S_("dl", ["dl200", "dl220", "dl240"], (c) => lift(c, "deadlift"), [200, 220, 240], "кг"),
+  S_("ohp", ["ohp105", "ohp120"], (c) => lift(c, "ohp"), [105, 120], "кг"),
+  S_("total", ["total550", "total600", "total650", "total700", "total800"], (c) => totals(c).big3, [550, 600, 650, 700, 800], "кг"),
+  S_("gain", ["gain5", "gain10", "gain20", "gain35"], (c) => (totals(c).avgGain || 0) * 100, [5, 10, 20, 35], "%"),
+  S_("streak", ["week3", "streak4", "streak8", "streak12", "streak26", "streak52"], (c) => totals(c).weekStreak, [1, 4, 8, 12, 26, 52], "нед."),
+  S_("gold", ["gold3", "gold5", "gold10"], (c) => totals(c).goldStreak, [3, 5, 10], ""),
+  S_("lvl", ["lvl5", "lvl10", "lvl20", "lvl30"], (c) => (c.hero && c.hero.level) || 0, [5, 10, 20, 30], ""),
+  S_("stat", ["stat75", "stat90"], (c) => Math.max(0, ...allStats(c)), [75, 90], ""),
+  S_("all", ["all60", "all80"], (c) => (allStats(c).length ? Math.min(...allStats(c)) : 0), [60, 80], ""),
+  S_("protein", ["protein1", "protein7", "protein30"], (c) => nut(c).proteinDays || 0, [1, 7, 30], "дн."),
+  S_("full", ["full1", "full7"], (c) => nut(c).fullDays || 0, [1, 7], "дн."),
+  S_("nutlog", ["meal1", "days30"], (c) => nut(c).daysLogged || 0, [1, 30], "дн."),
+  S_("buffs", ["buffday", "buff7", "buff30"], (c) => buffs(c).fullDays || 0, [1, 7, 30], "дн."),
+  S_("sips", ["buff1", "sips100"], (c) => buffs(c).takenTotal || 0, [1, 100], ""),
+  S_("fate", ["fate_grace", "fate_rune", "fate_moon", "fate_titan", "fate_dragon"]),
+];
+const SERIES_OF = {};
+SERIES.forEach((sr) => sr.ids.forEach((id, i) => { SERIES_OF[id] = { sr, i }; }));
+/** Ключ карточки: серия или само достижение, если оно одиночное. */
+export const cardKey = (id) => (SERIES_OF[id] ? SERIES_OF[id].sr.key : id);
+
 /**
- * Какие разделы показывать в этой редакции.
- * В «Чистой» нет уровня, опыта, класса и характеристик — значит и раздел
- * достижений про них показывать незачем. Сами достижения никуда не деваются:
- * они начисляются по-прежнему и видны в «Саге», где этим понятиям есть место.
+ * Что показывать в каждой редакции.
+ * «Сага» — коллекция: видно всё, кроме того, что схлопнуто в серии.
+ * «Чистая» — короткий список того, что атлету действительно важно: сколько
+ * тренировок и как регулярно, рекорды, прибавка в силе, питание и добавки.
+ * Уровня, класса, случайных «даров» и наград за экспорт файла там нет.
+ * Остальное по-прежнему начисляется — переключил тему, и оно на месте.
  */
+const PLAIN_CARDS = new Set(["sessions", "cycles", "quality", "pr", "life", "total", "gain", "streak", "protein", "full", "nutlog", "buffs"]);
 const HIDDEN_CATS = { plain: ["hero"] };
 export const catHidden = (key, theme) => (HIDDEN_CATS[theme] || []).includes(key);
-/** Достижения, которые показываются в этой редакции. */
-export const visibleAchievements = (theme) => ACHIEVEMENTS.filter((a) => !catHidden(a.cat, theme));
+export const achVisible = (a, theme) => !!a && !catHidden(a.cat, theme) && (theme !== "plain" || PLAIN_CARDS.has(cardKey(a.id)));
+/** Достижения (все ранги), которые показываются в этой редакции. */
+export const visibleAchievements = (theme) => ACHIEVEMENTS.filter((a) => achVisible(a, theme));
 
-export function summary(earned, theme) {
+/**
+ * Карточки списка: серия или одиночное достижение.
+ * shown — что нарисовать (старший полученный ранг, иначе первый), got — его запись,
+ * next — следующий ранг, progress — { cur, goal, unit } к нему (если считается).
+ */
+export function achCards(earned = {}, theme, ctx = null) {
+  const seen = new Set(), out = [];
+  for (const a of visibleAchievements(theme)) {
+    const key = cardKey(a.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const ref = SERIES_OF[a.id];
+    const rungs = ref ? ref.sr.ids.map((id) => ACH_BY_ID[id]).filter((x) => achVisible(x, theme)) : [a];
+    const top = [...rungs].reverse().find((x) => earned[x.id]) || null;
+    const ti = top ? rungs.indexOf(top) : -1;
+    const next = rungs[ti + 1] || null;
+    let progress = null;
+    if (ref && ref.sr.value && next && ctx) {
+      let cur = 0;
+      try { cur = +ref.sr.value(ctx) || 0; } catch (e) { cur = 0; }
+      const goal = ref.sr.goals[ref.sr.ids.indexOf(next.id)];
+      progress = { cur: Math.min(cur, goal), goal, unit: ref.sr.unit };
+    }
+    const last = rungs.reduce((m, x) => ((earned[x.id] && earned[x.id].last) || "") > m ? earned[x.id].last : m, "");
+    out.push({ key, cat: a.cat, shown: top || rungs[0], got: top ? earned[top.id] : null, rungs, level: ti + 1, next, progress, last });
+  }
+  return out;
+}
+
+/** Из пачки новых получений в одной серии оставить старший ранг. */
+export function collapseUnlocked(list = []) {
+  const best = new Map();
+  for (const u of list) {
+    const k = cardKey(u.ach.id);
+    const cur = best.get(k);
+    if (!cur || TIERS[u.ach.tier].rank > TIERS[cur.ach.tier].rank) best.set(k, u);
+  }
+  return list.filter((u) => best.get(cardKey(u.ach.id)) === u);
+}
+
+/** Сводка: сколько карточек открыто, по старшему рангу каждой. */
+export function summary(earned = {}, theme) {
   const byTier = Object.fromEntries(TIER_ORDER.map((t) => [t, 0]));
-  const list = visibleAchievements(theme);
+  const cards = achCards(earned, theme);
   let total = 0;
-  for (const a of list) if (earned[a.id]) { byTier[a.tier]++; total++; }
-  return { total, of: list.length, byTier };
+  for (const c of cards) if (c.got) { byTier[c.shown.tier]++; total++; }
+  return { total, of: cards.length, byTier };
 }

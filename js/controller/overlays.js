@@ -1,9 +1,10 @@
 // Контроллер всплывающих окон: разборы, выборщики, вердикт, достижения.
-import { ACH_BY_ID, CATEGORIES, TIERS, summary as achSummary, catHidden } from "../../data/achievements.js";
+import { ACH_BY_ID, CATEGORIES, TIERS, summary as achSummary, cardKey, catHidden } from "../../data/achievements.js";
 import { EXERCISES, MUSCLES, MUSCLE_ORDER, PATTERNS, exById, similarTo } from "../../data/exercises.js";
 import { METHODS, SCHEME } from "../../data/program.js";
 import { render, setView, withLoader } from "./router.js";
 import { renderWorkout } from "./workout.js";
+import { achievementCards } from "../model/achievements.js";
 import { WORKOUTS, planOf, setPlan } from "../model/catalog.js";
 import { S } from "../model/store.js";
 import { themeNow } from "../model/theme.js";
@@ -151,28 +152,28 @@ export function showSessionDetail(sessionId) {
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
 
-/* детали достижения (по тапу на значок) */
+/* детали достижения (по тапу на значок): сам знак и все ступени его серии */
 export function showAchievementDetail(a) {
   if (!a) return;
-  const got = (S.achievements || {})[a.id];
+  const earned = S.achievements || {};
+  const card = achievementCards(true).find((c) => c.key === cardKey(a.id));
   fxTap();
   const o = document.createElement("div");
   o.className = "overlay status-overlay";
-  o.innerHTML = achievementDetailView({ a, got });
+  o.innerHTML = achievementDetailView({ a, got: earned[a.id], card, earned });
   overlayRoot.appendChild(o);
   o.querySelector("#st-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }
 
-/* полный список всех достижений по разделам (закрытые — приглушены) */
+/* полный список: карточка на серию, закрытые приглушены, у каждой — путь к следующему рангу */
 export function showAllAchievements() {
   fxTap();
-  const earned = S.achievements || {};
-  const sum = achSummary(earned, themeNow());
+  const sum = achSummary(S.achievements || {}, themeNow());
   const cats = Object.keys(CATEGORIES).filter((k) => !catHidden(k, themeNow()));
   const o = document.createElement("div");
   o.className = "overlay portion-overlay ach-overlay";
-  o.innerHTML = allAchievementsView({ cats, earned, sum });
+  o.innerHTML = allAchievementsView({ cats, cards: achievementCards(true), sum });
   overlayRoot.appendChild(o);
   o.querySelectorAll(".ach-row").forEach((b) => b.onclick = () => showAchievementDetail(ACH_BY_ID[b.dataset.ach]));
   o.querySelector("#ach-close").onclick = () => o.remove();

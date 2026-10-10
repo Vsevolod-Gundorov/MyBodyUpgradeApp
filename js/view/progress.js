@@ -1,6 +1,6 @@
 // Вид: progress. Только разметка: данные приходят готовыми из контроллера.
 import { exById } from "../../data/exercises.js";
-import { LIFT_NAMES, SCHEME } from "../../data/program.js";
+import { LIFT_NAMES, SCHEME, archivedExName } from "../../data/program.js";
 import { PROG, stateOf } from "../../data/progression.js";
 import { fmt, fmtDate, plural3 } from "../core/format.js";
 import { WORKOUTS } from "../model/catalog.js";
@@ -62,7 +62,7 @@ export function limitCardsView({ keys }) {
     const slot = nextSlotFor(k);
     const ex = slot ? slot.ex : null;
     const p = ex ? ex.wp : progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir, sets: SCHEME.strength.acc.sets });
-    const name = LIFT_NAMES[k] || (src ? src.name : k);
+    const name = LIFT_NAMES[k] || (src ? src.name : archivedExName(k) || k);
     if (!p || !p.target) return `
       <div class="limit-card">
         <div class="lc-head"><b>${name}</b><span class="dim small">вес не считается</span></div>
@@ -88,10 +88,10 @@ export function limitCardsView({ keys }) {
           </div>
         </div>
         <div class="lc-target mono dim small">${slot
-          ? `Следующий раз — ${slot.boss}: ${scheme}, ставим ${fmt(p.target)} кг${note}${p.floor ? ` · пол ${fmt(p.floor)}` : ""}`
+          ? `Следующий раз — ${questName(WORKOUTS[slot.wid]) || slot.boss}: ${scheme}, ставим ${fmt(p.target)} кг${note}${p.floor ? ` · пол ${fmt(p.floor)}` : ""}`
           : `В текущем цикле движения нет — вилка показана для схемы ${SCHEME.strength.acc.reps[0]}–${SCHEME.strength.acc.reps[1]}`}</div>
         <div class="lc-meta dim small">${p.last
-          ? `Прошлый квест: ${fmt(p.last.top)} × ${p.last.topReps} в ${plural3(p.last.sets, "подходе", "подходах", "подходах")} · ${plural3(p.sessions, "квест", "квеста", "квестов")} в журнале`
+          ? `${L("lastQuest")}: ${fmt(p.last.top)} × ${p.last.topReps} в ${plural3(p.last.sets, "подходе", "подходах", "подходах")} · ${plural3(p.sessions, L("quest"), L("questA"), L("questMany"))} в журнале`
           : "Журнал пока пуст — вес оценён от базовых лифтов"}</div>
       </div>`;
   }).join("") || `<div class="empty">${L("logEmptyW")}</div>`;

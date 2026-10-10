@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { THEMES, THEME_ORDER, DEFAULT_THEME, themeOf, say, LEX, LEX_KEYS } from "../data/theme.js";
 import { PLAIN_ICONS, PLAIN_VB } from "../data/icons-plain.js";
 import { GAME_ICONS } from "../data/icons.js";
-import { ACHIEVEMENTS, ACH_BY_ID, ACH_PLAIN, CATEGORIES, achName, achDesc, catName, catHidden, visibleAchievements, summary as achSummary } from "../data/achievements.js";
+import { ACHIEVEMENTS, ACH_BY_ID, ACH_PLAIN, CATEGORIES, achCards, achName, achDesc, catName, catHidden, visibleAchievements, summary as achSummary } from "../data/achievements.js";
 import { PROGRAM, ARCHIVED_WORKOUTS } from "../data/program.js";
 
 test("тем ровно две, обе описаны полностью", () => {
@@ -158,27 +158,29 @@ test("подключение темы: разметка и стили на ме�
   }
 });
 
-test("в «Чистой» нет раздела про уровень и характеристики, но прогресс не теряется", () => {
+test("в «Чистой» — короткий список без игровых наград, но прогресс не теряется", () => {
   const saga = visibleAchievements("saga");
   const plain = visibleAchievements("plain");
   assert.equal(saga.length, ACHIEVEMENTS.length, "в исходной редакции видно всё");
-  assert.ok(plain.length < saga.length, "в «Чистой» часть разделов скрыта");
+  const sagaCards = achCards({}, "saga"), plainCards = achCards({}, "plain");
+  assert.ok(plainCards.length * 3 <= sagaCards.length, `в «Чистой» в разы меньше карточек: ${plainCards.length} против ${sagaCards.length}`);
+  assert.ok(plainCards.length >= 8, "но главное — на месте");
 
-  // скрыт ровно раздел про уровень, класс и характеристики
+  // нет уровня, характеристик, случайных «даров» и наград за файлы
   const hidden = saga.filter((a) => !plain.includes(a));
-  assert.ok(hidden.length, "ничего не скрыто");
-  hidden.forEach((a) => assert.equal(a.cat, "hero", `${a.id}: скрыт не тот раздел`));
+  for (const cat of ["hero", "fate", "chronicle"]) assert.ok(hidden.some((a) => a.cat === cat) && !plain.some((a) => a.cat === cat), `раздел ${cat} виден в «Чистой»`);
   assert.ok(catHidden("hero", "plain"));
   assert.ok(!catHidden("hero", "saga"));
-  assert.ok(!catHidden("quest", "plain"));
+  // главное для атлета — видно
+  for (const id of ["awakened", "pr", "perfect", "life50", "gain10", "streak4", "protein7"]) assert.ok(plain.includes(ACH_BY_ID[id]), `${id} пропал из «Чистой»`);
 
   // достижения не удалены: они по-прежнему в данных и начисляются
   hidden.forEach((a) => assert.ok(ACH_BY_ID[a.id], `${a.id}: пропало из данных`));
 
-  // счётчик считает по видимым, но заслуженное из скрытого раздела не теряется
+  // счётчик считает по видимым карточкам, заслуженное из скрытого не теряется
   const earned = Object.fromEntries(saga.map((a) => [a.id, { count: 1 }]));
-  assert.equal(achSummary(earned, "saga").of, saga.length);
-  assert.equal(achSummary(earned, "plain").of, plain.length);
-  assert.equal(achSummary(earned, "plain").total, plain.length);
+  assert.equal(achSummary(earned, "saga").of, sagaCards.length);
+  assert.equal(achSummary(earned, "plain").of, plainCards.length);
+  assert.equal(achSummary(earned, "plain").total, plainCards.length);
   assert.equal(achSummary({}, "plain").total, 0);
 });

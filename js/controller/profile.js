@@ -3,12 +3,12 @@ import { ACH_BY_ID, TIERS, summary as achSummary } from "../../data/achievements
 import { showAchievementDetail, showAllAchievements } from "./overlays.js";
 import { render, setTheme } from "./router.js";
 import { fmtTonn, plural3 } from "../core/format.js";
-import { sessionTonnage, weekStreak } from "../model/achievements.js";
+import { achievementCards, sessionTonnage, weekStreak } from "../model/achievements.js";
 import { heroStats } from "../model/hero.js";
 import { S, save } from "../model/store.js";
 import { initSync, onServerState, serverState } from "../model/server.js";
 import { cloudState, onCloudState } from "../model/sync.js";
-import { AVIS, themeNow } from "../model/theme.js";
+import { themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
 import { fxTap, haptic } from "../view/fx.js";
 import { profileView, syncNoteText } from "../view/profile.js";
@@ -25,11 +25,9 @@ export function renderProfile() {
   const bw = currentWeight();
 
   const c = h.cls;
-  const achievements = S.achievements || {};
-  const achSum = achSummary(achievements, themeNow());
-  // полученные знаки: старшие ранги первыми, внутри ранга — свежие
-  const earnedList = AVIS().filter((a) => achievements[a.id])
-    .sort((a, b) => (TIERS[b.tier].rank - TIERS[a.tier].rank) || ((achievements[b.id].last || "").localeCompare(achievements[a.id].last || "")));
+  const achSum = achSummary(S.achievements || {}, themeNow());
+  // полученные — по карточке на серию, свежие первыми
+  const earnedList = achievementCards().filter((c) => c.got).sort((a, b) => b.last.localeCompare(a.last) || (TIERS[b.shown.tier].rank - TIERS[a.shown.tier].rank));
   // Уровень, опыт, класс и характеристики — это язык «Саги». В «Чистой» вместо них
   // три числа, которые атлету действительно нужны: сколько тренировок, сколько
   // поднято и сколько недель подряд без пропусков.
@@ -45,7 +43,7 @@ export function renderProfile() {
   })() : null;
 
   const serverOn = () => !["off", "denied", "full"].includes(serverState);
-  app.innerHTML = profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn: serverOn(),
+  app.innerHTML = profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn: serverOn(),
     goals: goalsPanelView({ p: profile(), tTrain: targetsFor("training"), tRest: targetsFor("rest") }) });
   document.getElementById("goals-edit").onclick = () => { fxTap(); openProfileWizard({ editing: !!profile() }); };
   const gNut = document.getElementById("goals-nut");

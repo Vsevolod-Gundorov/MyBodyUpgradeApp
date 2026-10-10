@@ -1,5 +1,4 @@
 // Вид: profile. Только разметка: данные приходят готовыми из контроллера.
-import { TIER_ORDER } from "../../data/achievements.js";
 import { LIFT_NAMES } from "../../data/program.js";
 import { THEMES, THEME_ORDER } from "../../data/theme.js";
 import { fmt } from "../core/format.js";
@@ -24,7 +23,7 @@ export const syncNoteText = (serverOn) => (serverOn
   ? "Журнал хранится на сервере, копия — в облаке Telegram."
   : "Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.");
 
-export function profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn, goals = "" }) {
+export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn, goals = "" }) {
   return `
     ${summary ? heroSummaryView(summary) : `
     <div class="hero-head gilded">
@@ -69,16 +68,15 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
 
     <div class="panel">
       <div class="ach-head">
-        <div class="eyebrow">${L("awards")} · ${achSum.total} / ${achSum.of}</div>
+        <div class="eyebrow">${L("awards")} · ${achSum.total}/${achSum.of}</div>
         <button class="ach-all-btn" id="ach-all">${L("awardsAll")}</button>
       </div>
-      <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}${achSum.byTier[t] ? "" : " none"}"><i></i>${achSum.byTier[t]}</span>`).join("")}</div>
       ${earnedList.length
-        ? `<div class="status-grid">${earnedList.slice(0, 24).map((a) => { const g = achievements[a.id]; return `
+        ? `<div class="status-grid ach-recent">${earnedList.slice(0, 8).map((c) => { const a = c.shown, g = c.got; return `
             <button class="status-badge" data-ach="${a.id}" title="${AN(a)}: ${AD(a)}">
               ${achMedallion(a)}${g.count > 1 ? `<span class="ach-count-badge">×${g.count}</span>` : ""}
               <span class="sb-name">${AN(a)}</span>
-            </button>`; }).join("")}</div>${earnedList.length > 24 ? `<div class="dim small" style="margin-top:8px">и ещё ${earnedList.length - 24} — в полном списке</div>` : ""}`
+            </button>`; }).join("")}</div>`
         : `<div class="empty">${L("awardsEmpty")}</div>`}
     </div>
 

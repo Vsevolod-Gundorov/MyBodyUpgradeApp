@@ -391,14 +391,14 @@ export function stateOf(p) {
   if (p.deload) return { key: "deload", text: `Разгрузка: вес −${Math.round((1 - DELOAD) * 100)}%, рабочий максимум не трогаем`, cls: "verdict-mid" };
   if (p.source === "estimate") return { key: "new", text: "Первый заход — оценка от базовых лифтов", cls: "verdict-mid" };
   if (p.source === "manual") return { key: "manual", text: "Вес поправлен вручную — дальше его поведут подходы", cls: "verdict-mid" };
-  if (p.sessions < 2) return { key: "new", text: "Первый замер — со второго квеста вес поведёт журнал", cls: "verdict-mid" };
+  if (p.sessions < 2) return { key: "new", text: "Первый замер — со второго раза вес поведёт журнал", cls: "verdict-mid" };
   if (p.move === "deload") return { key: "deload", text: "Прошлый заход был разгрузочным — максимум на месте", cls: "verdict-mid" };
   if (p.move === "down") return { key: "drop", text: "Откат — рабочий вес опустился на шаг", cls: "verdict-fail" };
   // разгрузка и лёгкий день — не застой: они и не должны двигать вес
   const tail = p.moves.slice(1).filter((m) => m.verdict !== "deload" && m.verdict !== "light").slice(-PROG.STALL);
   if (tail.length >= PROG.STALL && tail.every((m) => m.to <= m.from))
-    return { key: "stall", text: `Застой: ${PROG.STALL} квеста без прибавки — пора делоад или смена движения`, cls: "verdict-fail" };
-  if (p.move === "light") return { key: "hold", text: "Прошлый квест был лёгким — вес стоит на месте", cls: "verdict-mid" };
+    return { key: "stall", text: `Застой: ${PROG.STALL} раза подряд без прибавки — пора делоад или смена движения`, cls: "verdict-fail" };
+  if (p.move === "light") return { key: "hold", text: "Прошлый раз был лёгким — вес стоит на месте", cls: "verdict-mid" };
   if (p.move === "up") return { key: "grow", text: "Рост — рабочий вес поднялся на шаг", cls: "verdict-gold" };
   return { key: "hold", text: "Держим вес — добираем повторы до верхней границы", cls: "verdict-mid" };
 }
@@ -415,6 +415,6 @@ export function moveLabel(p) {
   if (p.move === "up" && p.deltaKg > 0) return { icon: "▲", text: `+${num(p.deltaKg)} кг к прошлому разу` };
   if (p.move === "down") return { icon: "▼", text: p.deltaKg ? `${num(p.deltaKg)} кг после недобора` : "минус шаг после недобора" };
   if (p.move === "deload") return { icon: "↓", text: `разгрузка: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
-  if (p.move === "light") return { icon: "=", text: `лёгкий квест: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
+  if (p.move === "light") return { icon: "=", text: `лёгкий день: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
   return { icon: "=", text: `держим вес: прошлый раз ${num(p.last.top)} × ${p.last.topReps}` };
 }
