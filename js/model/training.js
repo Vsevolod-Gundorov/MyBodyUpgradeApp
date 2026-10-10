@@ -1,11 +1,11 @@
 // Модель: рабочие веса, история движений, отдых и разбор квеста.
 import { PROGRAM, SCHEME, TEMPLATES, buildExercises } from "../../data/program.js";
-import { FEEL, PROG, e1rm as e1rmAvg, feelOf, isWarmup, priorSetsOf, progressionOf, restFor } from "../../data/progression.js";
+import { FEEL, PROG, asMax, e1rm as e1rmAvg, feelOf, isWarmup, priorSetsOf, progressionOf, restFor, spaceOf } from "../../data/progression.js";
 import { exById, setDone } from "../../data/exercises.js";
 import { epley, fmt, today } from "../core/format.js";
 import { ORDER, WORKOUTS, planOf, sessionExercises } from "./catalog.js";
 import { easeToday } from "./health.js";
-import { baselines, currentWeight } from "./profile.js";
+import { baselines, currentWeight, weightOn } from "./profile.js";
 import { S, save } from "./store.js";
 import { L } from "./theme.js";
 
@@ -50,9 +50,9 @@ export function movementHistory() {
       const sets = (sess.entries[ex.id] || []).filter((x) => setDone(x, src));
       if (!sets.length) return;
       const key = ex.lift || ex.id;
-      (out[key] ||= []).push({ date: sess.date, sets, plan: {
+      (out[key] ||= []).push({ date: sess.date, sets, bodyweight: src.bw ? weightOn(sess.date) : null, plan: {
         sets: ex.sets, reps: ex.reps, rir: ex.rir != null ? ex.rir : 1,
-        feel: sess.feel || "norm", deload: !!ex.deload, prior: prior[i] || 0, ease: ex.ease || 0 } });
+        feel: sess.feel || "norm", deload: !!ex.deload, prior: ex.recovered ? 0 : (prior[i] || 0), ease: ex.ease || 0 } });
     });
   });
   return (histCache = out);
@@ -125,7 +125,9 @@ export function scoreSession(workout, entries) {
   let plannedSets = 0, doneSets = 0, weightPts = 0, weightMax = 0;
   workout.exercises.forEach((ex) => {
     const all = (entries[ex.id] || []).filter((s) => setDone(s, exById(ex.id) || ex));
-    const sets = all.filter((s) => !isWarmup(s, ex.w));   // разминка слот плана не занимает
+    const src = exById(ex.id) || ex;
+    const sp = spaceFor(src);
+    const sets = all.filter((s) => !isWarmup(s, ex.w, sp));   // разминка слот плана не занимает
     plannedSets += ex.sets;
     doneSets += Math.min(sets.length, ex.sets);
     if (ex.w > 0) {
@@ -133,7 +135,8 @@ export function scoreSession(workout, entries) {
       weightMax += weight;
       if (all.length) {
         const top = Math.max(...all.map((s) => s.w));
-        const floor = (ex.wp && ex.wp.floor) || ex.w * PROG.FLOOR;
+        const { toSys } = spaceOf(sp);
+        const floor = (ex.wp && ex.wp.floor != null && ex.wp.floor > 0) ? ex.wp.floor : spaceOf(sp).toBar(toSys(ex.w) * PROG.FLOOR);
         if (top >= ex.w) weightPts += weight;               // вышел на рабочий вес
         else if (top >= floor) weightPts += weight * 0.6;   // между полом и рабочим
         else weightPts += weight * 0.3;                     // ниже пола
@@ -241,7 +244,8 @@ export const exCount = (wid) => { const w = workoutOf(wid); return w ? w.exercis
 // Рабочий вес любого движения под атлета: свой замер, иначе оценка от базовых лифтов.
 export function poolWeight(ex, reps = [8, 10], rir = 1, sets = 3) {
   const p = progressOf(ex, { reps, rir, sets });
-  return p ? { ...p, est1RM: p.target ? p.work1RM : 0 } : null;
+  // для подтягиваний ноль — осмысленный ответ: «свой вес, без пояса», а не «не считается»
+  return p ? { ...p, est1RM: p.target || (ex && ex.bw && p.source !== "none") ? p.work1RM : 0 } : null;
 }
 
 // в каких квестах цикла встречается движение
@@ -269,6 +273,27 @@ export function scaleWorkMax(id, k) {
   invalidateE1RM(); save();
 }
 
+/**
+ * Задать рабочий максимум по реальному подходу «на пределе»: вес × повторы.
+ * Для подтягиваний и брусьев вес — довесок (0 — без пояса), считается вместе с весом
+ * тела. Дальше вес снова ведут подходы — с этой точки.
+ * @returns новый рабочий вес под силовую схему или null, если значения не годятся
+ */
+export function setWorkFromSet(id, w, r) {
+  const src = exById(id);
+  if (!src) return null;
+  const reps = Math.round(r);
+  if (!(reps >= 1 && reps <= 30) || !(w >= 0 && w <= 500) || (!src.bw && !(w > 0))) return null;
+  const sys = spaceOf(spaceFor(src)).toSys(w);
+  if (!(sys > 0)) return null;
+  S.workReset = S.workReset || {};
+  // подход на пределе — запаса нет (rir 0): «еле сделал 25 на 5» — это и есть потолок
+  S.workReset[src.lift || src.id] = { date: today(), one: asMax(sys, reps, 0) };
+  invalidateE1RM(); save();
+  const p = progressOf(src, { reps: SCHEME.strength.acc.reps, rir: SCHEME.strength.acc.rir, sets: SCHEME.strength.acc.sets });
+  return p ? p.target : null;
+}
+
 /** Вернуть расчёт по журналу: ручная правка снимается. */
 export function clearWorkMax(id) {
   const src = exById(id);
@@ -285,7 +310,7 @@ export function lastDone(ex) {
   const done = last.sets.filter((x) => setDone(x, exById(ex.id) || ex));
   if (!done.length) return null;
   const peak = Math.max(...done.map((x) => x.w));
-  const sets = done.filter((x) => !isWarmup(x, peak));   // разминку в сводке не показываем
+  const sets = done.filter((x) => !isWarmup(x, peak, spaceFor(exById(ex.id) || ex)));   // разминку в сводке не показываем
   if (!sets.length) return null;
   const top = Math.max(...sets.map((x) => x.w));
   const same = sets.every((x) => x.w === top);
@@ -307,3 +332,6 @@ export function nextSlotFor(key) {
   }
   return null;
 }
+
+/** В каком весе сравнивать подходы: для подтягиваний и брусьев — тело плюс довесок. */
+export const spaceFor = (src) => ({ bw: !!(src && src.bw), perHand: !!(src && src.perHand), bodyweight: currentWeight() });

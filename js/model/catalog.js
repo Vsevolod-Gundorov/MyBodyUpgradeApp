@@ -1,4 +1,5 @@
 // Модель: справочник квестов цикла и правки состава.
+import { exById } from "../../data/exercises.js";
 import { ARCHIVED_WORKOUTS, PROGRAM, buildExercises } from "../../data/program.js";
 import { S, save } from "./store.js";
 
@@ -15,10 +16,23 @@ export const ORDER = PROGRAM.weeks.flatMap((wk) => wk.workouts.map((w) => w.id))
 
 // упражнения прошедшей сессии: снимок на момент прохождения, иначе текущий состав
 export function sessionExercises(sess) {
-  if (Array.isArray(sess.exercises) && sess.exercises.length) return sess.exercises;
-  const meta = WORKOUTS[sess.workoutId];
-  if (!meta) return [];
-  return meta.exercises || buildExercises(meta);
+  let list;
+  if (Array.isArray(sess.exercises) && sess.exercises.length) list = sess.exercises;
+  else {
+    const meta = WORKOUTS[sess.workoutId];
+    list = meta ? (meta.exercises || buildExercises(meta)) : [];
+  }
+  // Подходы, записанные к движению вне состава (добавил или заменил в тот день, а снимка
+  // состава у старых сессий нет), — тоже работа: без них прогрессия видела бы только
+  // удачные дни и завышала вес. Коридор повторов — обычный для такого движения.
+  const have = new Set(list.map((x) => x.id));
+  const extra = Object.keys(sess.entries || {}).filter((id) => !have.has(id) && exById(id) && (sess.entries[id] || []).some((x) => x && x.r > 0))
+    .map((id) => {
+      const src = exById(id);
+      const reps = src.tier === 1 ? [4, 6] : src.tier === 3 ? [10, 15] : [6, 10];
+      return { id, name: src.name, sets: (sess.entries[id] || []).filter((x) => x && x.r > 0).length, reps, rir: 1, lift: src.lift, tier: src.tier, recovered: true };
+    });
+  return extra.length ? [...list, ...extra] : list;
 }
 
 // правки атлета для квеста

@@ -8,7 +8,7 @@ import { achievementCards } from "../model/achievements.js";
 import { WORKOUTS, planOf, setPlan } from "../model/catalog.js";
 import { S } from "../model/store.js";
 import { themeNow } from "../model/theme.js";
-import { clearWorkMax, poolWeight, scaleWorkMax, usedIn } from "../model/training.js";
+import { clearWorkMax, poolWeight, scaleWorkMax, setWorkFromSet, usedIn } from "../model/training.js";
 import { overlayRoot } from "../view/dom.js";
 import { fxChime, fxTap, haptic, tone } from "../view/fx.js";
 import { achievementDetailView, achievementToastView, allAchievementsView, exerciseDetailView, infoView, methodView, pairPickerView, poolPickerView, sessionDetailView, sessionRowsView, verdictBadgesView, verdictView } from "../view/overlays.js";
@@ -34,7 +34,22 @@ export function showExerciseDetail(id, opts = {}) {
     const k = Number(b.dataset.fix);
     if (k) scaleWorkMax(ex.id, k); else clearWorkMax(ex.id);
     fxTap(); o.remove(); showExerciseDetail(ex.id, opts);
+    if (opts.onChange) opts.onChange();
   });
+  // рабочий вес по реальному подходу на пределе: «25 × 5 — еле сделал»
+  const go = o.querySelector("#ex-set-go");
+  if (go) {
+    const num = (v) => parseFloat(String(v || "").replace(",", "."));
+    const apply = () => {
+      const w = num(o.querySelector("#ex-set-w").value), r = num(o.querySelector("#ex-set-r").value);
+      const t = setWorkFromSet(ex.id, Number.isFinite(w) ? w : (ex.bw ? 0 : NaN), r);
+      if (t == null) { o.querySelector("#ex-set-note").textContent = "Проверьте вес и повторы: повторов от 1 до 30"; return; }
+      fxTap(); o.remove(); showExerciseDetail(ex.id, opts);
+      if (opts.onChange) opts.onChange();
+    };
+    go.onclick = apply;
+    o.querySelector("#ex-set-r").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); apply(); } };
+  }
   o.querySelector("#ex-close").onclick = () => o.remove();
   o.addEventListener("click", (e) => { if (e.target === o) o.remove(); });
 }

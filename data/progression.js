@@ -62,8 +62,13 @@ export const asWeight = (one, reps, rir = 0) => (one > 0 ? one * pctOf1RM(reps, 
  * Двадцать килограммов при рабочих ста — это не упавшие силовые, а разминка:
  * такой подход не занимает слот плана, не красится недобором и не двигает вес.
  */
-export const isWarmup = (set, working) =>
-  !!(set && set.w > 0 && working > 0 && set.w <= working * PROG.WORKSET);
+export function isWarmup(set, working, o = {}) {
+  if (!(set && set.w > 0 && working > 0)) return false;
+  // подтягивания и брусья: сравниваем полную нагрузку — тело плюс довесок.
+  // 15 кг на поясе при рабочих 25 и весе 97 — это 112 из 122 кг, рабочий подход, а не разминка
+  const { toSys } = spaceOf(o);
+  return toSys(set.w) <= toSys(working) * PROG.WORKSET;
+}
 
 /**
  * Разминочная лесенка под рабочий вес: 40/60/80% на 5/3/1 повтор.
@@ -198,7 +203,7 @@ export function tonnageOf(sets, o = {}) {
   const good = (sets || []).filter((s) => s && s.r > 0 && (s.w > 0 || (o.bw && s.w >= 0)));
   if (!good.length) return { kg: 0, sets: 0, reps: 0 };
   const top = Math.max(...good.map((s) => s.w));
-  const work = good.filter((s) => !isWarmup(s, top));
+  const work = good.filter((s) => !isWarmup(s, top, o));
   return {
     kg: work.reduce((a, s) => a + toSys(s.w) * s.r, 0),
     sets: work.length,
@@ -221,7 +226,7 @@ export function spaceOf({ perHand = false, bw = false, bodyweight = 0 } = {}) {
  * @param bw    движение со своим весом: нулевой довесок — это тоже подход
  * @returns { top, topReps, topSets, work, planned, verdict, lo, hi, record } либо null
  */
-export function judge(sets, plan = {}, bw = false) {
+export function judge(sets, plan = {}, bw = false, space = {}) {
   const good = (sets || []).filter((s) => s && s.r > 0 && (s.w > 0 || (bw && s.w >= 0)));
   if (!good.length) return null;
   const lo = (plan.reps && plan.reps[0]) || 1;
@@ -233,7 +238,7 @@ export function judge(sets, plan = {}, bw = false) {
   const top = Math.max(...(inRange.length ? inRange : good).map((s) => s.w));
   const topSets = good.filter((s) => s.w === top);
   const topReps = Math.min(...topSets.map((s) => s.r));
-  const work = good.filter((s) => !isWarmup(s, top) && s.w <= top).length;   // разминка слот не занимает
+  const work = good.filter((s) => !isWarmup(s, top, { ...space, bw }) && s.w <= top).length;   // разминка слот не занимает
   const planned = plan.sets || topSets.length;
   let verdict;
   if (!inRange.length) verdict = "down";                                    // не добрал коридор повторов
@@ -254,12 +259,14 @@ export function judge(sets, plan = {}, bw = false) {
  */
 export function workMax(history, o = {}) {
   const { step = 2.5, reset = null, tier = 2 } = o;
-  const { toSys, toBar } = spaceOf(o);
   let anchor = reset && reset.one > 0 ? reset.one : 0, best = anchor;
   const moves = [];
   const since = reset && reset.date ? reset.date : null;
   for (const h of (history || []).filter((x) => !since || x.date >= since)) {
-    const j = judge(h.sets, h.plan, !!o.bw);
+    // вес тела — тот, что был в день подхода: стал тяжелее — старые подтягивания не дорожают задним числом
+    const space = { ...o, bodyweight: h.bodyweight > 0 ? h.bodyweight : o.bodyweight };
+    const { toSys, toBar } = spaceOf(space);
+    const j = judge(h.sets, h.plan, !!o.bw, space);
     if (!j) continue;
     const rir = (h.plan && h.plan.rir != null) ? h.plan.rir : 0;
     const floor = o.bw ? 0 : step;                                  // без пояса довесок нулевой — это нормально
@@ -269,8 +276,12 @@ export function workMax(history, o = {}) {
       * feelOf(h.plan && h.plan.feel).k
       * freshFactor({ priorSets: (h.plan && h.plan.prior) || 0 });
     const at = (w) => asMax(toSys(Math.max(floor, w)) / k, j.hi, rir);  // вес → якорь на языке этой схемы
+    // что реально показал день: вес на тех повторах, что сделаны (а не на верхе коридора)
+    const shown = (w, r) => asMax(toSys(Math.max(floor, w)) / k, Math.max(1, Math.min(j.hi, r)), rir);
     const prev = anchor;
     const due = prev ? toBar(asWeight(prev, j.hi, rir) * k) : 0;   // что было назначено на этот квест
+    // сравниваем полную нагрузку: для подтягиваний 20 из назначенных 24 кг довеска — это 113 из 117
+    const below = prev > 0 && toSys(j.top) < toSys(due) - step / 2;
     let verdict = j.verdict;
     if (h.plan && h.plan.deload) {
       verdict = "deload";                                    // разгрузочная неделя рабочий максимум не двигает
@@ -281,28 +292,33 @@ export function workMax(history, o = {}) {
       verdict = "eased";
       if (!anchor) anchor = at(j.top / h.plan.ease);
     } else if (!anchor) {
-      anchor = at(j.top);                                    // первый замер: с чего начали
-    } else if (j.top < due * PROG.LIGHT) {
+      // первый замер: с чего начали. В коридоре — этот вес и держим; ниже коридора — по сделанным повторам
+      anchor = j.topReps >= j.lo ? at(j.top) : shown(j.top, j.topReps);
+    } else if (toSys(j.top) < toSys(due) * PROG.LIGHT) {
       verdict = "light";                                     // работал заметно легче плана — не показатель
     } else if (verdict === "up") {
-      anchor = Math.max(prev, at(j.top + step));
+      // закрыл верх: шаг вверх. Если до назначенного не дотягивал (догоняешь после спада) —
+      // ровно на шаг от сделанного, без прыжка обратно к старому уровню
+      anchor = below ? at(j.top + step) : Math.max(prev, at(j.top + step));
     } else if (verdict === "hold") {
-      anchor = Math.max(prev, at(j.top));                    // доказанное не теряем
+      // в коридоре: доказанное не теряем. Но если назначенный вес не потянул —
+      // якорь честно опускается к показанному (не глубже 10% за раз)
+      anchor = below ? Math.max(shown(j.top, j.topReps), prev * PROG.FLOOR) : Math.max(prev, at(j.top));
     } else {
       anchor = Math.max(at(j.top - step), best * PROG.FLOOR);
     }
     best = Math.max(best, anchor);
     moves.push({ date: h.date, verdict, from: prev, to: anchor, due: Math.max(0, due),
-      top: j.top, topReps: j.topReps, sets: j.topSets, planned: j.planned });
+      top: j.top, topSys: toSys(j.top), topReps: j.topReps, sets: j.topSets, planned: j.planned });
   }
   return { anchor, best, moves };
 }
 
 /** Лучший подход за всю историю движения — отдельный счётчик личного максимума. */
 export function bestSet(history, o = {}) {
-  const { toSys } = spaceOf(o);
   let out = null;
   for (const h of history || []) {
+    const { toSys } = spaceOf({ ...o, bodyweight: h.bodyweight > 0 ? h.bodyweight : o.bodyweight });
     for (const s of h.sets || []) {
       if (!(s && s.r > 0 && (s.w > 0 || (o.bw && s.w >= 0)))) continue;
       const one = e1rm(toSys(s.w), s.r);
@@ -375,10 +391,24 @@ export function progressionOf(history, o = {}) {
   if (!(target >= 0) || (target === 0 && !o.bw)) return empty;
 
   const last = moves.length ? moves[moves.length - 1] : null;
+  // Двойная прогрессия: вес растёт, только когда закрыт верх коридора. Если в прошлый раз
+  // на этом весе вышло не больше повторов, чем требует сегодняшняя схема, — выше этого
+  // веса не назначаем (в полной нагрузке: для подтягиваний — с весом тела на тот день).
+  // Пересчёт между схемами не должен превращать «20 × 5 с трудом» в «27,5 × 6–8».
+  if (last && last.topSys > 0 && ["hold", "down"].includes(last.verdict) && last.topReps <= reps[1] && !reset) {
+    const cap = toBar(last.topSys) - (last.verdict === "down" ? step : 0);
+    const capped = Math.max(0, Math.floor(cap / step + 1e-9) * step);
+    if (target > capped && (capped > 0 || o.bw)) target = capped;
+  }
   const shift = (v) => round(toBar(asWeight(v, reps[1], rir) * k));
   // пол: ниже этого веса подход уже не рабочий. Округляем вниз — пол не должен
   // оказаться строже, чем есть на самом деле
-  const floor = target > 0 ? Math.max(step, Math.floor((target * PROG.FLOOR) / step) * step) : 0;
+  // Для своего веса пол считается от полной нагрузки (тело + довесок): при 97 кг и рабочих 25
+  // пол — 12,5 кг довеска, а не 22,5. Иначе 20 кг на поясе краснели бы как недобор.
+  const { toSys: sysNow } = spaceOf(o);
+  const floor = target > 0
+    ? Math.max(o.bw ? 0 : step, Math.floor(toBar(sysNow(target) * PROG.FLOOR) / step) * step)
+    : 0;
   return {
     source, work1RM: anchor || seed * (1 + prog),
     target, floor: floor < target ? floor : 0, step, rest, loadK: k, deload: !!deload, feel: feelOf(feel).key, ease,

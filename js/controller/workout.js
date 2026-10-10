@@ -14,7 +14,7 @@ import { WEEK_OF, planOf, setPlan } from "../model/catalog.js";
 import { markTrainingDay } from "../model/nutrition.js";
 import { S, save } from "../model/store.js";
 import { L, questName } from "../model/theme.js";
-import { bestE1RM, feelToday, invalidateE1RM, lastDone, repZone, scoreSession, setFeelToday, smartRest, workoutOf } from "../model/training.js";
+import { bestE1RM, feelToday, invalidateE1RM, lastDone, repZone, scoreSession, setFeelToday, smartRest, spaceFor, workoutOf } from "../model/training.js";
 import { app } from "../view/dom.js";
 import { fxTap } from "../view/fx.js";
 import { openComplaints, openExerciseNote } from "./health.js";
@@ -193,7 +193,7 @@ export function renderWorkout(wid) {
     const filled = (s) => setDone(s, src);
     // разминка: заметно легче рабочего веса. Слот плана не занимает, недобором не считается.
     // По виду строки разминку видно сразу по весу, в счёт идут только записанные
-    const warmLook = (s) => isWarmup(s, target);
+    const warmLook = (s) => isWarmup(s, target, spaceFor(src));
     const warm = (s) => filled(s) && warmLook(s);
     const workDone = (list) => list.filter((s) => filled(s) && !warm(s)).length;
     // попал ли подход в коридор повторов: видно сразу, не пересчитывая в уме
@@ -328,7 +328,7 @@ export function renderWorkout(wid) {
         fxTap(); renderWorkout(wid);
       },
     });
-    el.querySelector("[data-info]").onclick = () => showExerciseDetail(ex.id);
+    el.querySelector("[data-info]").onclick = () => showExerciseDetail(ex.id, { onChange: () => renderWorkout(wid) });
     el.querySelector("[data-pair]").onclick = () => openPairPicker(wid, ex, w.exercises);
     el.querySelectorAll("[data-method]").forEach((m) => m.onclick = (e) => { e.stopPropagation(); showMethod(m.dataset.method); });
     el.querySelector("[data-drop]").onclick = () => {
@@ -363,7 +363,7 @@ export function renderWorkout(wid) {
     });
     const dots = (n) => dotsView(n, rounds);
     const filledIn = (m, s) => setDone(s, m.src);
-    const warmIn = (m, s) => filledIn(m, s) && isWarmup(s, m.target);
+    const warmIn = (m, s) => filledIn(m, s) && isWarmup(s, m.target, spaceFor(m.src));
     const hitIn = (m, s) => {
       if (!filledIn(m, s)) return "";
       if (warmIn(m, s)) return "warm";
@@ -411,7 +411,7 @@ export function renderWorkout(wid) {
         wi.oninput = () => {
           const s = cur();
           s.w = parseFloat(wi.value.replace(",", ".")) || 0;
-          if (!isWarmup(s, m.target)) rowsOf(m).forEach((x, kk) => { if (kk > k && !filledIn(m, x) && !isWarmup(x, m.target)) x.w = s.w; });
+          if (!isWarmup(s, m.target, spaceFor(m.src))) rowsOf(m).forEach((x, kk) => { if (kk > k && !filledIn(m, x) && !isWarmup(x, m.target, spaceFor(m.src))) x.w = s.w; });
           markActivity(); save(); upd();
         };
         ri.oninput = () => { cur().r = parseInt(ri.value) || 0; markActivity(); save(); upd(); };
@@ -484,7 +484,7 @@ export function renderWorkout(wid) {
       meta.forEach((m) => { const arr = rowsOf(m); const last = [...arr].reverse().find((x) => filledIn(m, x)); arr.push({ w: last ? last.w : m.target, r: 0 }); });
       markActivity(); save(); draw(); upd();
     };
-    el.querySelectorAll("[data-info]").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.info));
+    el.querySelectorAll("[data-info]").forEach((b) => b.onclick = () => showExerciseDetail(b.dataset.info, { onChange: () => renderWorkout(wid) }));
     el.querySelectorAll("[data-unpair]").forEach((b) => b.onclick = () => {
       const pl = planOf(wid);
       const key = b.dataset.unpair;
