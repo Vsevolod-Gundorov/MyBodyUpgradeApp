@@ -44,7 +44,7 @@ export const FOODS = [
   { n: "Творог обезжиренный", c: "Яйца и молочка", k: 71, p: 18, f: 0.6, cb: 1.8, fb: 0 },
   { n: "Греческий йогурт 2%", c: "Яйца и молочка", k: 73, p: 9, f: 2, cb: 4, fb: 0 },
   { n: "Йогурт натуральный", c: "Яйца и молочка", k: 60, p: 5, f: 3, cb: 7, fb: 0 },
-  { n: "Молоко 2.5%", c: "Яйца и молочка", k: 52, p: 2.8, f: 2.5, cb: 4.7, fb: 0 },
+  { n: "Молоко 2.5%", c: "Яйца и молочка", k: 52, p: 2.8, f: 2.5, cb: 4.7, fb: 0, drink: true, hy: 0.9 },
   { n: "Сыр твёрдый", c: "Яйца и молочка", k: 364, p: 25, f: 29, cb: 0, fb: 0 },
   { n: "Моцарелла", c: "Яйца и молочка", k: 280, p: 22, f: 17, cb: 2, fb: 0 },
   { n: "Протеин сывороточный (порошок)", c: "Яйца и молочка", k: 400, p: 80, f: 6, cb: 8, fb: 0 },
@@ -141,40 +141,124 @@ export function estimateFiber(name, categories, carbs) {
   return Math.round(carbs * frac * 10) / 10;
 }
 
+/* ================= продукт «на 100 г»: один расчёт для всего приложения =================
+   Один и тот же продукт приходит из разных мест: свой справочник, Open Food Facts,
+   общий каталог сервера, ввод пользователя «с этикетки». Всё сводится сюда, чтобы
+   у каждого продукта были честные значения на 100 г (мл), клетчатка и признак
+   напитка с индексом гидратации — от них считаются шкала клетчатки и вода. */
+
+export const KJ_PER_KCAL = 4.184;
+const r1 = (x) => Math.round(x * 10) / 10;
+
+/** Напиток по названию или категориям: вода из него засчитывается в «Воду».
+ *  Совпадение — только с начала слова и с подходящим окончанием: иначе «шоколад»
+ *  ловился на «кола», а «тунец в собственном соку» — на «сок». */
+const W = "(?<![a-zа-яё])";
+export const DRINK_RE = new RegExp(W + "(вод[аыу](?![а-яё])|минерал|чай|кофе(?![а-яё])|кол[аыу](?![а-яё])|лимонад|газиров|морс|компот|квас|энергет|energ" +
+  "|сок(?:и|а|ов)?(?![а-яё])|juice|смузи|коктейл|молок[оа](?![а-яё])|кефир|айран|латте|latte|капучино|cappuccino|americano|espresso" +
+  "|эспрессо|тоник|tonic|нектар|напит|cola(?![a-z])|soda|drink|tea(?![a-z])|coffee|water(?![a-z]))", "i");
+
+/** Индекс гидратации по названию: кофе и чай почти как вода, остальное чуть меньше. */
+export function hydrationByName(name) {
+  const n = name || "";
+  if (/кофе|чай|coffee|tea/i.test(n)) return 0.95;
+  if (/вода|минерал|water/i.test(n)) return 1;
+  return 0.9;
+}
+
+/** Калории по белкам, жирам и углеводам (коэффициенты Этуотера 4/9/4). */
+export const kcalFromMacros = ({ p = 0, f = 0, cb = 0 }) => 4 * p + 9 * f + 4 * cb;
+
+const num = (v) => (v === "" || v == null ? null : (Number.isFinite(+v) ? +v : NaN));
+
+/**
+ * Привести продукт к значениям на 100 г (мл) и проверить на правдоподобие.
+ * @param src { n, k?, p?, f?, cb?, fb?, per?=100, drink?, hy?, sv?, cats? }
+ *   per — на сколько граммов (мл) даны значения: 100 — «на 100 г», 30 — «на порцию 30 г».
+ *   k не задан — считается по БЖУ; fb не задана — оценивается по типу продукта.
+ * @returns {{ ok: true, food, warn: string[] } | { ok: false, error: string }}
+ */
+export function per100(src) {
+  const n = String(src.n || "").replace(/\s+/g, " ").trim();
+  if (!n) return { ok: false, error: "no_name" };
+  if (n.length > 120) return { ok: false, error: "name_too_long" };
+  const per = num(src.per) ?? 100;
+  if (!(per > 0 && per <= 2000)) return { ok: false, error: "bad_portion" };
+  const raw = { k: num(src.k), p: num(src.p), f: num(src.f), cb: num(src.cb), fb: num(src.fb) };
+  if (Object.values(raw).some((v) => Number.isNaN(v) || v < 0)) return { ok: false, error: "bad_number" };
+  if (raw.k == null && raw.p == null && raw.f == null && raw.cb == null) return { ok: false, error: "no_values" };
+
+  const scale = 100 / per;
+  const p = r1((raw.p || 0) * scale), f = r1((raw.f || 0) * scale), cb = r1((raw.cb || 0) * scale);
+  const k = Math.round(raw.k != null ? raw.k * scale : kcalFromMacros({ p, f, cb }));
+  // на 100 г не бывает больше 100 г белка, жира или углеводов и больше 900 ккал (чистый жир)
+  if (p > 100 || f > 100 || cb > 100 || p + f + cb > 105) return { ok: false, error: "macros_over_100" };
+  if (k > 900) return { ok: false, error: "kcal_over_900" };
+
+  const warn = [];
+  const fromMacros = kcalFromMacros({ p, f, cb });
+  if (raw.k != null && fromMacros > 0 && Math.abs(k - fromMacros) > Math.max(25, 0.25 * Math.max(k, fromMacros))) warn.push("kcal_mismatch");
+
+  let fb = r1((raw.fb || 0) * scale), fbEst = false;
+  if (fb > 100) return { ok: false, error: "macros_over_100" };
+  if (!fb && cb > 0 && raw.fb == null) { fb = estimateFiber(n, src.cats, cb); fbEst = fb > 0; }
+
+  const drink = src.drink === true || (src.drink !== false && DRINK_RE.test(n + " " + (src.cats || []).join(" ")));
+  const hy = drink ? (num(src.hy) > 0 && num(src.hy) <= 1 ? num(src.hy) : hydrationByName(n)) : undefined;
+  const sv = num(src.sv) > 0 && num(src.sv) <= 2000 ? r1(num(src.sv)) : (per !== 100 ? r1(per) : undefined);
+
+  const food = { n, k, p, f, cb, fb };
+  if (fbEst) food.fbEst = true;
+  if (drink) { food.drink = true; food.hy = hy; }
+  else if (DRINK_RE.test(n)) food.drink = false;   // явно «не напиток», хотя по названию похоже
+  if (sv) food.sv = sv;
+  return { ok: true, food, warn };
+}
+
+/**
+ * Продукт Open Food Facts → наш формат на 100 г. null — если данных не хватает
+ * или они неправдоподобны (база пополняется людьми, ошибки там бывают).
+ * Энергия: ккал на 100 г, иначе кДж → ккал, иначе по БЖУ. Если есть только
+ * значения на порцию — пересчитываем на 100 г по весу порции.
+ */
+export function offProductToFood(pr) {
+  if (!pr || typeof pr !== "object") return null;
+  const nu = pr.nutriments || {};
+  let name = String(pr.product_name_ru || pr.product_name || "").replace(/\s+/g, " ").trim().slice(0, 90);
+  if (!name) return null;
+  const brand = String(pr.brands || "").split(",")[0].replace(/\s+/g, " ").trim().slice(0, 28);
+  if (brand && !name.toLowerCase().includes(brand.toLowerCase())) name += " · " + brand;
+
+  const pick = (suffix) => {
+    const kcal = num(nu["energy-kcal" + suffix]);
+    const kj = num(nu["energy-kj" + suffix]) ?? num(nu["energy" + suffix]);   // energy_* в OFF — всегда кДж
+    return {
+      k: kcal != null && !Number.isNaN(kcal) ? kcal : (kj != null && !Number.isNaN(kj) ? kj / KJ_PER_KCAL : null),
+      p: num(nu["proteins" + suffix]), f: num(nu["fat" + suffix]), cb: num(nu["carbohydrates" + suffix]), fb: num(nu["fiber" + suffix]),
+    };
+  };
+  let vals = pick("_100g"), per = 100;
+  const has = (v) => v.k != null || v.p != null || v.f != null || v.cb != null;
+  const svq = num(pr.serving_quantity);
+  if (!has(vals) && svq > 0) { vals = pick("_serving"); per = svq; }
+  if (!has(vals)) return null;
+
+  const cats = Array.isArray(pr.categories_tags) ? pr.categories_tags.slice(0, 30).map(String) : [];
+  const drink = cats.some((t) => /beverage|drink|water|soda|juice|tea|coffee|smoothie/.test(t)) || DRINK_RE.test(name);
+  const res = per100({ n: name, ...vals, per, cats, drink, sv: svq > 0 && svq <= 2000 ? svq : undefined });
+  if (!res.ok) return null;
+  const code = /^\d{4,32}$/.test(String(pr.code || "")) ? String(pr.code) : null;
+  return { id: code ? "off" + code : "off-" + name.toLowerCase(), src: "off", code, ...res.food };
+}
+
 // Поиск в Open Food Facts (открытый API, без ключа, база на GitHub).
 // Возвращает продукты в том же формате, что и локальные (на 100 г).
 export async function offSearch(query, signal) {
   const url = "https://world.openfoodfacts.org/cgi/search.pl?" +
     "search_terms=" + encodeURIComponent(query) +
     "&search_simple=1&action=process&json=1&page_size=25&lc=ru" +
-    "&fields=code,product_name,product_name_ru,brands,nutriments,categories_tags";
+    "&fields=code,product_name,product_name_ru,brands,nutriments,categories_tags,serving_quantity";
   const res = await fetch(url, { signal });
   const data = await res.json();
-  return (data.products || []).map((pr) => {
-    const nu = pr.nutriments || {};
-    const kcal = nu["energy-kcal_100g"];
-    if (kcal == null || isNaN(+kcal)) return null;
-    let name = (pr.product_name_ru || pr.product_name || "").trim();
-    if (!name) return null;
-    if (pr.brands) name += " · " + String(pr.brands).split(",")[0].trim();
-    // напиток? — по категориям OFF или по названию
-    const tags = pr.categories_tags || [];
-    const drink = tags.some((t) => /beverage|drink|water|soda|juice|tea|coffee|smoothie/.test(t)) ||
-      /напит|вода|чай|кофе|кол[аы]|сок|энерг|energ|cola|coffee|tea|juice|water|soda|drink/i.test(name);
-    const hy = drink ? (/кофе|чай|coffee|tea/i.test(name) ? 0.95 : /вода|water/i.test(name) ? 1 : 0.9) : undefined;
-    const carbs = +nu.carbohydrates_100g || 0;
-    // клетчатка: берём из данных, иначе оцениваем по типу продукта
-    let fb = +nu.fiber_100g || 0;
-    let fbEst = false;
-    if (!fb && carbs > 0) { fb = estimateFiber(name, tags, carbs); fbEst = fb > 0; }
-    return {
-      id: "off" + pr.code, src: "off", n: name,
-      k: Math.round(+kcal),
-      p: +nu.proteins_100g || 0,
-      f: +nu.fat_100g || 0,
-      cb: carbs,
-      fb, fbEst,
-      drink, hy,
-    };
-  }).filter(Boolean);
+  return (data.products || []).map(offProductToFood).filter(Boolean);
 }

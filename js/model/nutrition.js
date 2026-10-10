@@ -1,4 +1,5 @@
 // Модель: дни питания, вода и итоги по макросам.
+import { DRINK_RE, hydrationByName } from "../../data/nutrition.js";
 import { S } from "./store.js";
 
 export function nutDay(date) { // создаёт и сохраняет запись дня (для записи)
@@ -39,17 +40,13 @@ export function pushRecent(food) {
 }
 
 /* ---- гидратация: сколько воды даёт напиток (кофе/чай/кола/энергетик и т.п.) ---- */
-export const DRINK_RE = /(вода|минерал|чай|кофе|кол[аы]|лимонад|газиров|морс|компот|квас|энергет|energ|сок|juice|смузи|коктейл|молоко|кефир|айран|латте|latte|капучино|cappuccino|americano|espresso|эспрессо|тоник|tonic|нектар|напит|cola|soda|drink|tea|coffee|water)/i;
+// правила общие с данными продуктов: data/nutrition.js
+export { DRINK_RE };
 
-export const itemIsDrink = (it) => it.drink === true || DRINK_RE.test(it.n || "");
+// признак продукта главнее названия; у старых записей признака нет — судим по названию
+export const itemIsDrink = (it) => it.drink === true || (it.drink !== false && DRINK_RE.test(it.n || ""));
 
-export function itemHy(it) { // индекс гидратации
-  if (it.hy) return it.hy;
-  const n = it.n || "";
-  if (/кофе|чай|coffee|tea/i.test(n)) return 0.95;
-  if (/вода|минерал|water/i.test(n)) return 1;
-  return 0.9;
-}
+export const itemHy = (it) => it.hy || hydrationByName(it.n);   // индекс гидратации
 
 export function itemWaterMl(it) { // вода из напитка = масса × доля воды × индекс гидратации
   if (!itemIsDrink(it)) return 0;
