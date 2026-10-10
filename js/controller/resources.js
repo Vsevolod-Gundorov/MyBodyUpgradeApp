@@ -5,8 +5,10 @@ import { render } from "./router.js";
 import { addDays, today } from "../core/format.js";
 import { checkAchievements } from "../model/achievements.js";
 import { foodOfItem, mealByTime } from "../model/foods.js";
-import { drinkWaterOf, nutDay, nutRead, nutTotals } from "../model/nutrition.js";
-import { targetsFor } from "../model/profile.js";
+import { drinkWaterOf, nutDay, nutRead, nutTotals, setDayType } from "../model/nutrition.js";
+import { adjustSuggestion, hasProfile, targetsFor } from "../model/profile.js";
+import { openNutritionPlan } from "./nutplan.js";
+import { adjustHintView } from "../view/nutplan.js";
 import { save } from "../model/store.js";
 import { L, themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
@@ -44,7 +46,7 @@ export function renderResources() {
   app.innerHTML = resourcesView({
     date, isToday,
     strip: weekStripView({ date, winEnd }),
-    summary: summaryView({ T, tot, dayType: day.dayType, verdict }),
+    summary: summaryView({ T, tot, dayType: day.dayType, verdict, canPlan: hasProfile(), hint: isToday && hasProfile() ? adjustHintView(adjustSuggestion()) : "" }),
     extras: extrasView({ fb: tot.fb, fbTgt: T.fiber, totalWater, waterTgt: T.water, drinkWater }),
     meals: mealsView({ day, isToday }),
     tip: dayTipView({ T, day }),
@@ -59,10 +61,14 @@ export function renderResources() {
   app.querySelectorAll(".cday").forEach((b) => { if (!b.disabled) b.onclick = () => { resDate = b.dataset.d; render(); }; });
 
   // тип дня и вода — в постоянную запись выбранного дня
-  app.querySelectorAll(".dt").forEach((b) => b.onclick = () => { nutDay(date).dayType = b.dataset.dt; save(); render(); checkAchievements({ type: "nutrition" }); });
+  app.querySelectorAll(".dt").forEach((b) => b.onclick = () => { setDayType(date, b.dataset.dt); save(); render(); checkAchievements({ type: "nutrition" }); });
   document.getElementById("water-plus").onclick = () => { nutDay(date).water += 250; save(); render(); checkAchievements({ type: "nutrition" }); };
   document.getElementById("water-minus").onclick = () => { const d = nutDay(date); d.water = Math.max(0, d.water - 250); save(); render(); };
 
+  const npOpen = document.getElementById("np-open");
+  if (npOpen) npOpen.onclick = () => openNutritionPlan();
+  const adjOpen = document.getElementById("adj-open");
+  if (adjOpen) adjOpen.onclick = () => openNutritionPlan();
   // «+» у приёма пищи — экран добавления сразу в этот приём
   app.querySelectorAll(".mh-add").forEach((b) => b.onclick = () => openFoodSheet(date, b.dataset.add));
   // касание записи — изменить порцию, приём пищи или удалить

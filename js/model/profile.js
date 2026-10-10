@@ -5,7 +5,7 @@
 // старое поведение, чтобы ничего не сломалось до первого заполнения.
 import { NUTRITION, WATER_TARGET_ML } from "../../data/nutrition.js";
 import { BASELINES } from "../../data/program.js";
-import { ageOf, checkProfile, computeTargets, estimateMaxes } from "../../data/profile.js";
+import { adaptiveAdjust, ageOf, checkProfile, computeTargets, estimateMaxes } from "../../data/profile.js";
 import { today } from "../core/format.js";
 import { S } from "./store.js";
 
@@ -123,3 +123,33 @@ export function applyAdjust(kcal) {
   p.adjust = Math.max(-800, Math.min(800, (p.adjust || 0) + kcal));
   p.adjustedAt = today();
 }
+
+/** Сменить цель и программу питания, не трогая остальной профиль. Поправка сбрасывается при смене. */
+export function setNutritionPlan({ direction, pace, program, custom }) {
+  const p = profile();
+  if (!p) return { ok: false, error: "no_profile" };
+  const next = { ...p, direction, pace: pace || "normal", program, custom: program === "custom" ? custom : null };
+  const err = checkProfile({ ...next, weight: currentWeight(), age: ageOf(p.birthYear) });
+  if (err) return { ok: false, error: err };
+  if (p.direction !== direction || p.program !== program) { next.adjust = 0; next.adjustedAt = null; }
+  next.updatedAt = new Date().toISOString();
+  S.profile = next;
+  return { ok: true };
+}
+
+/**
+ * Предложение поправить калории по реальному весу — или null.
+ * Не чаще раза в неделю: после «Применить» и «Не сейчас» молчим 7 дней.
+ */
+export function adjustSuggestion(now = new Date()) {
+  const p = profile(), pl = plan();
+  if (!p || !pl) return null;
+  const quiet = [p.adjustedAt, p.adjustDismissedAt].filter(Boolean).map((d) => new Date(d).getTime());
+  if (quiet.some((t) => now.getTime() - t < 7 * 864e5)) return null;
+  const s = adaptiveAdjust(weights(), pl.expectedKgPerWeek, now);
+  // норма уже на безопасном минимуме — урезать некуда, предлагать дефицит бессмысленно
+  if (s && s.kcal < 0 && Math.max(pl.training.kcal, pl.rest.kcal) <= pl.floor + 10) return null;
+  return s;
+}
+
+export function dismissAdjust() { const p = profile(); if (p) p.adjustDismissedAt = today(); }

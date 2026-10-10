@@ -133,7 +133,7 @@ export function goalsPanelView({ p, tTrain, tRest, adjustHint }) {
     </div>`;
   return `
     <div class="panel goals-panel">
-      <div class="panel-head"><span class="eyebrow">Цели и нормы</span><button class="link-btn" id="goals-edit">Изменить</button></div>
+      <div class="panel-head"><span class="eyebrow">Цели и нормы</span><span class="gp-actions"><button class="link-btn" id="goals-nut">Питание</button><button class="link-btn" id="goals-edit">Профиль</button></span></div>
       <div class="gp-row"><span>${DIRECTIONS[p.direction].name}</span><span class="dim">${PROGRAMS[p.program].name}</span></div>
       <div class="gp-days">
         <div><span class="dim small">Тренировка</span><b class="mono">${tTrain.kcal}</b><span class="dim small mono">Б ${tTrain.protein} · Ж ${tTrain.fat} · У ${tTrain.carbs}</span></div>

@@ -30,7 +30,7 @@ export function resourcesView({ date, isToday, strip, summary, extras, meals, ti
 }
 
 /** Сводка: сколько калорий осталось и три макроса — главное, ради чего открывают вкладку. */
-export function summaryView({ T, tot, dayType, verdict }) {
+export function summaryView({ T, tot, dayType, verdict, canPlan = false, hint = "" }) {
   const R = 46, C = 2 * Math.PI * R;
   const pct = T.kcal ? tot.k / T.kcal : 0;
   const left = Math.round(T.kcal - tot.k);
@@ -60,13 +60,14 @@ export function summaryView({ T, tot, dayType, verdict }) {
         </div>
       </div>
       <div class="ns-foot">
-        <span class="mono dim">${Math.round(tot.k)} из ${T.kcal} ккал</span>
+        <span class="ns-of"><span class="mono dim">${Math.round(tot.k)} из ${T.kcal} ккал</span>${canPlan ? `<button class="link-btn" id="np-open">Нормы</button>` : ""}</span>
         <div class="ns-dt" role="group" aria-label="Тип дня">
           <button class="dt ${dayType === "training" ? "on" : ""}" data-dt="training" aria-pressed="${dayType === "training"}">Тренировка</button>
           <button class="dt ${dayType === "rest" ? "on" : ""}" data-dt="rest" aria-pressed="${dayType === "rest"}">Отдых</button>
         </div>
       </div>
       ${verdict ? `<div class="fuel-verdict ${verdict.cls}">${verdict.text}</div>` : ""}
+      ${hint}
     </section>`;
 }
 

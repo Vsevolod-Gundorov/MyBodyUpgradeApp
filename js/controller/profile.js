@@ -15,6 +15,7 @@ import { fxChime, fxTap, haptic } from "../view/fx.js";
 import { bodyweightEditorView, profileView, syncNoteText } from "../view/profile.js";
 import { goalsPanelView } from "../view/onboarding.js";
 import { openProfileWizard } from "./onboarding.js";
+import { openNutritionPlan } from "./nutplan.js";
 import { profile, targetsFor } from "../model/profile.js";
 
 /* ================= ПРОФИЛЬ ================= */
@@ -47,6 +48,8 @@ export function renderProfile() {
   app.innerHTML = profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn: serverOn(),
     goals: goalsPanelView({ p: profile(), tTrain: targetsFor("training"), tRest: targetsFor("rest") }) });
   document.getElementById("goals-edit").onclick = () => { fxTap(); openProfileWizard({ editing: !!profile() }); };
+  const gNut = document.getElementById("goals-nut");
+  if (gNut) gNut.onclick = () => { fxTap(); openNutritionPlan(); };
 
   // Вес героя меняется: от него считаются подтягивания, брусья и гиперэкстензия —
   // там рабочий вес это довесок к своему, и устаревшие 93 кг врут в каждом подходе

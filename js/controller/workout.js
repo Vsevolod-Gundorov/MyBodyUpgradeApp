@@ -9,6 +9,7 @@ import { render, setBack, setCycleSub, setView, withLoader } from "./router.js";
 import { today } from "../core/format.js";
 import { checkAchievements } from "../model/achievements.js";
 import { WEEK_OF, planOf, setPlan } from "../model/catalog.js";
+import { markTrainingDay } from "../model/nutrition.js";
 import { S, save } from "../model/store.js";
 import { L, questName } from "../model/theme.js";
 import { bestE1RM, feelToday, invalidateE1RM, lastDone, repZone, scoreSession, setFeelToday, smartRest, workoutOf } from "../model/training.js";
@@ -534,6 +535,7 @@ export function renderWorkout(wid) {
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
     // rir нужен прогрессии: по нему схемы разных недель пересчитываются друг в друга
     const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload, prior: ex.prior || 0 }));
+    markTrainingDay(today());   // нормы питания на сегодня — как для дня тренировки
     S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: feelToday(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
     S.xp += res.xp;
     invalidateE1RM();

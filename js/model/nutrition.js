@@ -16,6 +16,19 @@ export function nutRead(date) { // читает без создания (для 
     { dayType: S.sessions.some((s) => s.date === date) ? "training" : "rest", items: [], water: 0 };
 }
 
+/** Тип дня выбран вручную — тогда закрытая тренировка его не перещёлкивает. */
+export function setDayType(date, type) {
+  const d = nutDay(date);
+  d.dayType = type === "training" ? "training" : "rest";
+  d.dtManual = true;
+}
+
+/** Тренировка закрыта — день становится тренировочным (если человек не выбрал иначе сам). */
+export function markTrainingDay(date) {
+  const d = nutDay(date);
+  if (!d.dtManual) d.dayType = "training";
+}
+
 export function nutTotals(day) {
   const t = { k: 0, p: 0, f: 0, cb: 0, fb: 0 };
   day.items.forEach((it) => {

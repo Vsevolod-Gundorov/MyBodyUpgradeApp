@@ -156,6 +156,7 @@ export function computeTargets(p, now = new Date()) {
     weekly: round(((train * TRAINING_DAYS) + rest * (7 - TRAINING_DAYS)) / 7, 10),
     expectedKgPerWeek: p.direction === "recomp" ? 0 : Math.round(((delta - (p.adjust || 0)) * 7 / KCAL_PER_KG_FAT) * 100) / 100,
     capped,                                   // темп урезан до безопасного
+    floor: round(floor, 10),                  // ниже этой калорийности не опускаемся
   };
 }
 

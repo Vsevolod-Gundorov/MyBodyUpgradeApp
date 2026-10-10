@@ -1664,3 +1664,25 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .cat-count { margin-left: auto; }
 .ob-know span:first-child { text-align: left; }
 .gp-days .mono { white-space: nowrap; font-size: .72rem; }
+
+/* ================= настройка питания ================= */
+.np-title { text-align: center; font-weight: 600; color: var(--bone); }
+.np-programs { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-day { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); display: grid; gap: 8px; min-width: 0; }
+.np-day.manual { border-color: var(--line-strong); }
+.np-day-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.np-day-h b { flex-basis: 100%; font-size: .78rem; color: var(--dim); font-weight: 500; }
+.np-kcal { font-size: 1.3rem; color: var(--gold-bright); }
+.np-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.np-in { display: grid; gap: 3px; font-size: .7rem; color: var(--dim); text-align: center; }
+.np-in input { width: 100%; min-width: 0; background: var(--well); border: 1px solid var(--line); color: var(--bone); border-radius: 8px; padding: 8px 4px; font: inherit; font-size: 16px; text-align: center; }
+.np-in input:focus { border-color: var(--gold); outline: none; }
+.np-adjust { margin-top: 16px; padding: 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: rgba(var(--t-acc),.08); display: grid; gap: 6px; font-size: .88rem; }
+.np-adjust b { color: var(--bone); }
+.np-adjust span { color: var(--dim); line-height: 1.45; }
+.np-adjust-b { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 6px; }
+.np-adjust-b .btn-ghost { margin-top: 0; width: 100%; }
+.np-hint { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(var(--t-acc),.08); border: 1px solid var(--line-strong); font-size: .82rem; color: var(--bone); }
+.np-hint span { flex: 1; min-width: 0; }
+.ns-of { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.gp-actions { display: inline-flex; gap: 14px; }
