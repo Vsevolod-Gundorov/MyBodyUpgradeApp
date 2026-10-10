@@ -30,7 +30,7 @@ export function poolView({ bodyPick, bodyWeek, cov, found, groups, poolFilter, p
         <button class="icon-btn" id="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8V4z"/></svg></button>
         <h2 class="qhead-title display">${L("pool")}</h2>
         <span class="badge">${EXERCISES.length}</span>
-        <button class="icon-btn" id="pool-help" aria-label=L("poolAbout")>${icon("help")}</button>
+        <button class="icon-btn" id="pool-help" aria-label="${L("poolAbout")}">${icon("help")}</button>
       </div>
       <div class="search-bar">
         <span class="search-ico">${icon("search")}</span>

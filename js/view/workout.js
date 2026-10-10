@@ -39,7 +39,7 @@ export function workoutView({ LOAD_TXT, hot, sl, w, wk }) {
       <span class="medallion medallion--sm">${icon(w.icon || "anvil")}</span>
       <h2 class="qhead-title display">${questName(w)}</h2>
       <span class="qtimer mono" id="quest-timer">${icon("stopwatch")}<b>0:00</b></span>
-      <button class="icon-btn" id="q-help" aria-label=L("questAbout")>${icon("help")}</button>
+      <button class="icon-btn" id="q-help" aria-label="${L("questAbout")}">${icon("help")}</button>
     </div>
     <div class="badges qbadges">
       <span class="badge b-${w.type === "volume" ? "vol" : "str"}">${TYPE_NAMES[w.type]}</span>

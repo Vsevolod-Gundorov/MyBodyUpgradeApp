@@ -13,7 +13,7 @@ export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen
     <div class="bar">
       <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>${L("pool")}</span></button>
       <span class="bar-actions">
-        <button class="icon-btn ${pickStart ? "on" : ""}" id="pick-start" aria-label=L("questStart") title=L("questStart")>${icon("flag")}</button>
+        <button class="icon-btn ${pickStart ? "on" : ""}" id="pick-start" aria-label="${L("questStart")}" title="${L("questStart")}">${icon("flag")}</button>
         <button class="icon-btn" id="cycle-help" aria-label="О цикле">${icon("help")}</button>
       </span>
     </div>

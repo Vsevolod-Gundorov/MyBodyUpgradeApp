@@ -106,7 +106,7 @@ export function stockCardsView({ active, activeBuffs }) {
             <span class="buff-top"><b class="buff-name">${BN(b)}</b><button class="buff-dose edit mono" data-dose="${b.id}">${doseStr(b, active[b.id])} ✎</button></span>
             <span class="st-line">${stockLine} · <button class="st-set" data-stock="${b.id}">${typeof serv === "number" ? "пополнить" : "задать запас"}</button></span>
           </span>
-          <button class="buff-toggle off" data-remove="${b.id}" title=L("buffOff") aria-label=L("buffOff")>✕</button>
+          <button class="buff-toggle off" data-remove="${b.id}" title="${L("buffOff")}" aria-label="${L("buffOff")}">✕</button>
         </div>`;
       }).join("")
     : "";

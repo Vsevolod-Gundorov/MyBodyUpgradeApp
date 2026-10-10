@@ -83,3 +83,12 @@ test("каждый модуль клиента достижим из main.js", (
   walk("main.js");
   for (const f of [...MODEL, ...VIEW, ...CTRL]) assert.ok(seen.has(f), `${f} нигде не используется`);
 });
+
+test("слова интерфейса в атрибутах подставляются, а не печатаются как код", () => {
+  // `aria-label=L("questAbout")` внутри шаблона — это не вызов, а буквальный текст:
+  // экранный диктор зачитал бы «L скобка questAbout». Нужно `aria-label="${L("questAbout")}"`
+  for (const f of [...VIEW, ...CTRL]) {
+    const bad = read(f).match(/\b(aria-label|title|placeholder|alt)=(L|AN|AD|CN|BN)\(/);
+    assert.equal(bad, null, `${f}: ${bad && bad[0]} — забыт \${…}`);
+  }
+});
