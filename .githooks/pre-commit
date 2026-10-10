@@ -3,6 +3,8 @@
 set -uo pipefail
 # токен бота: цифры, двоеточие, длинный хвост. Берём с запасом, чтобы ловить и нестандартные
 TOKEN_RE='[0-9]{6,12}:[A-Za-z0-9_-]{30,}'
+# строка подключения к базе с паролем и настоящим доменом
+DBURL_RE='postgres(ql)?://[^:@/[:space:]]+:[^@[:space:]]+@[a-z][a-z0-9-]*\.[a-z]'
 staged=$(git diff --cached --name-only --diff-filter=ACM)
 [ -z "$staged" ] && exit 0
 
@@ -17,6 +19,12 @@ if [ -n "$bad" ]; then
   echo "pre-commit: в изменениях похоже на токен бота — коммит отменён"
   echo "$bad"
   echo "Убери секрет в .env (он в .gitignore). Если токен уже светился — /revoke в BotFather."
+  exit 1
+fi
+db=$(git diff --cached --no-color -U0 | grep -E "^\+" | grep -vE "^\+\+\+" | grep -EIc "$DBURL_RE" || true)
+if [ "${db:-0}" != "0" ]; then
+  echo "pre-commit: в изменениях строка подключения к базе с паролем — коммит отменён"
+  echo "Ей место в переменных окружения Vercel или в .env, не в файлах репозитория."
   exit 1
 fi
 exit 0

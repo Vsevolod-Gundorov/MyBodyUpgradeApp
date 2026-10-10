@@ -15,7 +15,8 @@ BEGIN
   IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = 1) THEN RETURN; END IF;
 
   -- Роль приложения: не может войти сама, не обходит RLS, не создаёт и не меняет схему.
-  -- Владелец базы на Neon может обходить RLS, поэтому всё пользовательское идёт через неё.
+  -- Владелец базы может обходить RLS (на Neon — через neon_superuser), поэтому всё
+  -- пользовательское идёт через неё. Это и правило для ручных запросов: см. SETUP.md.
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'bu_app') THEN
     CREATE ROLE bu_app NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
   END IF;

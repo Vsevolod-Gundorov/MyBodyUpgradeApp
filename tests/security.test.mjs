@@ -128,6 +128,7 @@ test("в файлах и истории нет токенов бота и при
     const src = readFileSync(root + f, "utf8");
     assert.ok(!TOKEN.test(src), `похоже на токен бота в ${f}`);
     assert.ok(!/BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY/.test(src), `приватный ключ в ${f}`);
+    assert.ok(!/postgres(ql)?:\/\/[^:@/\s]+:[^@\s]+@[a-z][a-z0-9-]*\.[a-z]/.test(src), `строка подключения к базе с паролем в ${f}`);
   }
   const hist = git("git log --all -p --no-color -S: --pickaxe-regex -- . | head -c 0");
   assert.equal(typeof hist, "string");

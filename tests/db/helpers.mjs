@@ -1,5 +1,6 @@
 // Отдельная база Postgres на каждый прогон, устроенная как на Neon:
-// владелец базы — не суперпользователь, но с CREATEROLE и BYPASSRLS.
+// владелец базы — не суперпользователь, но с CREATEROLE и BYPASSRLS
+// (TEST_OWNER_NOBYPASS=1 — без BYPASSRLS: на Neon оно бывает только через членство в роли).
 // Нужен адрес администратора в TEST_PG_ADMIN_URL (локально или в CI); без него
 // тесты базы пропускаются.
 import { randomBytes } from "node:crypto";
@@ -17,17 +18,21 @@ const urlFor = (base, user, password, db) => {
 export async function freshDatabase() {
   const admin = new pg.Client({ connectionString: ADMIN_URL });
   await admin.connect();
-  const lit = (s) => admin.escapeLiteral(s);
-  const old = await admin.query("SELECT datname FROM pg_database WHERE datname LIKE 'buapp_test_%'");
-  for (const { datname } of old.rows) await admin.query(`DROP DATABASE ${admin.escapeIdentifier(datname)} WITH (FORCE)`);
-  for (const r of ["bu_web", "bu_app", "bu_owner", "bu_stranger"]) await admin.query(`DROP ROLE IF EXISTS ${r}`);
-
-  const ownerPw = randomBytes(12).toString("hex"), strangerPw = randomBytes(12).toString("hex");
   const name = `buapp_test_${process.pid}`;
-  await admin.query(`CREATE ROLE bu_owner LOGIN CREATEROLE BYPASSRLS PASSWORD ${lit(ownerPw)}`);
-  await admin.query(`CREATE ROLE bu_stranger LOGIN PASSWORD ${lit(strangerPw)}`);
-  await admin.query(`CREATE DATABASE ${name} OWNER bu_owner`);
-  await admin.end();
+  const ownerPw = randomBytes(12).toString("hex"), strangerPw = randomBytes(12).toString("hex");
+  try {
+    const lit = (s) => admin.escapeLiteral(s);
+    const old = await admin.query("SELECT datname FROM pg_database WHERE datname LIKE 'buapp_test_%'");
+    for (const { datname } of old.rows) await admin.query(`DROP DATABASE ${admin.escapeIdentifier(datname)} WITH (FORCE)`);
+    for (const r of ["bu_web", "bu_owner", "bu_stranger"]) await admin.query(`DROP ROLE IF EXISTS ${r}`);
+    await admin.query(`CREATE ROLE bu_owner LOGIN CREATEROLE ${process.env.TEST_OWNER_NOBYPASS ? "NOBYPASSRLS" : "BYPASSRLS"} PASSWORD ${lit(ownerPw)}`);
+    await admin.query(`CREATE ROLE bu_stranger LOGIN PASSWORD ${lit(strangerPw)}`);
+    // роль приложения общая на весь кластер: если её уже завела другая база (локальная
+    // разработка), владельцу тестовой базы нужно право ею распоряжаться — как у её создателя
+    const { rows } = await admin.query("SELECT 1 FROM pg_roles WHERE rolname = 'bu_app'");
+    if (rows.length) await admin.query("GRANT bu_app TO bu_owner WITH ADMIN OPTION");
+    await admin.query(`CREATE DATABASE ${name} OWNER bu_owner`);
+  } finally { await admin.end(); }
 
   return {
     name,
@@ -36,9 +41,12 @@ export async function freshDatabase() {
     async drop() {
       const a = new pg.Client({ connectionString: ADMIN_URL });
       await a.connect();
-      await a.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
-      for (const r of ["bu_web", "bu_app", "bu_owner", "bu_stranger"]) await a.query(`DROP ROLE IF EXISTS ${r}`);
-      await a.end();
+      try {
+        await a.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+        for (const r of ["bu_web", "bu_owner", "bu_stranger"]) await a.query(`DROP ROLE IF EXISTS ${r}`);
+        // bu_app убираем, только если она больше нигде не нужна
+        await a.query("DROP ROLE IF EXISTS bu_app").catch(() => {});
+      } finally { await a.end(); }
     },
   };
 }

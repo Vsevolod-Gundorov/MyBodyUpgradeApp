@@ -34,8 +34,8 @@ before(async () => {
 
 after(async () => {
   if (skip) return;
-  await exec.end();
-  await base.drop();
+  if (exec) await exec.end();
+  if (base) await base.drop();
 });
 
 /* ---------- помощники ---------- */
@@ -72,9 +72,9 @@ test("роль приложения: не обходит RLS, не входит 
   await ensureSchema(db);
   const [[r]] = await db.owner([{ text: "SELECT rolbypassrls, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname = 'bu_app'" }]);
   assert.deepEqual(r, { rolbypassrls: false, rolcanlogin: false, rolsuper: false, rolcreaterole: false, rolcreatedb: false });
-  // а вот владелец базы, как и на Neon, обходит RLS — поэтому всё пользовательское идёт через bu_app
+  // а владелец базы может обходить RLS (худший случай, его и проверяем) — поэтому всё пользовательское идёт через bu_app
   const [[o]] = await db.owner([{ text: "SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user" }]);
-  assert.equal(o.rolbypassrls, true);
+  assert.equal(o.rolbypassrls, !process.env.TEST_OWNER_NOBYPASS, "режим владельца — как задан в прогоне");
 
   for (const text of [
     "DROP TABLE journals", "TRUNCATE journals", "CREATE TABLE evil (x int)", "ALTER TABLE users DISABLE ROW LEVEL SECURITY",

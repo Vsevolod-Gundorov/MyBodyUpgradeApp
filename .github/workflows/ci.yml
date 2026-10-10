@@ -19,8 +19,46 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Бизнес-логика и приватность
+      - name: Зависимости сервера (по lock-файлу, без скриптов установки)
+        run: npm ci --ignore-scripts
+
+      - name: Бизнес-логика, приватность, сервер без базы
         run: node --test tests/*.mjs
 
       - name: Секреты в файлах и истории
         run: bash tools/check-secrets.sh --history
+
+  # Сервер на живом Postgres: схема, RLS, инъекции, гонки, атаки на API.
+  # Пароль базы — одноразовый тестовый внутри раннера, к реальной базе отношения не имеет.
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: npm ci --ignore-scripts
+
+      - name: Сервер на живом Postgres
+        env:
+          TEST_PG_ADMIN_URL: postgres://postgres:ci-only@localhost:5432/postgres
+        run: npm run test:db
+
+      - name: То же, если владелец базы не обходит RLS
+        env:
+          TEST_PG_ADMIN_URL: postgres://postgres:ci-only@localhost:5432/postgres
+          TEST_OWNER_NOBYPASS: "1"
+        run: npm run test:db
