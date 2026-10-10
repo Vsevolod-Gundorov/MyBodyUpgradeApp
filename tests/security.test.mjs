@@ -108,9 +108,11 @@ test("политика безопасности на сервере совпад
     assert.ok(headers.some((h) => h.key === key), `нет заголовка ${key}`);
   }
   const perms = headers.find((h) => h.key === "Permissions-Policy").value;
-  for (const feat of ["camera", "microphone", "geolocation"]) {
+  for (const feat of ["microphone", "geolocation", "payment", "usb"]) {
     assert.match(perms, new RegExp(`${feat}=\\(\\)`), `${feat} должен быть запрещён`);
   }
+  // камера нужна сканеру штрихкодов — но только самому приложению, не встроенным страницам
+  assert.match(perms, /camera=\(self\)/, "камера — только для своего адреса");
 });
 
 test("секреты закрыты: .env не в репозитории, образец без значений", () => {
@@ -207,4 +209,11 @@ test("хук pre-commit блокирует .env и токены", () => {
   assert.match(hook, /\.env\|\.env\.\*/);
   assert.match(hook, /\[0-9\]\{6,12\}:\[A-Za-z0-9_-\]\{30,\}/);
   assert.match(hook, /exit 1/);
+});
+
+test("в index.html нет встроенных скриптов: CSP их запрещает, значит они молча не работают", () => {
+  const html = read("index.html");
+  const inline = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, attrs, body]) => !/\bsrc=/.test(attrs) || body.trim());
+  assert.equal(inline.length, 0, "встроенный <script> без src");
+  assert.doesNotMatch(html, /\son[a-z]+\s*=/i, "обработчики событий в разметке (onclick=…) тоже встроенный скрипт");
 });

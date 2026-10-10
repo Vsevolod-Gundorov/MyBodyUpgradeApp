@@ -251,6 +251,17 @@ export function offProductToFood(pr) {
   return { id: code ? "off" + code : "off-" + name.toLowerCase(), src: "off", code, ...res.food };
 }
 
+/** Один продукт Open Food Facts по штрихкоду — когда сервера нет под рукой. null — не найден или не годится. */
+export async function offProduct(code, signal) {
+  if (!/^\d{8,14}$/.test(String(code || ""))) return null;
+  const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=code,product_name,product_name_ru,brands,nutriments,categories_tags,serving_quantity`;
+  const res = await fetch(url, { signal, redirect: "error" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`off ${res.status}`);
+  const body = await res.json();
+  return body && body.status === 1 && body.product ? offProductToFood({ ...body.product, code: String(code) }) : null;
+}
+
 // Поиск в Open Food Facts (открытый API, без ключа, база на GitHub).
 // Возвращает продукты в том же формате, что и локальные (на 100 г).
 export async function offSearch(query, signal) {

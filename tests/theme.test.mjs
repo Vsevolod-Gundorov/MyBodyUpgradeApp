@@ -144,7 +144,10 @@ test("все иконки, которые приложение реально р
 test("подключение темы: разметка и стили на месте", () => {
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   assert.match(html, /css\/theme-plain\.css/, "таблица стилей второй темы не подключена");
-  assert.match(html, /bodyupgrade\.theme/, "тема должна ставиться до первой отрисовки, иначе мигает");
+  // тема ставится до первой отрисовки, иначе мигает: отдельным файлом в <head>, до стилей приложения
+  assert.match(html, /<head>[\s\S]*<script src="js\/theme-boot\.js"><\/script>[\s\S]*<\/head>/, "скрипт темы должен стоять в <head>");
+  const boot = readFileSync(new URL("../js/theme-boot.js", import.meta.url), "utf8");
+  assert.match(boot, /bodyupgrade\.theme/);
 
   const css = readFileSync(new URL("../css/theme-plain.css", import.meta.url), "utf8");
   // каждое правило обязано быть заперто внутри своей темы, иначе протечёт в «Сагу»

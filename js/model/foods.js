@@ -5,8 +5,9 @@
 //   2. общий каталог сервера: десятки миллисекунд, если сервер доступен;
 //   3. Open Food Facts — только по паузе в наборе или по кнопке, не чаще 8 раз в минуту
 //      с устройства, с запоминанием ответов: так просят в их правилах, а за перебор банят адрес.
-import { FOODS, offSearch, per100 } from "../../data/nutrition.js";
-import { nutDay, pushRecent } from "./nutrition.js";
+import { normalizeBarcode } from "../../data/barcode.js";
+import { FOODS, offProduct, offSearch, per100 } from "../../data/nutrition.js";
+import { nutDay, nutRead, pushRecent } from "./nutrition.js";
 import { catalogAdd, catalogSearch } from "./server.js";
 import { S } from "./store.js";
 
@@ -45,6 +46,9 @@ export function saveCustomFood(input, id = null) {
   const res = per100({ ...input, n: name.charAt(0).toUpperCase() + name.slice(1) });   // «сырники» → «Сырники»
   if (!res.ok) return res;
   const food = { ...res.food, id: id || `my${Date.now().toString(36)}`, src: "my" };
+  const code = normalizeBarcode(input.code);
+  if (code) food.code = code;                       // отсканированный, но не найденный — найдётся у себя
+  if (input.recipe) food.recipe = input.recipe;
   const list = customList();
   const i = list.findIndex((f) => f.id === food.id);
   if (i >= 0) list[i] = food; else list.unshift(food);
@@ -195,4 +199,88 @@ export function foodOfItem(it) {
   const food = { id: it.id || `man${it.n}`, src: it.src, n: it.n, k: it.k, p: it.p, f: it.f, cb: it.cb, fb: it.fb || 0 };
   ["code", "drink", "hy", "fbEst", "sv"].forEach((k) => { if (it[k] !== undefined) food[k] = it[k]; });
   return food;
+}
+
+/* ---------------- штрихкод ---------------- */
+/**
+ * Найти продукт по штрихкоду: сначала у себя (свои и то, что уже ел), потом в общем
+ * каталоге сервера (он сам проверит товар в Open Food Facts и запомнит для всех),
+ * а без сервера — напрямую в Open Food Facts.
+ * @returns {{ food, from } | { error: "bad_code" | "offline" } | null}  null — не найден
+ */
+export async function lookupBarcode(raw, format = "") {
+  const code = normalizeBarcode(raw, format);
+  if (!code) return { error: "bad_code" };
+  const alt = code.startsWith("0") ? code.slice(1) : null;   // UPC-A мог сохраниться без ведущего нуля
+  const same = (f) => f && f.code && (f.code === code || f.code === alt);
+  const local = customList().find(same) || Object.values(stats()).map((x) => x.food).find(same);
+  if (local) return { food: local, from: "local", code };
+  const srv = await catalogAdd(code);
+  if (srv) return { food: srv, from: "catalog", code };
+  try {
+    const off = await offProduct(code);
+    return off ? { food: off, from: "off", code } : { notFound: true, code };
+  } catch (e) { return { error: "offline", code }; }
+}
+
+/* ---------------- «как вчера» ---------------- */
+/** Последний прошлый день (до 7 дней назад), где этот приём пищи был записан. */
+export function lastMeal(date, meal, lookback = 7) {
+  const d0 = new Date(date + "T00:00:00Z");
+  for (let i = 1; i <= lookback; i++) {
+    const d = new Date(d0.getTime() - i * 864e5).toISOString().slice(0, 10);
+    const items = (nutRead(d).items || []).filter((it) => it.meal === meal);
+    if (items.length) return { date: d, items, daysAgo: i, kcal: Math.round(items.reduce((a, it) => a + it.k * it.g / 100, 0)) };
+  }
+  return null;
+}
+
+/** Повторить приём пищи с другого дня. Возвращает, сколько записей было до — для «Отменить». */
+export function repeatMeal(date, meal, fromDate) {
+  const src = (nutRead(fromDate).items || []).filter((it) => it.meal === meal);
+  const day = nutDay(date);
+  const before = day.items.length;
+  src.forEach((it) => day.items.push({ ...it, meal }));
+  return { before, count: src.length };
+}
+
+/** Отменить повтор: убрать добавленные записи, если с тех пор ничего не менялось. */
+export function undoRepeat(date, { before, count }) {
+  const day = nutDay(date);
+  if (day.items.length === before + count) day.items.splice(before, count);
+}
+
+/* ---------------- свои блюда ---------------- */
+/**
+ * Посчитать блюдо из продуктов. Значения каждого ингредиента — на 100 г, масса — в граммах.
+ * total — вес готового блюда (вода уходит при варке и жарке, впитывается в крупы);
+ * без него — сумма ингредиентов.
+ * @returns {{ ok, food?, totals?, error? }} food — на 100 г готового блюда
+ */
+export function dishOf({ n, items, total, sv }) {
+  const list = (items || []).filter((it) => it && it.g > 0);
+  if (!String(n || "").trim()) return { ok: false, error: "no_name" };
+  if (!list.length) return { ok: false, error: "no_items" };
+  if (list.length > 40) return { ok: false, error: "too_many" };
+  const sum = { k: 0, p: 0, f: 0, cb: 0, fb: 0, g: 0 };
+  list.forEach((it) => { const m = it.g / 100; sum.k += it.k * m; sum.p += it.p * m; sum.f += it.f * m; sum.cb += it.cb * m; sum.fb += (it.fb || 0) * m; sum.g += it.g; });
+  const weight = total > 0 ? total : sum.g;
+  if (!(weight > 0 && weight <= 20000)) return { ok: false, error: "bad_total" };
+  if (weight < sum.g * 0.3 || weight > sum.g * 4) return { ok: false, error: "bad_total" };
+  const k100 = (v) => Math.round((v / weight) * 1000) / 10;
+  const res = per100({ n, k: Math.round((sum.k / weight) * 100), p: k100(sum.p), f: k100(sum.f), cb: k100(sum.cb), fb: k100(sum.fb), per: 100, drink: false, sv: sv > 0 ? sv : undefined });
+  if (!res.ok) return res;
+  return { ok: true, food: res.food, totals: { ...sum, weight }, warn: res.warn };
+}
+
+/** Сохранить блюдо как свой продукт с составом — его можно открыть и поменять. */
+export function saveDish(input, id = null) {
+  const d = dishOf(input);
+  if (!d.ok) return d;
+  const recipe = {
+    items: input.items.filter((it) => it.g > 0).map((it) => ({ id: it.id, n: String(it.n).slice(0, 120), g: Math.round(it.g * 10) / 10, k: it.k, p: it.p, f: it.f, cb: it.cb, fb: it.fb || 0 })),
+    total: input.total > 0 ? Math.round(input.total) : null,
+  };
+  const f = d.food;
+  return saveCustomFood({ n: f.n, k: f.k, p: f.p, f: f.f, cb: f.cb, fb: f.fb, per: 100, drink: false, sv: input.sv > 0 ? input.sv : undefined, recipe }, id);
 }

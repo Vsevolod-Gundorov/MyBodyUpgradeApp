@@ -4,7 +4,7 @@ import { openFoodSheet, openPortion } from "./foods.js";
 import { render } from "./router.js";
 import { addDays, today } from "../core/format.js";
 import { checkAchievements } from "../model/achievements.js";
-import { foodOfItem, mealByTime } from "../model/foods.js";
+import { MEAL_IDS, foodOfItem, lastMeal, mealByTime, repeatMeal, undoRepeat } from "../model/foods.js";
 import { drinkWaterOf, nutDay, nutRead, nutTotals, setDayType } from "../model/nutrition.js";
 import { adjustSuggestion, hasProfile, targetsFor } from "../model/profile.js";
 import { openNutritionPlan } from "./nutplan.js";
@@ -12,7 +12,9 @@ import { adjustHintView } from "../view/nutplan.js";
 import { save } from "../model/store.js";
 import { L, themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
-import { dayTipView, extrasView, mealsView, resourcesView, summaryView, weekStripView } from "../view/resources.js";
+import { dayTipView, extrasView, mealsView, resourcesView, snackView, summaryView, weekStripView } from "../view/resources.js";
+import { fxTap } from "../view/fx.js";
+import { plural3 } from "../core/format.js";
 
 export let resDate = null;               // выбранный день (по умолчанию сегодня)
 
@@ -48,7 +50,7 @@ export function renderResources() {
     strip: weekStripView({ date, winEnd }),
     summary: summaryView({ T, tot, dayType: day.dayType, verdict, canPlan: hasProfile(), hint: isToday && hasProfile() ? adjustHintView(adjustSuggestion()) : "" }),
     extras: extrasView({ fb: tot.fb, fbTgt: T.fiber, totalWater, waterTgt: T.water, drinkWater }),
-    meals: mealsView({ day, isToday }),
+    meals: mealsView({ day, isToday, repeats: date <= today() ? Object.fromEntries(MEAL_IDS.map((m) => [m, lastMeal(date, m)]).filter(([, r]) => r)) : {} }),
     tip: dayTipView({ T, day }),
   });
 
@@ -71,6 +73,12 @@ export function renderResources() {
   if (adjOpen) adjOpen.onclick = () => openNutritionPlan();
   // «+» у приёма пищи — экран добавления сразу в этот приём
   app.querySelectorAll(".mh-add").forEach((b) => b.onclick = () => openFoodSheet(date, b.dataset.add));
+  // «как вчера»: повторить приём пищи одним касанием, с «Отменить»
+  app.querySelectorAll("[data-repeat]").forEach((b) => b.onclick = () => {
+    const res = repeatMeal(date, b.dataset.repeat, b.dataset.from);
+    save(); fxTap(); render(); checkAchievements({ type: "nutrition" });
+    showSnack(`Добавлено: ${plural3(res.count, "продукт", "продукта", "продуктов")}`, () => { undoRepeat(date, res); save(); render(); });
+  });
   // касание записи — изменить порцию, приём пищи или удалить
   app.querySelectorAll(".meal-item").forEach((b) => b.onclick = () => {
     const i = +b.dataset.i;
@@ -78,4 +86,16 @@ export function renderResources() {
     if (!it) return;
     openPortion(foodOfItem(it), date, { editIndex: i, meal: it.meal || mealByTime(), amt: it.amt != null ? it.amt : it.g, unit: it.unit || "г" });
   });
+}
+
+/** Плашка внизу экрана с «Отменить»; гаснет сама через 5 секунд. */
+let snackTimer = null;
+function showSnack(text, onUndo) {
+  let el = document.getElementById("snack");
+  if (!el) { el = document.createElement("div"); el.id = "snack"; el.className = "snack"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.innerHTML = snackView(text);
+  el.hidden = false;
+  clearTimeout(snackTimer);
+  snackTimer = setTimeout(() => (el.hidden = true), 5000);
+  el.querySelector("#snack-undo").onclick = () => { clearTimeout(snackTimer); el.hidden = true; onUndo(); };
 }
