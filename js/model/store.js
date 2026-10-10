@@ -41,7 +41,8 @@ export const defaultState = () => ({
   nutrition: {
     log: {},        // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
     recent: [],     // недавно использованные продукты (макс. 12)
-    foodStats: {},  // id -> { food, count, last } — для «частое + недавнее»
+    foodStats: {},  // id -> { food, count, last, amt?, unit? } — «частое + недавнее» и обычная порция
+    custom: [],     // свои продукты (значения на 100 г, см. data/nutrition.js → per100)
   },
   statuses: [],  // устарело: старые ситуационные статусы (переносятся в achievements при загрузке)
   achievements: {}, // id -> { count, first, last } — знаки отличия (см. data/achievements.js)
@@ -80,6 +81,7 @@ export function load() {
       S2.nutrition.log = (parsed.nutrition && parsed.nutrition.log) || {};
       S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
       S2.nutrition.foodStats = (parsed.nutrition && parsed.nutrition.foodStats) || {};
+      S2.nutrition.custom = (parsed.nutrition && Array.isArray(parsed.nutrition.custom)) ? parsed.nutrition.custom : [];
       S2.statuses = Array.isArray(parsed.statuses) ? parsed.statuses : [];
       // миграция: старые «статусы» → достижения (повторы схлопываются в счётчик)
       S2.achievements = (parsed.achievements && typeof parsed.achievements === "object")

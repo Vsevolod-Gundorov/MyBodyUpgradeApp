@@ -15,6 +15,7 @@ import { initCloudSync, queueCloudSync } from "./sync.js";
 import { invalidateE1RM } from "./training.js";
 
 const API = "/api/journal";
+const FOODS_API = "/api/foods";   // общий каталог продуктов
 export const PREMIGRATE_KEY = `${DB_KEY}.before-server`;   // журнал до первого переезда на сервер
 export const BACKUP_KEY = `${DB_KEY}.before-pull`;         // локальная копия перед заменой серверной
 
@@ -82,16 +83,19 @@ export function decideServer(local, server, same = false, blank = false) {
 }
 
 /* ---- запросы ---- */
-async function api(method, body) {
+async function api(method, body, { url = API, signal } = {}) {
   let res;
   try {
-    res = await fetch(API, {
-      method,
+    res = await fetch(url, {
+      method, signal,
       headers: { authorization: `tma ${tgInitData()}`, ...(body ? { "content-type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store", credentials: "omit", redirect: "error",
     });
-  } catch (e) { return { status: 0, json: null }; }   // нет сети
+  } catch (e) {
+    if (e && e.name === "AbortError") throw e;      // запрос отменили сами (новый поиск) — это не «нет сети»
+    return { status: 0, json: null };               // нет сети
+  }
   let json = null;
   try { json = await res.json(); } catch (e) { json = null; }
   return { status: res.status, json };
@@ -215,4 +219,24 @@ export async function initSync() {
     await reconcile(got);
     queueCloudSync();   // резервная копия в облаке Telegram
   } catch (e) { setServerState("error"); }   // журнал на устройстве цел; повторим при следующем сохранении
+}
+
+/* ---- общий каталог продуктов ---- */
+// Работает, только когда сервер доступен этому человеку; иначе поиск идёт по своему
+// справочнику и Open Food Facts, как раньше. Ошибки каталога не трогают статус журнала.
+
+/** Поиск в каталоге сервера. [] — если сервера нет или он не ответил. */
+export async function catalogSearch(q, signal) {
+  if (!serverActive() || serverState === "offline") return [];
+  const { status, json } = await api("GET", null, { url: `${FOODS_API}?q=${encodeURIComponent(q)}`, signal });
+  return status === 200 && json && Array.isArray(json.foods) ? json.foods : [];
+}
+
+/** «Человек выбрал продукт Open Food Facts»: сервер сам перепроверит его и добавит в каталог. */
+export async function catalogAdd(code) {
+  if (!serverActive() || !/^\d{4,32}$/.test(String(code || ""))) return null;
+  try {
+    const { status, json } = await api("POST", { code: String(code) }, { url: FOODS_API });
+    return status === 200 && json ? json.food : null;
+  } catch (e) { return null; }
 }

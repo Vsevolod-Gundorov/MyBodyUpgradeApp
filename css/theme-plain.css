@@ -33,6 +33,7 @@
   --ember: #f2706b;          /* провал */
   --moss: #3fcf8e;           /* успех */
   --r: 12px;
+  --well: var(--ink-2);
 
   /* цветовые семейства: те же роли, другой цвет */
   --t-acc: 56,189,248;       --t-acc-b: 125,211,252;  --t-acc-c: 125,211,252;
@@ -170,7 +171,6 @@
 .hs-cell b { font-size: 1.45rem; font-weight: 600; color: var(--bone); line-height: 1.1; }
 .hs-cell i { font-style: normal; font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 
-/* ---------- шкалы макросов: без строки «осталось» карточка вдвое ниже ---------- */
-:root[data-theme="plain"] .gauge { padding: 9px 11px; }
-:root[data-theme="plain"] .gauges { gap: 7px; }
-:root[data-theme="plain"] .g-bar { margin-top: 7px; }
+/* ---------- питание: плоские приёмы пищи и поля ---------- */
+:root[data-theme="plain"] .meal { background: var(--panel); }
+:root[data-theme="plain"] .fs-add, :root[data-theme="plain"] .mh-add { background: rgba(var(--t-acc),.12); }

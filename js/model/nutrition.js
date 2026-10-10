@@ -25,17 +25,24 @@ export function nutTotals(day) {
   return t;
 }
 
-export function pushRecent(food) {
+/**
+ * Запомнить, что продукт съели: недавнее, частота и порция «как в прошлый раз».
+ * Храним до 200 продуктов — по ним мгновенный поиск без сети.
+ */
+export function pushRecent(food, portion = null) {
   if (!S.nutrition.recent) S.nutrition.recent = [];
   S.nutrition.recent = [food, ...S.nutrition.recent.filter((r) => r.id !== food.id)].slice(0, 12);
   if (!S.nutrition.foodStats) S.nutrition.foodStats = {};
   const cur = S.nutrition.foodStats[food.id];
-  S.nutrition.foodStats[food.id] = { food, count: (cur ? cur.count : 0) + 1, last: Date.now() };
-  // не даём словарю расти бесконечно — держим 60 самых свежих
+  const rec = { food, count: (cur ? cur.count : 0) + 1, last: Date.now() };
+  const amt = portion ? portion.amt : cur && cur.amt;
+  if (amt > 0) { rec.amt = amt; rec.unit = (portion && portion.unit) || (cur && cur.unit); }
+  S.nutrition.foodStats[food.id] = rec;
+  // не даём словарю расти бесконечно — держим 200 самых свежих
   const ids = Object.keys(S.nutrition.foodStats);
-  if (ids.length > 60) {
+  if (ids.length > 200) {
     ids.sort((a, b) => S.nutrition.foodStats[a].last - S.nutrition.foodStats[b].last)
-      .slice(0, ids.length - 60).forEach((id) => delete S.nutrition.foodStats[id]);
+      .slice(0, ids.length - 200).forEach((id) => delete S.nutrition.foodStats[id]);
   }
 }
 

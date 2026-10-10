@@ -150,11 +150,15 @@ async function flow(theme) {
   const fold = await page.$(".cat-fold > summary"); if (fold) { await fold.click(); await wait(200); await snap(`${theme}-buffs-catalog`); }
 
   await tab("resources"); await snap(`${theme}-resources`);
-  const q = await page.$("#app input[type=search], #app .food-search input");
-  if (q) { await q.fill("кур"); await wait(500); await snap(`${theme}-food-search`); }
-  const plus = await page.$("#app .food-add, #app [data-add-food], #app .fr-add");
-  if (plus) { await plus.click(); await wait(); await snap(`${theme}-portion`);
-    const ok = await page.$("#portion-add"); if (ok) { await ok.click(); await wait(); } await closeOverlays(); await snap(`${theme}-resources-after`); }
+  // добавление: «+» у обеда → поиск → порция → добавить (экран поиска остаётся открытым) → «Готово»
+  const addLunch = await page.$('#app .mh-add[data-add="lunch"]');
+  if (addLunch) {
+    await addLunch.click(); await wait();
+    await page.fill("#fs-q", "кур"); await wait(500); await snap(`${theme}-food-search`);
+    await page.click(".fs-row [data-open]"); await wait(); await snap(`${theme}-portion`);
+    await page.click("#portion-add"); await wait();
+    await page.click("#fs-done"); await wait(); await closeOverlays(); await snap(`${theme}-resources-after`);
+  }
 
   await tab("progress"); await snap(`${theme}-progress`);
   const log = await page.$(".log-row"); if (log) { await log.click(); await wait(); await snap(`${theme}-session-detail`); await closeOverlays(); }
