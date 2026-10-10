@@ -102,7 +102,7 @@ export function withWeights(ex) {
   if (!p || p.source === "none") return { ...ex, w: 0, wSource: "none", wp: p || null, bwOnly: !!own,
     wNote: own ? "свой вес" : "задай вес сам" };
   // подтягивания и брусья без пояса: вес честно нулевой, но подход всё равно записывается
-  const note = src.bw ? (p.target > 0 ? "довесок к своему весу" : "свой вес, без довеска") : (src.perHand ? "на каждую руку" : null);
+  const note = src.bw ? (p.target > 0 ? "довесок к своему весу" : "свой вес, без довеска") : (src.perHand ? "на каждую руку" : (src.perLeg ? "на каждую ногу" : null));
   return { ...ex, w: p.target, wSource: p.source, prog1RM: p.work1RM, wp: p, bwOnly: !!own && !p.target, wNote: note };
 }
 

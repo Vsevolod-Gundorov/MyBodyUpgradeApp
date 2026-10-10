@@ -38,7 +38,7 @@ export const AREAS = {
     ["front-squat", "push-press", "ohp", "bulgarian", "lunge", "hip-thrust", "shrug", "carry", "curl-bb", "curl-ez", "plank"]),
   knee: A("knee", "Колено", "колено", /колен|мениск|чашечк|связк[аиу]\s*колен/,
     ["squat", "front-squat", "hack", "bulgarian", "lunge", "legext", "legpress"],
-    ["plie-squat", "legcurl-s", "legcurl-l", "deadlift"]),
+    ["plie-squat", "legcurl-s", "legcurl-l", "legcurl-st", "deadlift"]),
   elbow: A("elbow", "Локоть", "локоть", /локт|локоть|локтев|эпикондил|теннисн/,
     ["french-bb", "french-db", "cg-bench", "dips", "preacher", "curl-bb"],
     ["curl-ez", "pushdown", "pullup", "hammer", "incline-curl", "cable-curl", "rev-curl", "bench", "ohp", "lat"]),

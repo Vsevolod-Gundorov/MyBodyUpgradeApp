@@ -135,7 +135,7 @@ export function renderWorkout(wid) {
     // что делать: один вес на подход и коридор повторов
     const target = ex.w || 0;
     const repTxt = ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`;
-    const wNoteShort = { "на каждую руку": "на руку", "довесок к своему весу": "довесок" }[ex.wNote] || "";
+    const wNoteShort = { "на каждую руку": "на руку", "на каждую ногу": "на ногу", "довесок к своему весу": "довесок" }[ex.wNote] || "";
     const floor = (ex.wp && ex.wp.floor) || 0;
     // к тяжёлой базе подходят лесенкой, к изоляции — одной ступенью, если вообще
     const heavy = src.tier === 1 || (src.cns || 0) >= 2;
@@ -358,7 +358,7 @@ export function renderWorkout(wid) {
         target: ex.w || 0,
         floor: (ex.wp && ex.wp.floor) || 0,
         repTxt: ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`,
-        note: { "на каждую руку": "на руку", "довесок к своему весу": "довесок" }[ex.wNote] || "",
+        note: { "на каждую руку": "на руку", "на каждую ногу": "на ногу", "довесок к своему весу": "довесок" }[ex.wNote] || "",
       };
     });
     const dots = (n) => dotsView(n, rounds);
