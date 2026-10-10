@@ -16,7 +16,7 @@ import { defaultDeps } from "../server/deps.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PORT = Number(process.env.PORT || 8787);
-const PUBLIC = ["index.html", "js/", "css/", "data/", "assets/"];
+const PUBLIC = ["index.html", "sw.js", "js/", "css/", "data/", "assets/"];
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json" };
 const vercel = JSON.parse(await readFile(join(ROOT, "vercel.json"), "utf8"));
 const SECURITY = Object.fromEntries(vercel.headers[0].headers.map((h) => [h.key, h.value]));

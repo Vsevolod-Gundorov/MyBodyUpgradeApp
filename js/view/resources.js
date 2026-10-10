@@ -7,7 +7,7 @@ import { MEALS } from "../model/foods.js";
 import { gaugeState, itemWaterMl } from "../model/nutrition.js";
 import { S } from "../model/store.js";
 import { L } from "../model/theme.js";
-import { NUT_ACCENT, NUT_GRAD } from "./components.js";
+import { NUT_ACCENT, NUT_GRAD, num } from "./components.js";
 import { icon } from "./icons.js";
 
 const per100Line = (f) => `${Math.round(f.k)} ккал · Б ${fmt(f.p)} · Ж ${fmt(f.f)} · У ${fmt(f.cb)}`;
@@ -223,7 +223,7 @@ export function portionView({ editing, food, meal, amt, unit, chips }) {
       <div class="stepper">
         <button class="stp" id="p-minus" aria-label="Меньше">−</button>
         <div class="stp-mid"><input id="portion-g" inputmode="decimal" value="${amt}" aria-label="Количество" />
-          <button class="stp-unit" id="p-unit" aria-label="Сменить единицу">${unit}</button></div>
+          <button class="stp-unit" id="p-unit" aria-label="Сменить единицу">${esc(unit)}</button></div>
         <button class="stp" id="p-plus" aria-label="Больше">+</button>
       </div>
       <div class="portion-chips" id="p-chips">${chips}</div>
@@ -238,8 +238,8 @@ export function portionView({ editing, food, meal, amt, unit, chips }) {
 }
 
 export const portionChipsView = ({ chips, unit, sv }) =>
-  (sv ? `<button class="pchip sv" data-g="${sv}">порция · ${fmt(sv)} ${unit}</button>` : "") +
-  chips.map((v) => `<button class="pchip" data-g="${v}">${v} ${unit}</button>`).join("");
+  (sv ? `<button class="pchip sv" data-g="${num(sv)}">порция · ${fmt(sv)} ${esc(unit)}</button>` : "") +
+  chips.map((v) => `<button class="pchip" data-g="${v}">${v} ${esc(unit)}</button>`).join("");
 
 export function portionPreviewView({ m, food, wml }) {
   const cell = (v, l, color) => `<div class="pv"><span class="pv-v mono" style="color:${color}">${v}</span><span class="pv-l">${l}</span></div>`;

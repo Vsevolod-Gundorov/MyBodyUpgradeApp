@@ -11,7 +11,7 @@ import { S } from "../model/store.js";
 import { AD, AN, CN, L, plainNow, questName } from "../model/theme.js";
 import { poolWeight } from "../model/training.js";
 import { durationTrusted, fmtDuration } from "../timing.js";
-import { achLogHTML, achMedallion, poolRow } from "./components.js";
+import { achLogHTML, achMedallion, num, poolRow, vcls } from "./components.js";
 import { icon } from "./icons.js";
 
 export function exerciseDetailView({ alts, ex, opts, strength, used, volume, ww }) {
@@ -170,8 +170,8 @@ export function sessionDetailView({ rows, s, w }) {
   return `
     <div class="portion-card sd-card">
       <div class="eyebrow">${L("lastQuest")} · ${fmtDate(s.date)}</div>
-      <div class="portion-name display">${w ? questName(w) : s.workoutId}</div>
-      <div class="sd-verdict ${s.cls} mono">${s.score}%${plainNow() ? "" : ` · +${s.xp} XP`}${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title && w.title !== questName(w) ? ` · ${w.title}` : ""}</div>
+      <div class="portion-name display">${esc(w ? questName(w) : s.workoutId)}</div>
+      <div class="sd-verdict ${vcls(s.cls)} mono">${num(s.score)}%${plainNow() ? "" : ` · +${num(s.xp)} XP`}${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title && w.title !== questName(w) ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>
     </div>`;
@@ -255,7 +255,7 @@ export function sessionRowsView({ s }) {
     const ceil = Math.max(...sets.map((x) => e1rmAvg(x.w, x.r)));
     const setStr = sets.map((x) => `${fmt(x.w)}×${x.r}`).join("  ");
     return `<div class="sd-ex">
-      <div class="sd-ex-top"><span class="sd-name">${ex.name}${ex.main ? ' <span class="main-badge">дв. дня</span>' : ""}</span><span class="sd-ceil mono">1ПМ ${fmt(ceil)}</span></div>
+      <div class="sd-ex-top"><span class="sd-name">${esc(ex.name)}${ex.main ? ' <span class="main-badge">дв. дня</span>' : ""}</span><span class="sd-ceil mono">1ПМ ${fmt(ceil)}</span></div>
       <div class="sd-sets mono">${setStr}</div>
       ${s.notes && s.notes[ex.id] ? `<div class="ex-note">✎ ${esc(s.notes[ex.id])}</div>` : ""}
     </div>`;

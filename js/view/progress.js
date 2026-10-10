@@ -2,11 +2,11 @@
 import { exById } from "../../data/exercises.js";
 import { LIFT_NAMES, SCHEME, archivedExName } from "../../data/program.js";
 import { PROG, stateOf } from "../../data/progression.js";
-import { fmt, fmtDate, plural3 } from "../core/format.js";
+import { esc, fmt, fmtDate, plural3 } from "../core/format.js";
 import { WORKOUTS } from "../model/catalog.js";
 import { L, questName } from "../model/theme.js";
 import { nextSlotFor, progressOf } from "../model/training.js";
-import { sparkline } from "./components.js";
+import { num, sparkline, vcls } from "./components.js";
 import { icon } from "./icons.js";
 
 export function progressView() {
@@ -145,9 +145,9 @@ function liftRowView(r, open) {
     : p.deltaKg ? { cls: p.deltaKg > 0 ? "up" : "down", txt: `${p.deltaKg > 0 ? "▲ +" : "▼ "}${fmt(p.deltaKg)}` } : { cls: "flat", txt: "" }) : { cls: "flat", txt: "" };
   return `
     <div class="lr ${open ? "open" : ""}">
-      <button class="lr-row" data-k="${r.k}" aria-expanded="${open}">
+      <button class="lr-row" data-k="${esc(r.k)}" aria-expanded="${open}">
         <span class="lr-dot ${st ? st.cls : ""}" aria-hidden="true"></span>
-        <span class="lr-name">${r.name}</span>
+        <span class="lr-name">${esc(r.name)}</span>
         <span class="lr-t ${t.cls} mono">${t.txt}</span>
         <span class="lr-w mono">${p && p.target ? `${fmt(p.target)}<i> кг${note}</i>` : `<i>свой вес</i>`}</span>
       </button>
@@ -173,10 +173,10 @@ export function liftListView({ groups, openG, openK, q }) {
 
 export function sessionLogView({ rows, more }) {
   return rows.length
-    ? rows.map((s) => `<button class="log-row" data-sid="${s.id}">
-        <span>${questName(WORKOUTS[s.workoutId]) || s.workoutId}</span>
+    ? rows.map((s) => `<button class="log-row" data-sid="${esc(s.id)}">
+        <span>${esc(questName(WORKOUTS[s.workoutId]) || s.workoutId)}</span>
         <span class="dim mono small">${fmtDate(s.date)}</span>
-        <span class="${s.cls} mono">${s.score}% ›</span></button>`).join("") +
+        <span class="${vcls(s.cls)} mono">${num(s.score)}% ›</span></button>`).join("") +
       (more ? `<button class="link-btn log-more" id="log-more">Показать все · ${more}</button>` : "")
     : `<div class="empty">${L("logEmpty")}</div>`;
 }

@@ -74,6 +74,11 @@ export function coverSummary(cov) {
   return `Все ${core.length} основных групп работают дважды в неделю — неделя собрана правильно`;
 }
 
+/* Данные журнала могут прийти из файла или с другого устройства: в разметку — только
+   известный класс вердикта и только числа там, где ждём число. */
+export const vcls = (c) => (/^verdict-(gold|mid|fail)$/.test(String(c)) ? c : "verdict-mid");
+export const num = (v) => (Number.isFinite(+v) ? +v : 0);
+
 export const achMedallion = (a, cls = "") => `<span class="medallion tiered tier-${a.tier} ${cls}">${icon(a.icon || "gem")}</span>`;
 
 /* журнал получений знака: дата и причина каждого раза, свежие сверху */

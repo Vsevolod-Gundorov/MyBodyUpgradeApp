@@ -1,7 +1,7 @@
 // Вид: profile. Только разметка: данные приходят готовыми из контроллера.
 import { LIFT_NAMES } from "../../data/program.js";
 import { THEMES, THEME_ORDER } from "../../data/theme.js";
-import { fmt } from "../core/format.js";
+import { esc, fmt } from "../core/format.js";
 import { S } from "../model/store.js";
 import { AD, AN, L, themeNow } from "../model/theme.js";
 import { inTelegram, tgUserHandle, tgUserName } from "../telegram.js";
@@ -12,7 +12,7 @@ import { icon } from "./icons.js";
 export function heroSummaryView(cells) {
   return `
     <div class="hero-head">
-      <h1 class="display hero-name">${S.hero.name}</h1>
+      <h1 class="display hero-name">${esc(S.hero.name)}</h1>
       <div class="hero-sum">${cells.map(([v, l]) =>
         `<span class="hs-cell"><b class="mono">${v}</b><i>${l}</i></span>`).join("")}</div>
     </div>`;
@@ -28,8 +28,8 @@ export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serve
     ${summary ? heroSummaryView(summary) : `
     <div class="hero-head gilded">
       <div class="eyebrow">${L("heroEyebrow")}</div>
-      <h1 class="display hero-name">${S.hero.name}</h1>
-      <div class="hero-title">${c.novice ? L("heroNovice") : `«${S.hero.title}»`}</div>
+      <h1 class="display hero-name">${esc(S.hero.name)}</h1>
+      <div class="hero-title">${c.novice ? L("heroNovice") : `«${esc(S.hero.title)}»`}</div>
       <div class="level-ring">
         <svg viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(var(--t-acc-b),.16)" stroke-width="5"/>
@@ -134,7 +134,7 @@ export function remindPanelView({ conf, available, times }) {
       ${available ? "" : `<p class="dim small" style="margin:0 0 8px">Работают в приложении, открытом из Telegram: пишет бот.</p>`}
       ${row("rm-rest", !!conf.rest, "Конец отдыха", "«пора подход», если приложение свёрнуто")}
       ${row("rm-supp", !!conf.supp, "Добавки по расписанию", "только то, что ещё не отмечено")}
-      ${conf.supp ? `<div class="rm-times">${times.map((t) => `<label class="rm-time"><span>${t.slot}</span><input type="time" data-slot="${t.slot}" value="${t.at}" step="300" /></label>`).join("")}</div>` : ""}
+      ${conf.supp ? `<div class="rm-times">${times.map((t) => `<label class="rm-time"><span>${t.slot}</span><input type="time" data-slot="${esc(t.slot)}" value="${esc(t.at)}" step="300" /></label>`).join("")}</div>` : ""}
       <p class="dim small" style="margin:8px 0 0">Сообщение висит минуту и удаляется само.</p>
     </div>`;
 }

@@ -140,9 +140,9 @@ export function healthBoxView({ check, active, today }) {
           <b>Как ${AREAS[c.area].name.toLowerCase()}${c.area === "hip" ? " сустав" : ""}?</b>
           <span class="dim small">${LEVELS[c.level].name} — отмечено ${ago(c.checkedAt)}</span>
           <div class="hb-btns">
-            <button data-hc="${c.id}" data-ans="gone">Прошло</button>
-            <button data-hc="${c.id}" data-ans="same">Ещё беспокоит</button>
-            <button data-hc="${c.id}" data-ans="worse">Хуже</button>
+            <button data-hc="${esc(c.id)}" data-ans="gone">Прошло</button>
+            <button data-hc="${esc(c.id)}" data-ans="same">Ещё беспокоит</button>
+            <button data-hc="${esc(c.id)}" data-ans="worse">Хуже</button>
           </div>
         </div>`).join("")}
       ${active.length && !check.length ? `<div class="hb-active small"><span>Облегчаем: ${active.map((c) => `${AREAS[c.area].name.toLowerCase()} — ${LEVELS[c.level].name.toLowerCase()}`).join(", ")}</span>
@@ -257,7 +257,7 @@ export function complaintsSheetView({ list }) {
       <p class="dim small" style="margin:6px 0 12px">Движения, которые грузят эти зоны, идут с меньшим весом. Прошло — отметь, и вес вернётся.</p>
       ${list.length ? list.map((c) => `
         <div class="kv"><span>${AREAS[c.area].name} · ${LEVELS[c.level].name.toLowerCase()}</span>
-          <button class="link-btn" data-gone="${c.id}">Прошло</button></div>`).join("") : `<div class="empty">Жалоб нет.</div>`}
+          <button class="link-btn" data-gone="${esc(c.id)}">Прошло</button></div>`).join("") : `<div class="empty">Жалоб нет.</div>`}
       <button class="btn-ghost" id="cm-close" style="width:100%;margin-top:12px">Готово</button>
     </div>`;
 }

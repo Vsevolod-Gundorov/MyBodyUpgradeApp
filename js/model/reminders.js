@@ -7,7 +7,8 @@ import { BN } from "./theme.js";
 
 const conf = () => (S.reminders ||= { supp: false, rest: false, times: {} });
 export const reminders = () => conf();
-export const slotTime = (slot) => conf().times[slot] || SLOT_TIMES[slot];
+/** Время слота: своё, если оно правильное «чч:мм», иначе по умолчанию. */
+export const slotTime = (slot) => (hhmmToMin(conf().times[slot]) != null ? conf().times[slot] : SLOT_TIMES[slot]);
 
 export function setReminder(kind, on) { conf()[kind] = !!on; }
 export function setSlotTime(slot, hhmm) {
