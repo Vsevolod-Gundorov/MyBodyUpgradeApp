@@ -1,0 +1,17 @@
+{
+  "name": "my-body-upgrade-app",
+  "private": true,
+  "type": "module",
+  "description": "Body Upgrade — трекер силовых тренировок (Telegram Mini App). Клиент — статика, сервер — функции Vercel в api/.",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "node --test tests/*.mjs",
+    "test:db": "node --test tests/db/*.test.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.2.0",
+    "pg": "8.16.3"
+  }
+}

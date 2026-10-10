@@ -7,6 +7,8 @@ cd "$(dirname "$0")/.."
 # токен бота: 8–10 цифр, двоеточие, 35 символов
 TOKEN_RE='[0-9]{6,12}:[A-Za-z0-9_-]{30,}'
 KEY_RE='BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY'
+# строка подключения к базе с паролем и настоящим доменом (localhost и 127.0.0.1 — тестовые, не в счёт)
+DBURL_RE='postgres(ql)?://[^:@/[:space:]]+:[^@[:space:]]+@[a-z][a-z0-9-]*\.[a-z]'
 fail=0
 
 echo "Рабочее дерево:"
@@ -20,6 +22,10 @@ hits=$(git grep -nIE "$TOKEN_RE" -- . ':!*.example' ':!tools/check-secrets.sh' '
 if [ -n "$hits" ]; then echo "  ОПАСНО: похоже на токен бота:"; echo "$hits" | head -5; fail=1
 else echo "  ok  токенов бота нет"; fi
 
+dburls=$(git grep -nIE "$DBURL_RE" -- . ':!tools/check-secrets.sh' 2>/dev/null || true)
+if [ -n "$dburls" ]; then echo "  ОПАСНО: строка подключения к базе с паролем:"; echo "$dburls" | cut -c1-60 | head -5; fail=1
+else echo "  ok  паролей от базы нет"; fi
+
 keys=$(git grep -nIE "$KEY_RE" -- . ':!tools/check-secrets.sh' 2>/dev/null || true)
 if [ -n "$keys" ]; then echo "  ОПАСНО: приватный ключ в файлах"; fail=1
 else echo "  ok  приватных ключей нет"; fi
@@ -31,7 +37,7 @@ if [ "${1:-}" = "--history" ]; then
   # а падает проверка только на НОВОМ коммите с секретом.
   known=""
   [ -f .secret-exposures ] && known=$(grep -oE '^[0-9a-f]{40}' .secret-exposures || true)
-  found=$(git log --all --format='%H' -E -G"$TOKEN_RE" 2>/dev/null || true)
+  found=$( (git log --all --format='%H' -E -G"$TOKEN_RE"; git log --all --format='%H' -E -G"$DBURL_RE") 2>/dev/null | sort -u || true)
   new_hits=""
   for c in $found; do
     printf '%s\n' "$known" | grep -qx "$c" || new_hits="$new_hits $c"

@@ -1,0 +1,11 @@
+# На Vercel уезжает только то, что нужно приложению и функциям api/.
+# server/ здесь НЕ указан: из него собираются функции. Снаружи он закрыт
+# перенаправлением в vercel.json.
+tests/
+tools/
+.github/
+.githooks/
+.secret-exposures
+.env
+.env.*
+*.md

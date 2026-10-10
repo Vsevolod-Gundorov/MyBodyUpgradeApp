@@ -9,6 +9,17 @@ import { execSync } from "node:child_process";
 
 const root = new URL("..", import.meta.url).pathname;
 const read = (p) => readFileSync(root + p, "utf8");
+// весь клиентский код: после перехода на MVC он разложен по js/model, js/view, js/controller
+const CLIENT = (() => {
+  const out = [];
+  const walk = (dir) => readdirSync(root + dir, { withFileTypes: true }).forEach((e) => {
+    const rel = `${dir}/${e.name}`;
+    if (e.isDirectory()) walk(rel); else if (e.name.endsWith(".js")) out.push(rel);
+  });
+  walk("js");
+  return out.sort();
+})();
+const clientSrc = () => CLIENT.map(read).join("\n");
 const git = (cmd) => { try { return execSync(cmd, { cwd: root, encoding: "utf8" }); } catch (e) { return ""; } };
 
 // куда приложению разрешено обращаться — список закрытый и совпадает с политикой на сервере
@@ -38,7 +49,7 @@ test("шрифты лежат в репозитории и подключены 
 });
 
 test("код обращается наружу только по разрешённым адресам", () => {
-  for (const file of ["js/app.js", "js/telegram.js", "data/nutrition.js", "data/program.js", "data/exercises.js", "data/achievements.js"]) {
+  for (const file of [...CLIENT, "data/nutrition.js", "data/program.js", "data/exercises.js", "data/achievements.js"]) {
     const src = read(file);
     for (const m of src.matchAll(/["'`](https?:\/\/[^"'`\s]+)/g)) {
       const host = new URL(m[1]).host;
@@ -50,7 +61,7 @@ test("код обращается наружу только по разрешё�
 });
 
 test("внешний поиск продуктов можно выключить, и он спрашивает только название", () => {
-  const app = read("js/app.js");
+  const app = clientSrc();
   assert.match(app, /S\.settings && S\.settings\.offSearch/, "перед внешним поиском должна стоять проверка настройки");
   assert.match(app, /offSearch:\s*true/, "настройка должна быть в состоянии по умолчанию");
   const nut = read("data/nutrition.js");
@@ -60,12 +71,23 @@ test("внешний поиск продуктов можно выключить
   assert.ok(!/initData|user\.id|localStorage/.test(nut), "во внешний запрос не должно попадать ничего из журнала");
 });
 
-test("данные Telegram используются только локально", () => {
+test("подпись Telegram уходит только на свой сервер /api/ и больше никуда", () => {
   const tg = read("js/telegram.js");
   assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon/.test(tg), "модуль Telegram не должен никуда ходить сам");
   assert.match(tg, /initDataUnsafe/, "id пользователя берётся из SDK");
-  const app = read("js/app.js");
-  assert.ok(!/initData[^U]/.test(app), "подписанный initData никуда не передаётся");
+  // подписанные данные читает только telegram.js, а пользуется ими только модель сервера
+  for (const f of CLIENT.filter((x) => x !== "js/telegram.js")) {
+    const src = read(f).replace(/^\s*\/\/.*$/gm, "");   // комментарии не в счёт
+    assert.ok(!/\.initData\b|initData\s*[:=]/.test(src), `${f}: initData читается в обход telegram.js`);
+    if (f !== "js/model/server.js") assert.ok(!/tgInitData/.test(src), `${f}: подпись Telegram используется вне модели сервера`);
+  }
+  const srv = read("js/model/server.js");
+  const fetches = [...srv.matchAll(/fetch\(([^,)]+)/g)].map((m) => m[1].trim());
+  assert.deepEqual(fetches, ["API"], "модель сервера ходит только по одному адресу");
+  assert.match(srv, /const API = "\/api\/journal";/, "адрес — свой, относительный");
+  assert.match(srv, /credentials: "omit"/, "без cookies");
+  assert.match(srv, /redirect: "error"/, "подпись не уходит по перенаправлению");
+  assert.match(srv, /authorization: `tma \$\{tgInitData\(\)\}`/);
 });
 
 test("политика безопасности на сервере совпадает со списком разрешённых адресов", () => {
@@ -106,6 +128,7 @@ test("в файлах и истории нет токенов бота и при
     const src = readFileSync(root + f, "utf8");
     assert.ok(!TOKEN.test(src), `похоже на токен бота в ${f}`);
     assert.ok(!/BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY/.test(src), `приватный ключ в ${f}`);
+    assert.ok(!/postgres(ql)?:\/\/[^:@/\s]+:[^@\s]+@[a-z][a-z0-9-]*\.[a-z]/.test(src), `строка подключения к базе с паролем в ${f}`);
   }
   const hist = git("git log --all -p --no-color -S: --pickaxe-regex -- . | head -c 0");
   assert.equal(typeof hist, "string");
