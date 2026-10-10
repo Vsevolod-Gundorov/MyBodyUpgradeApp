@@ -7,7 +7,7 @@ import { renderPool } from "./pool.js";
 import { renderProfile } from "./profile.js";
 import { renderProgress } from "./progress.js";
 import { renderResources } from "./resources.js";
-import { buffsDue } from "../model/buffs.js";
+import { buffsActionable } from "../model/buffs.js";
 import { S, save } from "../model/store.js";
 import { L, THEME_KEY, themeNow } from "../model/theme.js";
 import { fxTransition } from "../view/fx.js";
@@ -107,5 +107,5 @@ export function render() {
 
 export function updateBuffBadge() {
   const badge = document.getElementById("buffs-badge");
-  if (badge) badge.hidden = !buffsDue();
+  if (badge) badge.hidden = !buffsActionable();
 }

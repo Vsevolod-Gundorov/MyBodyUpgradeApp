@@ -23,7 +23,8 @@
 export const APP_ROLE = "bu_app";
 
 const SET_USER = "SELECT set_config('app.user_id', $1, true)";
-const SET_ROLE = "SET LOCAL ROLE bu_app";   // та же роль, что APP_ROLE; в тексте SQL нет подстановок
+const SET_ROLE = "SET LOCAL ROLE bu_app";
+const SET_CRON = "SELECT set_config('app.cron', 'reminders', true)";   // та же роль, что APP_ROLE; в тексте SQL нет подстановок
 
 /**
  * @param execute     async (queries, opts) => rows[][] — выполнить запросы в ОДНОЙ транзакции (владелец)
@@ -38,6 +39,8 @@ export function createDb(execute, appExecute = null) {
     owner: (queries, opts) => execute(queries, opts),
     /** От имени приложения без пользователя: ограничение частоты, проверка здоровья. */
     app: async (queries, opts) => (await run([{ text: SET_ROLE }, ...queries], opts)).slice(1),
+    /** Запуск по расписанию (секрет CRON_SECRET проверен): видит только включивших напоминания, только на чтение. */
+    cron: async (queries, opts) => (await run([{ text: SET_CRON }, { text: SET_ROLE }, ...queries], opts)).slice(2),
     /** От имени конкретного пользователя: всё, что касается его журнала. */
     asUser: async (userId, queries, opts) => {
       if (!/^\d{1,20}$/.test(String(userId))) throw new Error("bad user id");

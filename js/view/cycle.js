@@ -1,11 +1,12 @@
 // Вид: cycle. Только разметка: данные приходят готовыми из контроллера.
 import { PROGRAM, TYPE_NAMES, sessionLoad, weekProgress } from "../../data/program.js";
 import { DELOAD } from "../../data/progression.js";
-import { fmtTonn, plural } from "../core/format.js";
+import { esc, fmtTonn, plural } from "../core/format.js";
 import { ORDER } from "../model/catalog.js";
 import { S } from "../model/store.js";
 import { L, questName, themeNow } from "../model/theme.js";
 import { workoutOf } from "../model/training.js";
+import { num, vcls } from "./components.js";
 import { icon } from "./icons.js";
 
 export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen }) {
@@ -63,7 +64,7 @@ export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen
               <span class="wcard-body">
                 <span class="row1">
                   <span class="boss">${questName(w)}</span>
-                  ${last ? `<span class="verdict-chip ${last.cls} clickable" data-sid="${last.id}">${last.score}% ›</span>` : ""}
+                  ${last ? `<span class="verdict-chip ${vcls(last.cls)} clickable" data-sid="${esc(last.id)}">${num(last.score)}% ›</span>` : ""}
                 </span>
                 <span class="badges">
                   ${isNext ? `<span class="badge b-next">${L("nextQuest")}</span>` : ""}

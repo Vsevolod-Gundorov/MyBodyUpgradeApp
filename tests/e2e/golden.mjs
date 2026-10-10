@@ -48,6 +48,7 @@ function seed() {
     buffs: { active: { creatine: 5, arginine: 7, omega3: 2 }, checkedAt: "2026-09-20", log: { [day(11)]: { "creatine@Утро": true } },
       stock: { creatine: 40 }, custom: [] },
     nutrition: { log, recent: [], foodStats: {} }, statuses: [], achievements: {},
+    profile: { sex: "m", birthYear: 1996, height: 180, activity: "moderate", direction: "recomp", pace: "normal", program: "balanced", custom: null, experience: "intermediate", adjust: 0, override: null, maxes: { bench: 147, squat: 170, deadlift: 195, ohp: 100 }, maxesSource: "journal", createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
     meta: { exports: 0, imports: 0 }, rev: 40, updatedAt: "2026-09-25T10:00:00.000Z", sync: { syncedRev: 0, at: null },
   };
 }
@@ -150,11 +151,15 @@ async function flow(theme) {
   const fold = await page.$(".cat-fold > summary"); if (fold) { await fold.click(); await wait(200); await snap(`${theme}-buffs-catalog`); }
 
   await tab("resources"); await snap(`${theme}-resources`);
-  const q = await page.$("#app input[type=search], #app .food-search input");
-  if (q) { await q.fill("кур"); await wait(500); await snap(`${theme}-food-search`); }
-  const plus = await page.$("#app .food-add, #app [data-add-food], #app .fr-add");
-  if (plus) { await plus.click(); await wait(); await snap(`${theme}-portion`);
-    const ok = await page.$("#portion-add"); if (ok) { await ok.click(); await wait(); } await closeOverlays(); await snap(`${theme}-resources-after`); }
+  // добавление: «+» у обеда → поиск → порция → добавить (экран поиска остаётся открытым) → «Готово»
+  const addLunch = await page.$('#app .mh-add[data-add="lunch"]');
+  if (addLunch) {
+    await addLunch.click(); await wait();
+    await page.fill("#fs-q", "кур"); await wait(500); await snap(`${theme}-food-search`);
+    await page.click(".fs-row [data-open]"); await wait(); await snap(`${theme}-portion`);
+    await page.click("#portion-add"); await wait();
+    await page.click("#fs-done"); await wait(); await closeOverlays(); await snap(`${theme}-resources-after`);
+  }
 
   await tab("progress"); await snap(`${theme}-progress`);
   const log = await page.$(".log-row"); if (log) { await log.click(); await wait(); await snap(`${theme}-session-detail`); await closeOverlays(); }

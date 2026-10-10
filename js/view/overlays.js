@@ -4,14 +4,14 @@ import { EQUIP, MUSCLES, PATTERNS, exById } from "../../data/exercises.js";
 import { exerciseIcon } from "../../data/icons-exercise.js";
 import { SCHEME } from "../../data/program.js";
 import { e1rm as e1rmAvg, stateOf } from "../../data/progression.js";
-import { fmt, fmtDate, plural3 } from "../core/format.js";
+import { esc, fmt, fmtDate, plural3 } from "../core/format.js";
 import { tierName } from "../model/achievements.js";
 import { sessionExercises } from "../model/catalog.js";
 import { S } from "../model/store.js";
-import { AD, AN, AVIS, CN, L, questName } from "../model/theme.js";
+import { AD, AN, CN, L, plainNow, questName } from "../model/theme.js";
 import { poolWeight } from "../model/training.js";
 import { durationTrusted, fmtDuration } from "../timing.js";
-import { achLogHTML, achMedallion, poolRow } from "./components.js";
+import { achLogHTML, achMedallion, num, poolRow, vcls } from "./components.js";
 import { icon } from "./icons.js";
 
 export function exerciseDetailView({ alts, ex, opts, strength, used, volume, ww }) {
@@ -160,24 +160,44 @@ export function verdictView({ badges, bright, durationSec, gold, res }) {
       </svg></div>
       <div class="v-title ${res.cls}">${res.verdict}</div>
       <div class="v-sub">${res.flavor}</div>
-      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets} · +${res.xp} XP${durationSec ? ` · ⏱ ${fmtDuration(durationSec)}` : ""}</div>
+      <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets}${plainNow() ? "" : ` · +${res.xp} XP`}${durationSec ? ` · ⏱ ${fmtDuration(durationSec)}` : ""}</div>
       ${badges}
-      <button class="v-close">Вернуться к квестам</button>
+      <button class="v-close">${L("vBack")}</button>
     </div>`;
 }
 
 export function sessionDetailView({ rows, s, w }) {
   return `
     <div class="portion-card sd-card">
-      <div class="eyebrow">Прошлый квест · ${fmtDate(s.date)}</div>
-      <div class="portion-name display">${w ? questName(w) : s.workoutId}</div>
-      <div class="sd-verdict ${s.cls} mono">${s.score}% · +${s.xp} XP${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title ? ` · ${w.title}` : ""}</div>
+      <div class="eyebrow">${L("lastQuest")} · ${fmtDate(s.date)}</div>
+      <div class="portion-name display">${esc(w ? questName(w) : s.workoutId)}</div>
+      <div class="sd-verdict ${vcls(s.cls)} mono">${num(s.score)}%${plainNow() ? "" : ` · +${num(s.xp)} XP`}${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title && w.title !== questName(w) ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>
     </div>`;
 }
 
-export function achievementDetailView({ a, got }) {
+/** Полоса прогресса к следующему рангу: «37 / 50 т». */
+const progressHTML = (p) => !p ? "" : `
+  <span class="ach-prog" role="progressbar" aria-valuemin="0" aria-valuemax="${p.goal}" aria-valuenow="${Math.floor(p.cur)}">
+    <i style="width:${Math.max(3, Math.min(100, (p.cur / p.goal) * 100)).toFixed(1)}%"></i>
+  </span>
+  <span class="ach-prog-t mono">${fmt(Math.floor(p.cur * 10) / 10)} / ${fmt(p.goal)}${p.unit ? " " + p.unit : ""}</span>`;
+
+/** Ступени серии: какие ранги уже взяты и сколько до следующего. */
+const pipsHTML = (card) => card.rungs.length < 2 ? "" :
+  `<span class="ach-pips" aria-label="${card.level} из ${card.rungs.length}">${card.rungs.map((r, i) => `<i class="tier-${r.tier} ${i < card.level ? "on" : ""}"></i>`).join("")}</span>`;
+
+export function achievementDetailView({ a, got, card, earned = {} }) {
+  const ladder = card && card.rungs.length > 1 ? `
+      <div class="ach-ladder">${card.rungs.map((r) => { const g = earned[r.id]; const isNext = card.next && card.next.id === r.id; return `
+        <div class="ach-step ${g ? "got" : ""} ${r.id === a.id ? "cur" : ""}">
+          ${achMedallion(r, g ? "" : "locked")}
+          <span class="ach-step-b"><b>${AN(r)}</b><span class="dim small">${g
+            ? (g.count > 1 ? `×${g.count} · впервые ${fmtDate(g.first)}` : fmtDate(g.first))
+            : (isNext && card.progress ? "" : AD(r))}</span>${isNext ? progressHTML(card.progress) : ""}</span>
+        </div>`; }).join("")}
+      </div>` : "";
   return `
     <div class="status-detail">
       ${achMedallion(a, "medallion--lg" + (got ? "" : " locked"))}
@@ -185,31 +205,33 @@ export function achievementDetailView({ a, got }) {
       <div class="sd-title display">${AN(a)}</div>
       <div class="sd-desc">${AD(a) || ""}</div>
       ${got
-        ? `<div class="dim small mono" style="margin-top:8px">${got.count > 1 ? `получено ${got.count} раз · впервые ${got.first ? fmtDate(got.first) : "—"}` : `получено ${got.first ? fmtDate(got.first) : "—"}`}</div>
-           ${achLogHTML(got)}`
+        ? `<div class="dim small mono" style="margin-top:8px">${got.count > 1 ? `получено ${got.count} раз · впервые ${got.first ? fmtDate(got.first) : "—"}` : `получено ${got.first ? fmtDate(got.first) : "—"}`}</div>`
         : `<div class="dim small mono" style="margin-top:8px">ещё не получено</div>`}
+      ${ladder}
+      ${got ? achLogHTML(got) : ""}
       <button class="btn-ghost" id="st-close" style="margin-top:16px;max-width:200px">Закрыть</button>
     </div>`;
 }
 
-export function allAchievementsView({ cats, earned, sum }) {
+export function allAchievementsView({ cats, cards, sum }) {
   return `
     <div class="portion-card ach-card">
-      <div class="eyebrow">${L("awards")} · ${sum.total} / ${sum.of}</div>
-      <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}"><i></i>${tierName(t)} ${sum.byTier[t]}/${AVIS().filter((a) => a.tier === t).length}</span>`).join("")}</div>
+      <div class="eyebrow">${L("awards")} · ${sum.total} из ${sum.of}</div>
+      <div class="ach-tiers">${TIER_ORDER.filter((t) => cards.some((c) => c.rungs.some((r) => r.tier === t))).map((t) => `<span class="ach-tier-chip tier-${t}${sum.byTier[t] ? "" : " none"}"><i></i>${tierName(t)} ${sum.byTier[t]}</span>`).join("")}</div>
       <div class="ach-list">
         ${cats.map((cat) => {
-          const list = AVIS().filter((a) => a.cat === cat);
+          const list = cards.filter((c) => c.cat === cat);
           if (!list.length) return "";
-          return `<div class="eyebrow ach-cat">${CN(cat)} · ${list.filter((a) => earned[a.id]).length}/${list.length}</div>
-            ${list.map((a) => { const g = earned[a.id]; return `
+          return `<div class="eyebrow ach-cat">${CN(cat)} · ${list.filter((c) => c.got).length}/${list.length}</div>
+            ${list.map((c) => { const a = c.shown, g = c.got; return `
               <button class="ach-row ${g ? "" : "locked"}" data-ach="${a.id}">
                 ${achMedallion(a, g ? "" : "locked")}
                 <span class="ach-row-body">
                   <span class="ach-row-name">${AN(a)}${g && g.count > 1 ? ` <span class="ach-count">×${g.count}</span>` : ""}</span>
-                  <span class="ach-row-desc dim small">${AD(a)}</span>
+                  <span class="ach-row-desc dim small">${g && c.next ? `Дальше: ${AN(c.next)}` : AD(a)}</span>
+                  ${c.progress ? `<span class="ach-prog-row">${progressHTML(c.progress)}</span>` : ""}
                 </span>
-                <span class="ach-row-tier tier-text tier-${a.tier}">${tierName(a.tier)}</span>
+                <span class="ach-row-side">${pipsHTML(c)}<span class="ach-row-tier tier-text tier-${a.tier}">${tierName(a.tier)}</span></span>
               </button>`; }).join("")}`;
         }).join("")}
       </div>
@@ -221,7 +243,7 @@ export function verdictBadgesView({ awarded }) {
   return (awarded && awarded.length)
     ? `<div class="v-statuses">
          <div class="eyebrow" style="margin-bottom:8px">${awarded.length > 1 ? L("awards") : "Знак отличия"}</div>
-         ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${AN(u.ach)}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${u.note || AD(u.ach)}</span></span></div>`).join("")}
+         ${awarded.map((u) => `<div class="v-status">${achMedallion(u.ach)}<span><b>${AN(u.ach)}</b>${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}<span class="dim small"> — ${tierName(u.ach.tier)}${u.isNew ? "" : " · снова"} · ${esc(u.note) || AD(u.ach)}</span></span></div>`).join("")}
        </div>`
     : "";
 }
@@ -233,8 +255,9 @@ export function sessionRowsView({ s }) {
     const ceil = Math.max(...sets.map((x) => e1rmAvg(x.w, x.r)));
     const setStr = sets.map((x) => `${fmt(x.w)}×${x.r}`).join("  ");
     return `<div class="sd-ex">
-      <div class="sd-ex-top"><span class="sd-name">${ex.name}${ex.main ? ' <span class="main-badge">дв. дня</span>' : ""}</span><span class="sd-ceil mono">1ПМ ${fmt(ceil)}</span></div>
+      <div class="sd-ex-top"><span class="sd-name">${esc(ex.name)}${ex.main ? ' <span class="main-badge">дв. дня</span>' : ""}</span><span class="sd-ceil mono">1ПМ ${fmt(ceil)}</span></div>
       <div class="sd-sets mono">${setStr}</div>
+      ${s.notes && s.notes[ex.id] ? `<div class="ex-note">✎ ${esc(s.notes[ex.id])}</div>` : ""}
     </div>`;
   }).join("");
 }

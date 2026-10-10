@@ -1,7 +1,7 @@
 // Тесты бизнес-логики достижений: node --test tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ACHIEVEMENTS, ACH_BY_ID, TIERS, TIER_ORDER, evaluate, migrateLegacyStatuses, summary } from "../data/achievements.js";
+import { ACHIEVEMENTS, ACH_BY_ID, SERIES, TIERS, TIER_ORDER, achCards, collapseUnlocked, evaluate, migrateLegacyStatuses, summary } from "../data/achievements.js";
 import { GAME_ICONS } from "../data/icons.js";
 import { ACHIEVEMENT_ICONS } from "../data/icons-achievements.js";
 
@@ -177,13 +177,52 @@ test("миграция старых статусов: повторы схлоп�
   assert.deepEqual(migrateLegacyStatuses(undefined), {});
 });
 
-test("сводка по рангам", () => {
-  const s = summary({ awakened: { count: 1 }, perfect: { count: 4 }, grind100: { count: 1 } });
-  assert.equal(s.total, 3);
-  assert.equal(s.of, 100);
-  assert.equal(s.byTier.bronze, 1);
+test("сводка по рангам: карточка на серию, ранг — по старшему полученному", () => {
+  const s = summary({ awakened: { count: 1 }, perfect: { count: 4 }, grind100: { count: 1 } }, "saga");
+  assert.equal(s.total, 2, "«Первая тренировка» и «100 тренировок» — одна серия");
+  assert.equal(s.of, achCards({}, "saga").length);
+  assert.ok(s.of < ACHIEVEMENTS.length / 2, "серии сжимают список больше чем вдвое");
+  assert.equal(s.byTier.bronze, 0, "бронза перекрыта алмазом той же серии");
   assert.equal(s.byTier.gold, 1);
   assert.equal(s.byTier.diamond, 1);
+});
+
+test("серии: каждое достижение не больше чем в одной, ранги внутри растут", () => {
+  const seen = new Set();
+  for (const sr of SERIES) {
+    sr.ids.forEach((id, i) => {
+      assert.ok(ACH_BY_ID[id], `${sr.key}: нет достижения ${id}`);
+      assert.ok(!seen.has(id), `${id} в двух сериях`);
+      seen.add(id);
+      if (i) assert.ok(TIERS[ACH_BY_ID[id].tier].rank >= TIERS[ACH_BY_ID[sr.ids[i - 1]].tier].rank, `${sr.key}: ${id} ниже предыдущего`);
+      if (sr.goals) assert.ok(!i || sr.goals[i] > sr.goals[i - 1], `${sr.key}: цели не растут`);
+    });
+    if (sr.goals) assert.equal(sr.goals.length, sr.ids.length, `${sr.key}: целей не столько, сколько рангов`);
+  }
+});
+
+test("показывается только старший ранг серии, рядом — путь к следующему", () => {
+  const earned = { awakened: { count: 1, last: "2026-01-01" }, grind10: { count: 1, last: "2026-02-01" } };
+  const ctx = { totals: { sessions: 37 } };
+  const c = achCards(earned, "saga", ctx).find((x) => x.key === "sessions");
+  assert.equal(c.shown.id, "grind10", "виден «10», а не «Первая»");
+  assert.equal(c.level, 2);
+  assert.equal(c.next.id, "grind50");
+  assert.deepEqual(c.progress, { cur: 37, goal: 50, unit: "" });
+  assert.equal(c.last, "2026-02-01");
+  // ничего не получено — карточка показывает первый ранг закрытым
+  const z = achCards({}, "saga", ctx).find((x) => x.key === "sessions");
+  assert.equal(z.shown.id, "awakened"); assert.equal(z.got, null); assert.equal(z.progress.goal, 1);
+  // вершина взята — следующего нет, прогресса нет
+  const all = Object.fromEntries(SERIES.find((x) => x.key === "sessions").ids.map((id) => [id, { count: 1 }]));
+  const t = achCards(all, "saga", { totals: { sessions: 600 } }).find((x) => x.key === "sessions");
+  assert.equal(t.shown.id, "grind500"); assert.equal(t.next, null); assert.equal(t.progress, null);
+});
+
+test("пачка получений одной серии — одно уведомление, со старшим рангом", () => {
+  const u = (id) => ({ ach: ACH_BY_ID[id], count: 1, isNew: true });
+  const out = collapseUnlocked([u("awakened"), u("grind10"), u("grind50"), u("life50"), u("pr")]);
+  assert.deepEqual(out.map((x) => x.ach.id), ["grind50", "life50", "pr"]);
 });
 
 test("журнал получений: каждая выдача пишется с датой и причиной, порядок хронологический", () => {

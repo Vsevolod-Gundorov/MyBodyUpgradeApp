@@ -1,5 +1,5 @@
 // Модель: характеристики и класс персонажа.
-import { BASELINES } from "../../data/program.js";
+import { baselines, currentWeight } from "./profile.js";
 import { S } from "./store.js";
 import { themeNow } from "./theme.js";
 import { bestE1RM } from "./training.js";
@@ -7,10 +7,11 @@ import { bestE1RM } from "./training.js";
 export function heroStats() {
   const lifts = {};
   let strengthGain = 0;
-  Object.keys(BASELINES).forEach((k) => {
+  const BASE = baselines();
+  Object.keys(BASE).forEach((k) => {
     const cur = Math.max(bestE1RM(k), 0);
-    lifts[k] = { base: BASELINES[k], cur: cur || BASELINES[k] };
-    strengthGain += Math.max(0, (lifts[k].cur - BASELINES[k]) / BASELINES[k]);
+    lifts[k] = { base: BASE[k], cur: cur || BASE[k] };
+    strengthGain += Math.max(0, (lifts[k].cur - BASE[k]) / BASE[k]);
   });
   const level = Math.floor(Math.sqrt(S.xp / 40)) + 1;
   const nextXp = 40 * Math.pow(level, 2);
@@ -21,7 +22,7 @@ export function heroStats() {
   const str = Math.min(99, Math.round(62 + strengthGain * 220));
   // Мощь: суммарный расчётный 1ПМ относительно веса тела (relative strength)
   const totalE1RM = Object.values(lifts).reduce((a, v) => a + v.cur, 0);
-  const bw = S.hero.bodyweight || 90;
+  const bw = currentWeight();
   const pow = Math.min(99, Math.round((totalE1RM / bw) * 13));
   // Выносливость: средний тоннаж последних 6 сессий (т)
   const tonn = S.sessions.slice(-6).map((s) => {

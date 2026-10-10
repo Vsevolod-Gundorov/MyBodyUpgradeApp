@@ -41,7 +41,8 @@ export const defaultState = () => ({
   nutrition: {
     log: {},        // date -> { dayType: "training"|"rest", items: [{n,g,k,p,f,cb,fb,src}], water: 0 }
     recent: [],     // недавно использованные продукты (макс. 12)
-    foodStats: {},  // id -> { food, count, last } — для «частое + недавнее»
+    foodStats: {},  // id -> { food, count, last, amt?, unit? } — «частое + недавнее» и обычная порция
+    custom: [],     // свои продукты (значения на 100 г, см. data/nutrition.js → per100)
   },
   statuses: [],  // устарело: старые ситуационные статусы (переносятся в achievements при загрузке)
   achievements: {}, // id -> { count, first, last } — знаки отличия (см. data/achievements.js)
@@ -49,6 +50,10 @@ export const defaultState = () => ({
   workReset: {}, // движение -> { date, one } — рабочий максимум, поправленный руками
   feel: null,    // { date, val } — самочувствие на сегодня: от него зависят вес, подходы и отдых
   meta: { exports: 0, imports: 0 }, // счётчики служебных действий (для достижений «Хроники»)
+  profile: null, // пол, возраст, рост, цель, программа питания, опыт (см. data/profile.js)
+  body: { weights: [] }, // история веса тела: [{ date, kg }]
+  health: { complaints: [] }, // жалобы: болит плечо, ноет поясница (см. data/complaints.js)
+  exNotes: {},   // wid -> { exId: текст } — заметки к упражнениям незаконченной тренировки
   rev: 0,        // ревизия журнала — растёт с каждым сохранением
   updatedAt: null,
   sync: { syncedRev: 0, at: null }, // что и когда уехало в облако Телеграма
@@ -80,12 +85,17 @@ export function load() {
       S2.nutrition.log = (parsed.nutrition && parsed.nutrition.log) || {};
       S2.nutrition.recent = (parsed.nutrition && parsed.nutrition.recent) || [];
       S2.nutrition.foodStats = (parsed.nutrition && parsed.nutrition.foodStats) || {};
+      S2.nutrition.custom = (parsed.nutrition && Array.isArray(parsed.nutrition.custom)) ? parsed.nutrition.custom : [];
       S2.statuses = Array.isArray(parsed.statuses) ? parsed.statuses : [];
       // миграция: старые «статусы» → достижения (повторы схлопываются в счётчик)
       S2.achievements = (parsed.achievements && typeof parsed.achievements === "object")
         ? parsed.achievements : migrateLegacyStatuses(S2.statuses);
       S2.meta = Object.assign({}, base.meta, parsed.meta);
       S2.plan = (parsed.plan && typeof parsed.plan === "object") ? parsed.plan : {};
+      S2.profile = (parsed.profile && typeof parsed.profile === "object") ? parsed.profile : null;
+      S2.body = { weights: (parsed.body && Array.isArray(parsed.body.weights)) ? parsed.body.weights : [] };
+      S2.health = { complaints: (parsed.health && Array.isArray(parsed.health.complaints)) ? parsed.health.complaints : [] };
+      S2.exNotes = (parsed.exNotes && typeof parsed.exNotes === "object" && !Array.isArray(parsed.exNotes)) ? parsed.exNotes : {};
       S2.rev = Number.isFinite(parsed.rev) ? parsed.rev : 0;
       S2.sync = Object.assign({ syncedRev: 0, at: null }, parsed.sync);
       S2.settings = Object.assign({}, base.settings, parsed.settings);

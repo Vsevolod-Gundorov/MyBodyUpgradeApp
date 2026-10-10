@@ -27,7 +27,8 @@ test("монолита больше нет: точка входа одна — m
   assert.ok(!existsSync(join(JS, "app.js")), "js/app.js вернулся");
   const html = readFileSync(join(root, "index.html"), "utf8");
   const scripts = [...html.matchAll(/<script[^>]*src="([^"]+)"/g)].map((m) => m[1]).filter((s) => !s.startsWith("http"));
-  assert.deepEqual(scripts, ["js/main.js"]);
+  // js/theme-boot.js — не приложение, а три строки до отрисовки: ставит тему, чтобы не мигала
+  assert.deepEqual(scripts, ["js/theme-boot.js", "js/main.js"]);
 });
 
 test("модель не зависит от вида и контроллеров", () => {

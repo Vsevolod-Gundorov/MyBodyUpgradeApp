@@ -34,3 +34,10 @@ export const MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн
 export function addDays(iso, n) { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
 export function dateLabel(iso) { const d = new Date(iso + "T00:00:00Z"); return `${WD[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; }
+
+/**
+ * Текст в разметку: названия продуктов приходят из Open Food Facts, общего каталога
+ * и от пользователя — без экранирования «<img …>» в названии стал бы частью страницы.
+ */
+const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ESC[c]);

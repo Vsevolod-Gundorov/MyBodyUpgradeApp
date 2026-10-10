@@ -64,10 +64,12 @@ test("подпись берётся только из заголовка Authori
   assert.equal(initDataFromRequest(r({})), "");
 });
 
-/* ================= закрытая бета ================= */
-test("закрытая бета: по умолчанию никого; @username без учёта регистра; id числом", () => {
-  const none = config({}).allowed;
-  assert.equal(isAllowed({ id: "1", username: "vsevolod214" }, none), false);
+/* ================= кого пускать ================= */
+test("без ALLOWED_USERS пускаем всех с подписью; со списком — по @username без учёта регистра и id", () => {
+  const open = config({}).allowed;
+  assert.equal(isAllowed({ id: "1", username: "anyone" }, open), true);
+  assert.equal(isAllowed({ id: "1", username: null }, open), true);
+  assert.equal(isAllowed(null, open), false, "без проверенного пользователя — никого");
   const al = config({ ALLOWED_USERS: " @Vsevolod214 , 42,, friend " }).allowed;
   assert.equal(isAllowed({ id: "9", username: "VSEVOLOD214" }, al), true);
   assert.equal(isAllowed({ id: "42", username: null }, al), true);
@@ -129,7 +131,7 @@ test("SQL: ни одного запроса, собранного из стро�
     // текст запроса — только литерал без подстановок
     const sqlTemplates = [...s.matchAll(/text:\s*`([^`]*)`/g)].map((m) => m[1]);
     for (const t of sqlTemplates) assert.ok(!t.includes("${"), `${rel(f)}: подстановка в SQL`);
-    assert.ok(!/text:\s*[^`"'\s{]/.test(s.replace(/text:\s*(SET_(USER|ROLE)|m\.sql)\b/g, "")), `${rel(f)}: текст запроса не литерал`);
+    assert.ok(!/text:\s*[^`"'\s{]/.test(s.replace(/text:\s*(SET_(USER|ROLE|CRON)|m\.sql)\b/g, "")), `${rel(f)}: текст запроса не литерал`);
     // и не склейка литерала с чем-то: "SELECT " + id, `…`.concat(x)
     assert.ok(!/text:\s*("[^"]*"|'[^']*'|`[^`]*`)\s*(\+|\.concat\b)/.test(s), `${rel(f)}: склейка строк в SQL`);
     assert.ok(!/\b(unsafe|escapeLiteral|escapeIdentifier)\s*\(/.test(s), `${rel(f)}: запрещённые обходы параметров`);

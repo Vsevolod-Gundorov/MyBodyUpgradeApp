@@ -21,12 +21,15 @@ const seed = process.env.SEED ? JSON.parse(readFileSync(process.env.SEED, "utf8"
   hero: { name: "Всеволод", title: "Одинокий Гриндер", bodyweight: 93 }, xp: 1200, rev: 340,
   sessions: Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, workoutId: "A", date: `2026-09-${String(i + 1).padStart(2, "0")}`, verdict: "ok", entries: { squat: [{ w: 100 + i, r: 5 }] } })),
   settings: { sound: false, haptics: true, offSearch: true, theme: "plain" },
+  profile: { sex: "m", birthYear: 1996, height: 180, activity: "moderate", direction: "recomp", pace: "normal", program: "balanced", custom: null, experience: "intermediate", adjust: 0, override: null, maxes: { bench: 147, squat: 170, deadlift: 195, ohp: 100 }, maxesSource: "journal", createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
 };
 seed.rev = Math.max(seed.rev || 0, 340);
+seed.profile ||= { sex: "m", birthYear: 1996, height: 180, activity: "moderate", direction: "recomp", pace: "normal", program: "balanced", custom: null, experience: "intermediate", adjust: 0, override: null, maxes: { bench: 147, squat: 170, deadlift: 195, ohp: 100 }, maxesSource: "journal", createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" };   // без профиля приложение открывает мастер знакомства
 const SEED_SESSIONS = seed.sessions.length;
 
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
+await db.query("DELETE FROM users WHERE id = ANY($1::bigint[])", [[OWNER.id, GUEST.id]]).catch(() => {});   // журналы и версии — каскадом
 await db.query("DELETE FROM journals WHERE user_id = ANY($1::bigint[])", [[OWNER.id, GUEST.id]]).catch(() => {});
 await db.query("DELETE FROM journal_versions WHERE user_id = ANY($1::bigint[])", [[OWNER.id, GUEST.id]]).catch(() => {});
 await db.query("DELETE FROM rate_limits").catch(() => {});
@@ -95,8 +98,8 @@ await shot(d2.page, "2-second-device.png");
 
 /* 3. Правка на втором устройстве уезжает на сервер */
 await d2.page.click("#edit-bw");
-await d2.page.fill("#bw-in", "91.5");
-await d2.page.click("#bw-save");
+await d2.page.fill("#ws-kg", "91.5");
+await d2.page.click("#ws-save");
 await settle(d2.page, "сохраняю…");
 check("правка: отправлена", await settle(d2.page));
 row = await serverRow();
@@ -111,13 +114,13 @@ check("первое устройство: правка приехала", l1.her
 /* 5. Конфликт: оба меняли, пока одно было без сети */
 await d1.ctx.route(/\/api\//, (r) => r.abort());
 await d1.page.evaluate(() => { document.getElementById("edit-bw").click(); });
-await d1.page.fill("#bw-in", "90");
-await d1.page.click("#bw-save");
+await d1.page.fill("#ws-kg", "90");
+await d1.page.click("#ws-save");
 check("без сети: статус честный, журнал на устройстве", await settle(d1.page, "нет сети · сохранено здесь"));
 await shot(d1.page, "3-offline.png");
 await d2.page.click("#edit-bw");
-await d2.page.fill("#bw-in", "92");
-await d2.page.click("#bw-save");
+await d2.page.fill("#ws-kg", "92");
+await d2.page.click("#ws-save");
 await settle(d2.page, "сохраняю…"); await settle(d2.page);
 await d1.ctx.unroute(/\/api\//);
 await d1.page.reload();
@@ -128,14 +131,24 @@ check("конфликт: взята версия с сервера (OK)", l1c.he
 const bak = await d1.page.evaluate((k) => localStorage.getItem(k), `bodyupgrade.v1.u${OWNER.id}.before-pull`);
 check("конфликт: своя версия сохранена резервной копией", !!bak && JSON.parse(bak).hero.bodyweight === 90);
 
-/* 6. Не приглашённый: сервер не пускает, приложение работает как раньше */
+/* 6. Новый человек. Без ALLOWED_USERS — заводится в базе сам при первом запуске;
+      со списком и не в нём — сервер не пускает, приложение работает как раньше */
+const open = !process.env.ALLOWED_USERS;
 const g = await device(GUEST, { local: { ...seed, hero: { ...seed.hero, name: "Гость" } } });
-check("гость: «нет доступа к серверу»", await settle(g.page, "нет доступа к серверу"));
-const gRow = (await db.query("SELECT 1 FROM journals WHERE user_id = $1::bigint", [GUEST.id])).rows;
-check("гость: на сервере ничего", gRow.length === 0);
+const gUser = async () => (await db.query("SELECT username FROM users WHERE id = $1::bigint", [GUEST.id])).rows;
+const gRow = async () => (await db.query("SELECT 1 FROM journals WHERE user_id = $1::bigint", [GUEST.id])).rows;
+if (open) {
+  check("новый: синхронизировано", await settle(g.page));
+  check("новый: сам завёлся в базе при запуске", (await gUser()).length === 1 && (await gUser())[0].username === GUEST.username);
+  check("новый: его журнал на сервере", (await gRow()).length === 1);
+  await shot(g.page, "4-new-user.png");
+} else {
+  check("гость: «нет доступа к серверу»", await settle(g.page, "нет доступа к серверу"));
+  check("гость: в базе его нет", (await gUser()).length === 0 && (await gRow()).length === 0);
+  await shot(g.page, "4-not-invited.png");
+}
 const gl = await local(g.page, GUEST.id);
-check("гость: журнал на устройстве цел", gl.sessions.length === SEED_SESSIONS);
-await shot(g.page, "4-not-invited.png");
+check("журнал на устройстве цел", gl.sessions.length === SEED_SESSIONS);
 
 /* 7. Обычный браузер без Telegram — ни одного запроса к серверу */
 const plainCtx = await b.newContext({ viewport: { width: 414, height: 900 } });

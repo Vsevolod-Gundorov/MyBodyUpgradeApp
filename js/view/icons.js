@@ -27,7 +27,8 @@ Object.entries(PLAIN_ICONS).forEach(([k, v]) => (LINE_ICONS[k] = { vb: PLAIN_VB,
 
 export const icon = (name, cls = "") => {
   // анатомические иконки движений одинаковы в обеих темах: они и так предметные
-  const g = (themeNow() === "plain" && LINE_ICONS[name]) || ICONS[name] || LINE_ICONS[name];
+  const own = (o) => (Object.prototype.hasOwnProperty.call(o, name) ? o[name] : null);   // только свои иконки, не «__proto__»
+  const g = (themeNow() === "plain" && own(LINE_ICONS)) || own(ICONS) || own(LINE_ICONS);
   if (!g) return "";
   const a = g.stroke
     ? ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'

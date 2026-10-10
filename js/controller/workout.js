@@ -7,14 +7,18 @@ import { openPairPicker, openPoolPicker, showExerciseDetail, showInfo, showMetho
 import { startRest, stopRestSilent, timedSets } from "./rest.js";
 import { render, setBack, setCycleSub, setView, withLoader } from "./router.js";
 import { today } from "../core/format.js";
+import { saferAlternatives } from "../../data/complaints.js";
 import { checkAchievements } from "../model/achievements.js";
+import { activeNow, answerCheck, exNote, takeNotes, toCheck } from "../model/health.js";
 import { WEEK_OF, planOf, setPlan } from "../model/catalog.js";
+import { markTrainingDay } from "../model/nutrition.js";
 import { S, save } from "../model/store.js";
 import { L, questName } from "../model/theme.js";
 import { bestE1RM, feelToday, invalidateE1RM, lastDone, repZone, scoreSession, setFeelToday, smartRest, workoutOf } from "../model/training.js";
 import { app } from "../view/dom.js";
 import { fxTap } from "../view/fx.js";
-import { countView, dotsView, exerciseCardView, roundLabelView, roundRowView, setRowView, supersetCardView, workoutHelpView, workoutView } from "../view/workout.js";
+import { openComplaints, openExerciseNote } from "./health.js";
+import { countView, dotsView, exerciseCardView, healthBoxView, roundLabelView, roundRowView, setRowView, supersetCardView, workoutHelpView, workoutView } from "../view/workout.js";
 
 export let questTimerId = null;         // интервал часов квеста (перерисовывается на каждый render)
 
@@ -69,8 +73,10 @@ export function renderWorkout(wid) {
     if (!el) { clearInterval(questTimerId); return; }
     const b = el.querySelector("b");
     const ticks = (S.questTicks && S.questTicks[wid]) || [];
-    // до первого подхода показываем прочерк: тренировка ещё не началась
-    if (b) b.textContent = ticks.length ? fmtDuration(activeSeconds(ticks, { now: Date.now() })) : "—";
+    // до первого подхода часы стоят на нуле и приглушены: тренировка ещё не началась
+    if (b) b.textContent = ticks.length ? fmtDuration(activeSeconds(ticks, { now: Date.now() })) : "0:00";
+    el.classList.toggle("idle", !ticks.length);
+    el.title = ticks.length ? "Чистое время тренировки" : "Часы пойдут с первого подхода";
   };
   upQt();
   questTimerId = setInterval(upQt, 1000);
@@ -80,6 +86,25 @@ export function renderWorkout(wid) {
     const prev = (S.questTicks && S.questTicks[wid]) || [];
     const next = pushTick(prev);
     if (next.length !== prev.length) { S.questTicks[wid] = next; save(); }
+  };
+
+  // жалобы: «как плечо?» и что сейчас облегчается
+  const hb = document.getElementById("health-box");
+  if (hb) {
+    hb.innerHTML = healthBoxView({ check: toCheck(), active: activeNow(), today: today() });
+    hb.querySelectorAll("[data-hc]").forEach((b) => b.onclick = () => {
+      answerCheck(b.dataset.hc, b.dataset.ans); invalidateE1RM(); save(); fxTap(); renderWorkout(wid);
+    });
+    const mg = hb.querySelector("#hb-manage");
+    if (mg) mg.onclick = () => openComplaints(() => renderWorkout(wid));
+  }
+  // замена при жалобе: сначала то, что больную зону не грузит
+  const swapSuggest = (id) => {
+    const sim = similarTo(id, 20);
+    const act = activeNow();
+    if (!act.length) return similarTo(id);
+    const safe = new Set(saferAlternatives(id, act, sim.map((x) => x.id)));
+    return [...sim.filter((x) => safe.has(x.id)), ...sim.filter((x) => !safe.has(x.id))].slice(0, 12);
   };
 
   const list = document.getElementById("ex-list");
@@ -118,7 +143,7 @@ export function renderWorkout(wid) {
     const mv = moveLabel(ex.wp);
     const dots = (n) => dotsView(n, ex.sets);
 
-    el.innerHTML = exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, src, target, wNoteShort });
+    el.innerHTML = exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, src, target, wNoteShort, note: exNote(wid, ex.id) });
     const mark = document.createElement("div");
     mark.className = "ex-mark";
     parent.appendChild(mark);
@@ -285,8 +310,11 @@ export function renderWorkout(wid) {
     drawSets(); upd();
 
     // инструменты: заменить / разбор / убрать
+    el.querySelector("[data-note]").onclick = () => openExerciseNote(wid, ex, w.exercises, () => renderWorkout(wid));
+    const safeBtn = el.querySelector("[data-safe]");
+    if (safeBtn) safeBtn.onclick = (e) => { e.stopPropagation(); el.querySelector("[data-swap]").click(); };
     el.querySelector("[data-swap]").onclick = () => openPoolPicker({
-      title: `Замена: ${ex.name}`, wid, suggest: similarTo(ex.id), exclude: w.exercises.map((x) => x.id),
+      title: `Замена: ${ex.name}`, wid, suggest: swapSuggest(ex.id), exclude: w.exercises.map((x) => x.id),
       onPick: (id) => {
         const pl = planOf(wid);
         const orig = ex.swappedFrom || ex.id;
@@ -469,7 +497,7 @@ export function renderWorkout(wid) {
       const id = b.dataset.swap;
       const cur = pair.find((x) => x.id === id);
       openPoolPicker({
-        title: `Замена: ${cur.name}`, wid, suggest: similarTo(id), exclude: w.exercises.map((x) => x.id),
+        title: `Замена: ${cur.name}`, wid, suggest: swapSuggest(id), exclude: w.exercises.map((x) => x.id),
         onPick: (nid) => {
           const pl2 = planOf(wid);
           const orig = cur.swappedFrom || id;
@@ -533,8 +561,9 @@ export function renderWorkout(wid) {
     const now = new Date();
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
     // rir нужен прогрессии: по нему схемы разных недель пересчитываются друг в друга
-    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload, prior: ex.prior || 0 }));
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: feelToday(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e });
+    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload, prior: ex.prior || 0, ease: ex.ease ? ex.ease.k : 0 }));
+    markTrainingDay(today());   // нормы питания на сегодня — как для дня тренировки
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: feelToday(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e, ...(() => { const n = takeNotes(wid); return n ? { notes: n } : {}; })() });
     S.xp += res.xp;
     invalidateE1RM();
     delete S.drafts[wid];
@@ -551,7 +580,7 @@ export function renderWorkout(wid) {
       session: { score: res.score, doneSets: res.doneSets, plannedSets: res.plannedSets, tonn, durationSec,
         prLifts, prDetails, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
         hour: now.getHours(), feel: feelToday(), totalReps, gapDays, workoutId: wid,
-        quest: w.boss, timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+        quest: questName(w), timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
         durationStr: durationSec ? fmtDuration(durationSec) : "" },
     }, { silent: true });
     save();

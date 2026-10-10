@@ -1,0 +1,40 @@
+# Напоминания о добавках по расписанию: раз в 10 минут дёргает сервер приложения.
+# На бесплатном тарифе Vercel свой cron запускается лишь раз в сутки — этого мало.
+#
+# Один раз настроить:
+#   1. Придумать длинный случайный секрет (32+ символа), например: openssl rand -hex 32
+#   2. Vercel → Settings → Environment Variables: CRON_SECRET = этот секрет (Sensitive) → Redeploy
+#   3. GitHub → Settings → Secrets and variables → Actions → New repository secret:
+#      CRON_SECRET = тот же секрет
+# Без секрета задание ничего не делает и не падает. Секрет в логи не попадает.
+name: Напоминания о добавках
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: reminders
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Разослать, что пора
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://my-body-upgrade-app.vercel.app' }}
+        run: |
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "Секрет CRON_SECRET не задан — напоминания по расписанию выключены"
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' --max-time 330 \
+            -H "Authorization: Bearer ${CRON_SECRET}" "${APP_URL%/}/api/reminders?cron=1")
+          echo "HTTP ${code}: $(head -c 200 /tmp/out.json)"
+          [ "$code" = "200" ]

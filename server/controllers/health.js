@@ -13,7 +13,7 @@ export async function handleHealth(request, deps) {
   try {
     const [[role], [tables]] = await deps.db.app([
       { text: "SELECT current_user AS role, rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user" },
-      { text: "SELECT bool_and(relrowsecurity AND relforcerowsecurity) AS forced FROM pg_class WHERE relname = ANY($1::text[]) AND relnamespace = 'public'::regnamespace", params: [["users", "journals", "journal_versions"]] },
+      { text: "SELECT bool_and(relrowsecurity AND relforcerowsecurity) AS forced FROM pg_class WHERE relname = ANY($1::text[]) AND relnamespace = 'public'::regnamespace", params: [["users", "journals", "journal_versions", "reminder_settings", "reminder_sent", "rest_timers"]] },
     ], { readOnly: true });
     const rls = role.bypass === false && tables.forced === true;
     return json(200, { ok: rls, configured: true, db: "ok", schema: SCHEMA_VERSION, rls, isolation: deps.db.isolation });

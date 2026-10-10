@@ -5,12 +5,12 @@ import { LIMITS } from "../config.js";
 import { BodyTooLarge, fail, json, readBody } from "../http.js";
 import { getJournal, pruneVersions, saveJournal } from "../models/journal.js";
 import * as rate from "../models/rateLimit.js";
-import { touchUser } from "../models/user.js";
 import { ValidationError, parseJournalBody } from "../security/validate.js";
 import { conflictView, journalView, savedView } from "../views/journal.js";
 import { guard, logDbError } from "./guard.js";
 
 export async function handleJournal(request, deps) {
+  const L = deps.limits || LIMITS;
   if (request.method !== "GET" && request.method !== "PUT") return fail(405, "method_not_allowed", { allow: "GET, PUT" });
   const g = await guard(request, deps);
   if (g.response) return g.response;
@@ -19,7 +19,7 @@ export async function handleJournal(request, deps) {
 
   if (request.method === "GET") {
     try {
-      const [, rows] = await db.asUser(user.id, [touchUser(user.id, user.username), getJournal(user.id)]);
+      const [rows] = await db.asUser(user.id, [getJournal(user.id)]);
       return json(200, journalView(rows[0]));
     } catch (e) { logDbError("journal.get", e); return fail(503, "db_unavailable"); }
   }
@@ -29,13 +29,13 @@ export async function handleJournal(request, deps) {
   if (type !== "application/json") return fail(415, "unsupported_media_type");
 
   try {
-    const [[w]] = await db.app([rate.hit(`w:${user.id}`, LIMITS.RATE_WRITE.windowSec)]);
-    if (Number(w.hits) > LIMITS.RATE_WRITE.max) return fail(429, "rate_limited", { "retry-after": String(LIMITS.RATE_WRITE.windowSec) });
+    const [[w]] = await db.app([rate.hit(`w:${user.id}`, L.RATE_WRITE.windowSec)]);
+    if (Number(w.hits) > L.RATE_WRITE.max) return fail(429, "rate_limited", { "retry-after": String(L.RATE_WRITE.windowSec) });
   } catch (e) { logDbError("rate", e); return fail(503, "db_unavailable"); }
 
   let body;
   try {
-    const text = await readBody(request, LIMITS.BODY_BYTES);
+    const text = await readBody(request, L.BODY_BYTES);
     body = parseJournalBody(text);
   } catch (e) {
     if (e instanceof BodyTooLarge) return fail(413, "too_large");
@@ -46,10 +46,9 @@ export async function handleJournal(request, deps) {
 
   const dataJson = JSON.stringify(body.data);
   try {
-    const [, [row]] = await db.asUser(user.id, [
-      touchUser(user.id, user.username),
-      saveJournal({ userId: user.id, dataJson, rev: body.rev, baseRev: body.baseRev, sizeBytes: Buffer.byteLength(dataJson), reason: body.reason }),
-      pruneVersions(user.id, LIMITS.VERSIONS_KEPT),
+    const [[row]] = await db.asUser(user.id, [
+      saveJournal({ userId: user.id, dataJson, rev: body.rev, baseRev: body.baseRev, sizeBytes: Buffer.byteLength(dataJson), reason: body.reason, versionEverySec: L.VERSION_EVERY_SEC }),
+      pruneVersions(user.id, L.VERSIONS_KEPT, L.VERSIONS_BYTES),
     ]);
     if (row.saved_rev == null) return json(409, conflictView(row));
     return json(200, savedView(row));

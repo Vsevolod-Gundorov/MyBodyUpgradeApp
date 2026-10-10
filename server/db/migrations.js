@@ -85,6 +85,127 @@ BEGIN
 END
 $mig$;`,
   },
+  {
+    version: 2,
+    name: "размер версии журнала — для ограничения истории по объёму",
+    // Столбец вычисляет сама база, в том числе для уже лежащих версий: ALTER TABLE
+    // пересчитывает их без участия RLS, а приложение не может записать туда неправду.
+    sql: `
+DO $mig$
+BEGIN
+  IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = 2) THEN RETURN; END IF;
+  ALTER TABLE journal_versions
+    ADD COLUMN size_bytes integer GENERATED ALWAYS AS (octet_length(data::text)) STORED;
+  CREATE INDEX journal_versions_recent_idx ON journal_versions (user_id, created_at DESC);
+  INSERT INTO schema_migrations (version, name) VALUES (2, 'version size');
+END
+$mig$;`,
+  },
+  {
+    version: 3,
+    name: "общий каталог продуктов",
+    // Каталог общий для всех: в нём только продукты Open Food Facts, которые сервер
+    // сам перепроверил по штрихкоду. Своих продуктов пользователей здесь нет — они
+    // в журнале каждого. Поиск с опечатками — по триграммам (pg_trgm, доверенное
+    // расширение: его может включить владелец базы, суперпользователь не нужен).
+    sql: `
+DO $mig$
+BEGIN
+  IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = 3) THEN RETURN; END IF;
+  CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  CREATE TABLE foods (
+    code        text PRIMARY KEY CHECK (code ~ '^[0-9]{4,32}$'),
+    name        text NOT NULL CHECK (length(name) BETWEEN 1 AND 120),
+    k           smallint NOT NULL CHECK (k BETWEEN 0 AND 900),
+    p           real NOT NULL CHECK (p BETWEEN 0 AND 100),
+    f           real NOT NULL CHECK (f BETWEEN 0 AND 100),
+    cb          real NOT NULL CHECK (cb BETWEEN 0 AND 100),
+    fb          real NOT NULL CHECK (fb BETWEEN 0 AND 100),
+    fb_est      boolean NOT NULL DEFAULT false,
+    drink       boolean NOT NULL DEFAULT false,
+    hy          real CHECK (hy IS NULL OR hy BETWEEN 0 AND 1),
+    sv          real CHECK (sv IS NULL OR (sv > 0 AND sv <= 2000)),
+    uses        integer NOT NULL DEFAULT 1 CHECK (uses >= 0),
+    search      text GENERATED ALWAYS AS (replace(lower(name), 'ё', 'е')) STORED,
+    checked_at  timestamptz NOT NULL DEFAULT now(),
+    created_at  timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX foods_search_trgm ON foods USING gin (search gin_trgm_ops);
+  REVOKE ALL ON foods FROM PUBLIC;
+  GRANT SELECT, INSERT, UPDATE ON foods TO bu_app;
+  INSERT INTO schema_migrations (version, name) VALUES (3, 'foods catalog');
+END
+$mig$;`,
+  },
+  {
+    version: 4,
+    name: "напоминания в Telegram: добавки по расписанию и конец отдыха",
+    // Настройки — у каждого свои (RLS). Расписание добавок проходит по всем, у кого
+    // напоминания включены, — это делает только запуск по расписанию с секретом
+    // CRON_SECRET: он ставит app.cron, и отдельная политика пускает его читать
+    // ровно эти строки и только на чтение. Тексты напоминаний — короткие строки
+    // без разметки, проверяются сервером.
+    sql: `
+DO $mig$
+BEGIN
+  IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = 4) THEN RETURN; END IF;
+
+  CREATE TABLE reminder_settings (
+    user_id     bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    supp        boolean NOT NULL DEFAULT false,
+    rest        boolean NOT NULL DEFAULT false,
+    tz_min      smallint NOT NULL DEFAULT 180 CHECK (tz_min BETWEEN -840 AND 840),
+    slots       jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(slots) = 'array' AND jsonb_array_length(slots) <= 8),
+    updated_at  timestamptz NOT NULL DEFAULT now()
+  );
+
+  -- что отправлено: не слать дважды и удалить сообщение через минуту
+  CREATE TABLE reminder_sent (
+    user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key         text NOT NULL CHECK (key ~ '^[a-z]+:[0-9A-Za-z_:-]{1,60}$'),
+    message_id  bigint,
+    delete_at   timestamptz,
+    deleted     boolean NOT NULL DEFAULT false,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, key)
+  );
+  CREATE INDEX reminder_sent_delete_idx ON reminder_sent (delete_at) WHERE NOT deleted AND message_id IS NOT NULL;
+
+  -- один таймер отдыха на человека: новый подход заменяет старый, «пропустить» отменяет
+  CREATE TABLE rest_timers (
+    user_id     bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    token       text NOT NULL CHECK (token ~ '^[A-Za-z0-9_-]{8,40}$'),
+    fire_at     timestamptz NOT NULL,
+    cancelled   boolean NOT NULL DEFAULT false
+  );
+
+  REVOKE ALL ON reminder_settings, reminder_sent, rest_timers FROM PUBLIC;
+  GRANT SELECT, INSERT, UPDATE ON reminder_settings TO bu_app;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON reminder_sent TO bu_app;
+  GRANT SELECT, INSERT, UPDATE ON rest_timers TO bu_app;
+
+  ALTER TABLE reminder_settings ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE reminder_settings FORCE ROW LEVEL SECURITY;
+  CREATE POLICY rs_own ON reminder_settings TO bu_app
+    USING (user_id = nullif(current_setting('app.user_id', true), '')::bigint) WITH CHECK (user_id = nullif(current_setting('app.user_id', true), '')::bigint);
+  -- запуск по расписанию: только чтение и только тех, кто включил добавки
+  CREATE POLICY rs_cron ON reminder_settings FOR SELECT TO bu_app
+    USING (current_setting('app.cron', true) = 'reminders' AND supp);
+
+  ALTER TABLE reminder_sent ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE reminder_sent FORCE ROW LEVEL SECURITY;
+  CREATE POLICY sent_own ON reminder_sent TO bu_app
+    USING (user_id = nullif(current_setting('app.user_id', true), '')::bigint) WITH CHECK (user_id = nullif(current_setting('app.user_id', true), '')::bigint);
+
+  ALTER TABLE rest_timers ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE rest_timers FORCE ROW LEVEL SECURITY;
+  CREATE POLICY rest_own ON rest_timers TO bu_app
+    USING (user_id = nullif(current_setting('app.user_id', true), '')::bigint) WITH CHECK (user_id = nullif(current_setting('app.user_id', true), '')::bigint);
+
+  INSERT INTO schema_migrations (version, name) VALUES (4, 'reminders');
+END
+$mig$;`,
+  },
 ];
 
 export const SCHEMA_VERSION = Math.max(...MIGRATIONS.map((m) => m.version));

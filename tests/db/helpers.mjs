@@ -37,6 +37,8 @@ export async function freshDatabase() {
   return {
     name,
     ownerUrl: urlFor(ADMIN_URL, "bu_owner", ownerPw, name),
+    // суперпользователь в тестовой базе: подсмотреть и подкрутить время мимо RLS — только для проверок
+    adminUrl: (() => { const u = new URL(ADMIN_URL); u.pathname = `/${name}`; return u.toString(); })(),
     strangerUrl: urlFor(ADMIN_URL, "bu_stranger", strangerPw, name),
     async drop() {
       const a = new pg.Client({ connectionString: ADMIN_URL });

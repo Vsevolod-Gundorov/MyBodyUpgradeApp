@@ -7,7 +7,9 @@ import { S, save } from "../model/store.js";
 import { app, overlayRoot } from "../view/dom.js";
 import { fxChime, fxTap } from "../view/fx.js";
 import { icon } from "../view/icons.js";
-import { buffCatalogView, buffEditorView, buffReminderView, buffsView, doseChecklistView, doseInputView, lowStockView, stockCardsView } from "../view/buffs.js";
+import { buffCatalogView, buffEditorView, buffRemindRowView, buffReminderView, buffsView, doseChecklistView, doseInputView, lowStockView, stockCardsView } from "../view/buffs.js";
+import { reminders, syncReminders } from "../model/reminders.js";
+import { remindersAvailable, toggleReminder } from "./reminders.js";
 
 export function renderBuffs() {
   if (!S.buffs.log) S.buffs.log = {}; if (!S.buffs.stock) S.buffs.stock = {};
@@ -41,7 +43,12 @@ export function renderBuffs() {
 
   const lowAlert = lowStockView({ lowList });
 
-  app.innerHTML = buffsView({ activeBuffs, arsenal, checklist, lowAlert, reminder, stockCards, taken, total });
+  const remindRow = activeBuffs.length ? buffRemindRowView({ on: !!reminders().supp, available: remindersAvailable() }) : "";
+  app.innerHTML = buffsView({ activeBuffs, arsenal, checklist, lowAlert, reminder, stockCards, taken, total, remindRow });
+  const rm = document.getElementById("buff-remind");
+  if (rm) rm.onclick = () => { fxTap(); toggleReminder("supp", render); };
+  // состав добавок или доза поменялись — расписание напоминаний тоже (с паузой, без лишних запросов)
+  if (reminders().supp) syncReminders();
 
   const check = document.getElementById("buff-check");
   if (check) check.onclick = () => { S.buffs.checkedAt = today(); fxTap(); save(); render(); };

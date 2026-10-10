@@ -83,8 +83,13 @@ test("подпись Telegram уходит только на свой серве
   }
   const srv = read("js/model/server.js");
   const fetches = [...srv.matchAll(/fetch\(([^,)]+)/g)].map((m) => m[1].trim());
-  assert.deepEqual(fetches, ["API"], "модель сервера ходит только по одному адресу");
-  assert.match(srv, /const API = "\/api\/journal";/, "адрес — свой, относительный");
+  assert.deepEqual(fetches, ["url"], "модель сервера ходит в одно место");
+  assert.match(srv, /url = API, signal/, "по умолчанию — журнал");
+  assert.match(srv, /const REMIND_API = "\/api\/reminders";/, "напоминания — тоже свой адрес");
+  assert.match(srv, /const API = "\/api\/journal";/, "адреса — свои, относительные");
+  assert.match(srv, /const FOODS_API = "\/api\/foods";/);
+  const urls = [...srv.matchAll(/url: (`[^`]*`|\w+)/g)].map((m) => m[1].trim());
+  assert.ok(urls.length && urls.every((u) => /^(`\$\{FOODS_API\}\?q=\$\{encodeURIComponent\(q\)\}`|FOODS_API|REMIND_API)$/.test(u)), `адреса запросов: ${urls}`);
   assert.match(srv, /credentials: "omit"/, "без cookies");
   assert.match(srv, /redirect: "error"/, "подпись не уходит по перенаправлению");
   assert.match(srv, /authorization: `tma \$\{tgInitData\(\)\}`/);
@@ -104,9 +109,11 @@ test("политика безопасности на сервере совпад
     assert.ok(headers.some((h) => h.key === key), `нет заголовка ${key}`);
   }
   const perms = headers.find((h) => h.key === "Permissions-Policy").value;
-  for (const feat of ["camera", "microphone", "geolocation"]) {
+  for (const feat of ["microphone", "geolocation", "payment", "usb"]) {
     assert.match(perms, new RegExp(`${feat}=\\(\\)`), `${feat} должен быть запрещён`);
   }
+  // камера нужна сканеру штрихкодов — но только самому приложению, не встроенным страницам
+  assert.match(perms, /camera=\(self\)/, "камера — только для своего адреса");
 });
 
 test("секреты закрыты: .env не в репозитории, образец без значений", () => {
@@ -203,4 +210,11 @@ test("хук pre-commit блокирует .env и токены", () => {
   assert.match(hook, /\.env\|\.env\.\*/);
   assert.match(hook, /\[0-9\]\{6,12\}:\[A-Za-z0-9_-\]\{30,\}/);
   assert.match(hook, /exit 1/);
+});
+
+test("в index.html нет встроенных скриптов: CSP их запрещает, значит они молча не работают", () => {
+  const html = read("index.html");
+  const inline = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, attrs, body]) => !/\bsrc=/.test(attrs) || body.trim());
+  assert.equal(inline.length, 0, "встроенный <script> без src");
+  assert.doesNotMatch(html, /\son[a-z]+\s*=/i, "обработчики событий в разметке (onclick=…) тоже встроенный скрипт");
 });

@@ -5,7 +5,8 @@ import { EQUIP_ICON } from "../../data/icons-ui.js";
 import { exerciseIcon } from "../../data/icons-exercise.js";
 import { moveLabel } from "../../data/progression.js";
 import { sessionLoad } from "../../data/program.js";
-import { fmt, fmtDate } from "../core/format.js";
+import { esc, fmt, fmtDate } from "../core/format.js";
+import { plainText } from "../model/theme.js";
 import { poolWeight, workoutOf } from "../model/training.js";
 import { icon } from "./icons.js";
 
@@ -73,6 +74,11 @@ export function coverSummary(cov) {
   return `Все ${core.length} основных групп работают дважды в неделю — неделя собрана правильно`;
 }
 
+/* Данные журнала могут прийти из файла или с другого устройства: в разметку — только
+   известный класс вердикта и только числа там, где ждём число. */
+export const vcls = (c) => (/^verdict-(gold|mid|fail)$/.test(String(c)) ? c : "verdict-mid");
+export const num = (v) => (Number.isFinite(+v) ? +v : 0);
+
 export const achMedallion = (a, cls = "") => `<span class="medallion tiered tier-${a.tier} ${cls}">${icon(a.icon || "gem")}</span>`;
 
 /* журнал получений знака: дата и причина каждого раза, свежие сверху */
@@ -82,7 +88,7 @@ export function achLogHTML(got) {
   const rows = [...log].reverse();
   return `<div class="ach-log">
     <div class="eyebrow" style="margin-bottom:6px">Журнал получений · ${rows.length}</div>
-    ${rows.map((e, i) => `<div class="ach-log-row"><span class="mono ach-log-n">${rows.length - i}</span><span class="mono ach-log-date">${e.date ? fmtDate(e.date) : "—"}</span><span class="ach-log-note">${e.note || "—"}</span></div>`).join("")}
+    ${rows.map((e, i) => `<div class="ach-log-row"><span class="mono ach-log-n">${rows.length - i}</span><span class="mono ach-log-date">${e.date ? fmtDate(e.date) : "—"}</span><span class="ach-log-note">${esc(plainText(e.note)) || "—"}</span></div>`).join("")}
   </div>`;
 }
 

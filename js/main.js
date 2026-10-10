@@ -10,6 +10,8 @@ import { inTelegram, initTelegram, tgUserName } from "./telegram.js";
 import { applyTheme, backHandler, initRouter, render } from "./controller/router.js";
 import { initKeyboard } from "./controller/keyboard.js";
 import { showAchievementToast } from "./controller/overlays.js";
+import { openProfileWizard } from "./controller/onboarding.js";
+import { hasProfile } from "./model/profile.js";
 import { checkAchievements, onAchievements } from "./model/achievements.js";
 import { S, save, onSaved } from "./model/store.js";
 import { configureServerSync, initSync, queueServerSync } from "./model/server.js";
@@ -42,4 +44,13 @@ initSync().finally(() => {
   const before = JSON.stringify(S);
   checkAchievements({ type: "silent" }, { silent: true });
   if (JSON.stringify(S) !== before) { save(); render(); }
+  // Профиль спрашиваем после сверки: на новом телефоне он приедет с сервера вместе с журналом
+  if (!hasProfile()) openProfileWizard();
 });
+
+// Быстрый запуск и запуск без сети: код приложения — из кэша (sw.js). Регистрируем
+// после первой отрисовки, чтобы не отнимать у неё ни миллисекунды. Нет поддержки
+// (например, встроенный браузер iOS) — приложение работает как раньше, из сети.
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "127.0.0.1" || location.hostname === "localhost")) {
+  addEventListener("load", () => { navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {}); }, { once: true });
+}

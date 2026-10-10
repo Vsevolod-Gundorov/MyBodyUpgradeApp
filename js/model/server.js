@@ -15,19 +15,22 @@ import { initCloudSync, queueCloudSync } from "./sync.js";
 import { invalidateE1RM } from "./training.js";
 
 const API = "/api/journal";
+const FOODS_API = "/api/foods";   // общий каталог продуктов
+const REMIND_API = "/api/reminders";   // напоминания в Telegram
 export const PREMIGRATE_KEY = `${DB_KEY}.before-server`;   // журнал до первого переезда на сервер
 export const BACKUP_KEY = `${DB_KEY}.before-pull`;         // локальная копия перед заменой серверной
 
 /* ---- состояние и подписки ---- */
 // off — сервер не используется; idle, saving, saved; offline — нет связи (журнал цел на устройстве);
-// denied — нет приглашения; expired — подпись устарела (переоткрыть приложение); error — сбой сервера
+// denied — нет приглашения; expired — подпись устарела (переоткрыть приложение);
+// full — регистрация новых сейчас закрыта лимитом или местом в базе; error — сбой сервера
 export let serverState = "off";
 const stateListeners = new Set();
 const setServerState = (v) => { serverState = v; stateListeners.forEach((f) => f(v)); };
 export const onServerState = (f) => { stateListeners.add(f); return () => stateListeners.delete(f); };
 // после отказа в доступе или устаревшей подписи не стучимся: повтор не поможет,
 // а неудачные входы сервер считает и в конце концов закрывает адрес
-export const serverActive = () => !["off", "denied", "expired"].includes(serverState);
+export const serverActive = () => !["off", "denied", "expired", "full"].includes(serverState);
 
 const hooks = { onPulled: () => {}, askConflict: () => false };
 export function configureServerSync({ onPulled, askConflict } = {}) {
@@ -81,16 +84,19 @@ export function decideServer(local, server, same = false, blank = false) {
 }
 
 /* ---- запросы ---- */
-async function api(method, body) {
+async function api(method, body, { url = API, signal, keepalive = false } = {}) {
   let res;
   try {
-    res = await fetch(API, {
-      method,
+    res = await fetch(url, {
+      method, signal, keepalive,
       headers: { authorization: `tma ${tgInitData()}`, ...(body ? { "content-type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store", credentials: "omit", redirect: "error",
     });
-  } catch (e) { return { status: 0, json: null }; }   // нет сети
+  } catch (e) {
+    if (e && e.name === "AbortError") throw e;      // запрос отменили сами (новый поиск) — это не «нет сети»
+    return { status: 0, json: null };               // нет сети
+  }
   let json = null;
   try { json = await res.json(); } catch (e) { json = null; }
   return { status: res.status, json };
@@ -102,6 +108,7 @@ function acceptStatus(status, json) {
   if (status === 0) setServerState("offline");
   else if (status === 401) setServerState("expired");
   else if (status === 403 && json && json.error === "not_invited") setServerState("denied");
+  else if (json && ["signup_limited", "capacity"].includes(json.error)) setServerState("full");   // до следующего запуска
   else if (status === 503 && json && json.error === "not_configured") setServerState("off");
   else setServerState("error");
   return false;
@@ -213,4 +220,37 @@ export async function initSync() {
     await reconcile(got);
     queueCloudSync();   // резервная копия в облаке Telegram
   } catch (e) { setServerState("error"); }   // журнал на устройстве цел; повторим при следующем сохранении
+}
+
+/* ---- общий каталог продуктов ---- */
+// Работает, только когда сервер доступен этому человеку; иначе поиск идёт по своему
+// справочнику и Open Food Facts, как раньше. Ошибки каталога не трогают статус журнала.
+
+/** Поиск в каталоге сервера. [] — если сервера нет или он не ответил. */
+export async function catalogSearch(q, signal) {
+  if (!serverActive() || serverState === "offline") return [];
+  const { status, json } = await api("GET", null, { url: `${FOODS_API}?q=${encodeURIComponent(q)}`, signal });
+  return status === 200 && json && Array.isArray(json.foods) ? json.foods : [];
+}
+
+/** «Человек выбрал продукт Open Food Facts»: сервер сам перепроверит его и добавит в каталог. */
+export async function catalogAdd(code) {
+  if (!serverActive() || !/^\d{4,32}$/.test(String(code || ""))) return null;
+  try {
+    const { status, json } = await api("POST", { code: String(code) }, { url: FOODS_API });
+    return status === 200 && json ? json.food : null;
+  } catch (e) { return null; }
+}
+
+/* ---------------- напоминания в Telegram ---------------- */
+/** Отправить настройки напоминаний. { status, json } — status 0, если сервера нет. */
+export async function remindersPut(payload) {
+  if (!serverActive() || serverState === "offline") return { status: 0, json: null };
+  return api("PUT", payload, { url: REMIND_API });
+}
+
+/** Действие: таймер отдыха, отмена, проверочное сообщение. keepalive — переживёт сворачивание приложения. */
+export async function remindersPost(body, { keepalive = false } = {}) {
+  if (!serverActive() || serverState === "offline") return { status: 0, json: null };
+  return api("POST", body, { url: REMIND_API, keepalive });
 }

@@ -1,8 +1,7 @@
 // Вид: profile. Только разметка: данные приходят готовыми из контроллера.
-import { TIER_ORDER } from "../../data/achievements.js";
 import { LIFT_NAMES } from "../../data/program.js";
 import { THEMES, THEME_ORDER } from "../../data/theme.js";
-import { fmt } from "../core/format.js";
+import { esc, fmt } from "../core/format.js";
 import { S } from "../model/store.js";
 import { AD, AN, L, themeNow } from "../model/theme.js";
 import { inTelegram, tgUserHandle, tgUserName } from "../telegram.js";
@@ -13,7 +12,7 @@ import { icon } from "./icons.js";
 export function heroSummaryView(cells) {
   return `
     <div class="hero-head">
-      <h1 class="display hero-name">${S.hero.name}</h1>
+      <h1 class="display hero-name">${esc(S.hero.name)}</h1>
       <div class="hero-sum">${cells.map(([v, l]) =>
         `<span class="hs-cell"><b class="mono">${v}</b><i>${l}</i></span>`).join("")}</div>
     </div>`;
@@ -24,13 +23,13 @@ export const syncNoteText = (serverOn) => (serverOn
   ? "Журнал хранится на сервере, копия — в облаке Telegram."
   : "Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.");
 
-export function profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn }) {
+export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn, goals = "", remind = "" }) {
   return `
     ${summary ? heroSummaryView(summary) : `
     <div class="hero-head gilded">
       <div class="eyebrow">${L("heroEyebrow")}</div>
-      <h1 class="display hero-name">${S.hero.name}</h1>
-      <div class="hero-title">${c.novice ? L("heroNovice") : `«${S.hero.title}»`}</div>
+      <h1 class="display hero-name">${esc(S.hero.name)}</h1>
+      <div class="hero-title">${c.novice ? L("heroNovice") : `«${esc(S.hero.title)}»`}</div>
       <div class="level-ring">
         <svg viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(var(--t-acc-b),.16)" stroke-width="5"/>
@@ -65,18 +64,19 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
       </div>
     </div>`}
 
+    ${goals}
+
     <div class="panel">
       <div class="ach-head">
-        <div class="eyebrow">${L("awards")} · ${achSum.total} / ${achSum.of}</div>
+        <div class="eyebrow">${L("awards")} · ${achSum.total}/${achSum.of}</div>
         <button class="ach-all-btn" id="ach-all">${L("awardsAll")}</button>
       </div>
-      <div class="ach-tiers">${TIER_ORDER.map((t) => `<span class="ach-tier-chip tier-${t}${achSum.byTier[t] ? "" : " none"}"><i></i>${achSum.byTier[t]}</span>`).join("")}</div>
       ${earnedList.length
-        ? `<div class="status-grid">${earnedList.slice(0, 24).map((a) => { const g = achievements[a.id]; return `
+        ? `<div class="status-grid ach-recent">${earnedList.slice(0, 8).map((c) => { const a = c.shown, g = c.got; return `
             <button class="status-badge" data-ach="${a.id}" title="${AN(a)}: ${AD(a)}">
               ${achMedallion(a)}${g.count > 1 ? `<span class="ach-count-badge">×${g.count}</span>` : ""}
               <span class="sb-name">${AN(a)}</span>
-            </button>`; }).join("")}</div>${earnedList.length > 24 ? `<div class="dim small" style="margin-top:8px">и ещё ${earnedList.length - 24} — в полном списке</div>` : ""}`
+            </button>`; }).join("")}</div>`
         : `<div class="empty">${L("awardsEmpty")}</div>`}
     </div>
 
@@ -87,7 +87,7 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
         return `<div class="kv"><span>${LIFT_NAMES[k]}</span>
           <span class="mono">${fmt(v.cur)} кг ${d > 0.5 ? `<span class="verdict-gold">+${fmt(d)}</span>` : `<span class="dim">база</span>`}</span></div>`;
       }).join("")}
-      <button class="kv kv-btn" id="edit-bw"><span>${L("bodyweight")}</span><span class="mono">${bw} кг <i class="dim">изменить</i></span></button>
+      <button class="kv kv-btn" id="edit-bw"><span>${L("bodyweight")}</span><span class="mono">${fmt(bw)} кг <i class="dim">изменить</i></span></button>
     </div>
 
     <div class="panel">
@@ -109,6 +109,8 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
       <button class="toggle-row" id="tg-off"><span>Поиск продуктов в открытой базе<span class="dim small" style="display:block">запрос уходит в Open Food Facts</span></span><span class="tg ${S.settings?.offSearch ? "on" : ""}"><i></i></span></button>
     </div>
 
+    ${remind}
+
     ${inTelegram ? `
     <div class="panel">
       <div class="panel-head">
@@ -123,19 +125,16 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
 `;
 }
 
-export function bodyweightEditorView() {
+/** Напоминания в Telegram: добавки по расписанию и конец отдыха. Сообщение исчезает через минуту. */
+export function remindPanelView({ conf, available, times }) {
+  const row = (id, on, title, sub) => `<button class="toggle-row" id="${id}" aria-pressed="${on}" ${available ? "" : "disabled"}><span>${title}<span class="dim small" style="display:block">${sub}</span></span><span class="tg ${on ? "on" : ""}"><i></i></span></button>`;
   return `
-      <div class="portion-card">
-        <div class="eyebrow">Вес героя</div>
-        <div class="portion-name display">Сколько весишь сейчас</div>
-        <p class="dim small" style="margin:8px 0 12px">От него считаются подтягивания, брусья и гиперэкстензия:
-          там рабочий вес — это довесок к своему.</p>
-        <div class="bw-edit">
-          <button class="ex-fix-b" data-bw="-1">−1</button>
-          <input id="bw-in" class="mono" inputmode="decimal" enterkeyhint="done" value="${S.hero.bodyweight || 90}" aria-label="вес тела" />
-          <button class="ex-fix-b" data-bw="1">+1</button>
-        </div>
-        <button class="finish-btn" id="bw-save" style="margin-top:14px">Сохранить</button>
-        <button class="btn-ghost" id="bw-close">Отмена</button>
-      </div>`;
+    <div class="panel remind-panel">
+      <div class="eyebrow" style="margin-bottom:10px">Напоминания в Telegram</div>
+      ${available ? "" : `<p class="dim small" style="margin:0 0 8px">Работают в приложении, открытом из Telegram: пишет бот.</p>`}
+      ${row("rm-rest", !!conf.rest, "Конец отдыха", "«пора подход», если приложение свёрнуто")}
+      ${row("rm-supp", !!conf.supp, "Добавки по расписанию", "только то, что ещё не отмечено")}
+      ${conf.supp ? `<div class="rm-times">${times.map((t) => `<label class="rm-time"><span>${t.slot}</span><input type="time" data-slot="${esc(t.slot)}" value="${esc(t.at)}" step="300" /></label>`).join("")}</div>` : ""}
+      <p class="dim small" style="margin:8px 0 0">Сообщение висит минуту и удаляется само.</p>
+    </div>`;
 }
