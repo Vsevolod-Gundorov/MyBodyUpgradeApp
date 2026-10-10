@@ -9,6 +9,17 @@ import { execSync } from "node:child_process";
 
 const root = new URL("..", import.meta.url).pathname;
 const read = (p) => readFileSync(root + p, "utf8");
+// весь клиентский код: после перехода на MVC он разложен по js/model, js/view, js/controller
+const CLIENT = (() => {
+  const out = [];
+  const walk = (dir) => readdirSync(root + dir, { withFileTypes: true }).forEach((e) => {
+    const rel = `${dir}/${e.name}`;
+    if (e.isDirectory()) walk(rel); else if (e.name.endsWith(".js")) out.push(rel);
+  });
+  walk("js");
+  return out.sort();
+})();
+const clientSrc = () => CLIENT.map(read).join("\n");
 const git = (cmd) => { try { return execSync(cmd, { cwd: root, encoding: "utf8" }); } catch (e) { return ""; } };
 
 // куда приложению разрешено обращаться — список закрытый и совпадает с политикой на сервере
@@ -38,7 +49,7 @@ test("шрифты лежат в репозитории и подключены 
 });
 
 test("код обращается наружу только по разрешённым адресам", () => {
-  for (const file of ["js/app.js", "js/telegram.js", "data/nutrition.js", "data/program.js", "data/exercises.js", "data/achievements.js"]) {
+  for (const file of [...CLIENT, "data/nutrition.js", "data/program.js", "data/exercises.js", "data/achievements.js"]) {
     const src = read(file);
     for (const m of src.matchAll(/["'`](https?:\/\/[^"'`\s]+)/g)) {
       const host = new URL(m[1]).host;
@@ -50,7 +61,7 @@ test("код обращается наружу только по разрешё�
 });
 
 test("внешний поиск продуктов можно выключить, и он спрашивает только название", () => {
-  const app = read("js/app.js");
+  const app = clientSrc();
   assert.match(app, /S\.settings && S\.settings\.offSearch/, "перед внешним поиском должна стоять проверка настройки");
   assert.match(app, /offSearch:\s*true/, "настройка должна быть в состоянии по умолчанию");
   const nut = read("data/nutrition.js");
@@ -64,7 +75,7 @@ test("данные Telegram используются только локальн
   const tg = read("js/telegram.js");
   assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon/.test(tg), "модуль Telegram не должен никуда ходить сам");
   assert.match(tg, /initDataUnsafe/, "id пользователя берётся из SDK");
-  const app = read("js/app.js");
+  const app = CLIENT.filter((f) => f !== "js/telegram.js").map(read).join("\n");
   assert.ok(!/initData[^U]/.test(app), "подписанный initData никуда не передаётся");
 });
 
