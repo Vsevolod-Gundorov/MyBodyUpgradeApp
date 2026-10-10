@@ -11,6 +11,7 @@ import { extname, join, normalize, sep } from "node:path";
 import { Readable } from "node:stream";
 import { handleJournal } from "../server/controllers/journal.js";
 import { handleHealth } from "../server/controllers/health.js";
+import { handleFoods } from "../server/controllers/foods.js";
 import { defaultDeps } from "../server/deps.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -19,7 +20,7 @@ const PUBLIC = ["index.html", "js/", "css/", "data/", "assets/"];
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json" };
 const vercel = JSON.parse(await readFile(join(ROOT, "vercel.json"), "utf8"));
 const SECURITY = Object.fromEntries(vercel.headers[0].headers.map((h) => [h.key, h.value]));
-const ROUTES = { "/api/journal": handleJournal, "/api/health": handleHealth };
+const ROUTES = { "/api/journal": handleJournal, "/api/health": handleHealth, "/api/foods": handleFoods };
 
 async function serveApi(req, res, handler) {
   const url = `http://${req.headers.host}${req.url}`;

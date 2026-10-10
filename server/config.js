@@ -27,6 +27,11 @@ export const LIMITS = Object.freeze({
   // открытая регистрация: новые аккаунты с одного адреса и всего
   SIGNUP_IP: { windowSec: 24 * 3600, max: 5 },
   SIGNUP_ALL: { windowSec: 3600, max: 100 },
+  // каталог продуктов: поиск одним человеком, пополнение одним человеком, обращения сервера в OFF
+  RATE_FOOD_SEARCH: { windowSec: 60, max: 60 },
+  RATE_FOOD_ADD: { windowSec: 3600, max: 60 },
+  RATE_OFF_ALL: { windowSec: 60, max: 12 },        // у OFF лимит 15 чтений в минуту с адреса — держимся ниже
+  FOOD_RESULTS: 20,
   // бесплатная база Neon — 0,5 ГБ: ближе к пределу новых не заводим, у старых всё работает
   DB_CAP_BYTES: 400 * 1024 * 1024,
 });

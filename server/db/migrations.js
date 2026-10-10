@@ -101,6 +101,42 @@ BEGIN
 END
 $mig$;`,
   },
+  {
+    version: 3,
+    name: "общий каталог продуктов",
+    // Каталог общий для всех: в нём только продукты Open Food Facts, которые сервер
+    // сам перепроверил по штрихкоду. Своих продуктов пользователей здесь нет — они
+    // в журнале каждого. Поиск с опечатками — по триграммам (pg_trgm, доверенное
+    // расширение: его может включить владелец базы, суперпользователь не нужен).
+    sql: `
+DO $mig$
+BEGIN
+  IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = 3) THEN RETURN; END IF;
+  CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  CREATE TABLE foods (
+    code        text PRIMARY KEY CHECK (code ~ '^[0-9]{4,32}$'),
+    name        text NOT NULL CHECK (length(name) BETWEEN 1 AND 120),
+    k           smallint NOT NULL CHECK (k BETWEEN 0 AND 900),
+    p           real NOT NULL CHECK (p BETWEEN 0 AND 100),
+    f           real NOT NULL CHECK (f BETWEEN 0 AND 100),
+    cb          real NOT NULL CHECK (cb BETWEEN 0 AND 100),
+    fb          real NOT NULL CHECK (fb BETWEEN 0 AND 100),
+    fb_est      boolean NOT NULL DEFAULT false,
+    drink       boolean NOT NULL DEFAULT false,
+    hy          real CHECK (hy IS NULL OR hy BETWEEN 0 AND 1),
+    sv          real CHECK (sv IS NULL OR (sv > 0 AND sv <= 2000)),
+    uses        integer NOT NULL DEFAULT 1 CHECK (uses >= 0),
+    search      text GENERATED ALWAYS AS (replace(lower(name), 'ё', 'е')) STORED,
+    checked_at  timestamptz NOT NULL DEFAULT now(),
+    created_at  timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX foods_search_trgm ON foods USING gin (search gin_trgm_ops);
+  REVOKE ALL ON foods FROM PUBLIC;
+  GRANT SELECT, INSERT, UPDATE ON foods TO bu_app;
+  INSERT INTO schema_migrations (version, name) VALUES (3, 'foods catalog');
+END
+$mig$;`,
+  },
 ];
 
 export const SCHEMA_VERSION = Math.max(...MIGRATIONS.map((m) => m.version));

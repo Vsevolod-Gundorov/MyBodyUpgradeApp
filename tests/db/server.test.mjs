@@ -78,11 +78,11 @@ test("миграции: обновление рабочей базы со схе
   _resetSchemaCache();
   const exec2 = await pgExecutor(base.ownerUrl);
   const [v1, v2] = await Promise.all([ensureSchema(db), (async () => { _resetSchemaCache(); return ensureSchema(createDb(exec2)); })()]);
-  assert.equal(v1, 2); assert.equal(v2, 2);
+  assert.equal(v1, 3); assert.equal(v2, 3);
   _resetSchemaCache();
-  assert.equal(await ensureSchema(db), 2);
+  assert.equal(await ensureSchema(db), 3);
   const [[n]] = await db.owner([{ text: "SELECT count(*)::int AS n FROM schema_migrations" }]);
-  assert.equal(n.n, 2);
+  assert.equal(n.n, 3);
   await exec2.end();
 
   // старый журнал цел, а размер старой версии база посчитала сама (даже если владелец не обходит RLS)
@@ -167,7 +167,7 @@ test("SQL-инъекции: опасные строки сохраняются �
   assert.deepEqual(row.data.notes, evil);
   assert.equal(row.data[evil[1]], evil[2]);
   const [[t]] = await db.owner([{ text: "SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = 'public'" }]);
-  assert.equal(t.n, 5);
+  assert.equal(t.n, 6);
   // имя пользователя с SQL до базы не доходит (проверка подписи его отбрасывает), а если бы дошло — CHECK
   await assert.rejects(db.asUser(B.id, [touchUser(B.id, "x'; DROP TABLE users; --")]), (e) => e.code === "23514");
 });
@@ -419,7 +419,7 @@ test("лимиты: перебор подписей с одного адреса
 test("/api/health: база отвечает, схема на месте, роль приложения под RLS", { skip }, async () => {
   const res = await handleHealth(req("GET", { user: null, path: "/api/health" }), deps);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, configured: true, db: "ok", schema: 2, rls: true, isolation: "role" });
+  assert.deepEqual(await res.json(), { ok: true, configured: true, db: "ok", schema: 3, rls: true, isolation: "role" });
   const off = await handleHealth(req("GET", { user: null, path: "/api/health" }), { cfg: config({}), db: null });
   assert.deepEqual(await off.json(), { ok: false, configured: false });
 });
