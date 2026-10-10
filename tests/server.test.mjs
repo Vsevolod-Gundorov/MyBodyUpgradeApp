@@ -131,7 +131,7 @@ test("SQL: ни одного запроса, собранного из стро�
     // текст запроса — только литерал без подстановок
     const sqlTemplates = [...s.matchAll(/text:\s*`([^`]*)`/g)].map((m) => m[1]);
     for (const t of sqlTemplates) assert.ok(!t.includes("${"), `${rel(f)}: подстановка в SQL`);
-    assert.ok(!/text:\s*[^`"'\s{]/.test(s.replace(/text:\s*(SET_(USER|ROLE)|m\.sql)\b/g, "")), `${rel(f)}: текст запроса не литерал`);
+    assert.ok(!/text:\s*[^`"'\s{]/.test(s.replace(/text:\s*(SET_(USER|ROLE|CRON)|m\.sql)\b/g, "")), `${rel(f)}: текст запроса не литерал`);
     // и не склейка литерала с чем-то: "SELECT " + id, `…`.concat(x)
     assert.ok(!/text:\s*("[^"]*"|'[^']*'|`[^`]*`)\s*(\+|\.concat\b)/.test(s), `${rel(f)}: склейка строк в SQL`);
     assert.ok(!/\b(unsafe|escapeLiteral|escapeIdentifier)\s*\(/.test(s), `${rel(f)}: запрещённые обходы параметров`);

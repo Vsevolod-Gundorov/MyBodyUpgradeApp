@@ -23,7 +23,7 @@ export const syncNoteText = (serverOn) => (serverOn
   ? "Журнал хранится на сервере, копия — в облаке Telegram."
   : "Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.");
 
-export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn, goals = "" }) {
+export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn, goals = "", remind = "" }) {
   return `
     ${summary ? heroSummaryView(summary) : `
     <div class="hero-head gilded">
@@ -109,6 +109,8 @@ export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serve
       <button class="toggle-row" id="tg-off"><span>Поиск продуктов в открытой базе<span class="dim small" style="display:block">запрос уходит в Open Food Facts</span></span><span class="tg ${S.settings?.offSearch ? "on" : ""}"><i></i></span></button>
     </div>
 
+    ${remind}
+
     ${inTelegram ? `
     <div class="panel">
       <div class="panel-head">
@@ -121,4 +123,18 @@ export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serve
     </div>` : ""}
 
 `;
+}
+
+/** Напоминания в Telegram: добавки по расписанию и конец отдыха. Сообщение исчезает через минуту. */
+export function remindPanelView({ conf, available, times }) {
+  const row = (id, on, title, sub) => `<button class="toggle-row" id="${id}" aria-pressed="${on}" ${available ? "" : "disabled"}><span>${title}<span class="dim small" style="display:block">${sub}</span></span><span class="tg ${on ? "on" : ""}"><i></i></span></button>`;
+  return `
+    <div class="panel remind-panel">
+      <div class="eyebrow" style="margin-bottom:10px">Напоминания в Telegram</div>
+      ${available ? "" : `<p class="dim small" style="margin:0 0 8px">Работают в приложении, открытом из Telegram: пишет бот.</p>`}
+      ${row("rm-rest", !!conf.rest, "Конец отдыха", "«пора подход», если приложение свёрнуто")}
+      ${row("rm-supp", !!conf.supp, "Добавки по расписанию", "только то, что ещё не отмечено")}
+      ${conf.supp ? `<div class="rm-times">${times.map((t) => `<label class="rm-time"><span>${t.slot}</span><input type="time" data-slot="${t.slot}" value="${t.at}" step="300" /></label>`).join("")}</div>` : ""}
+      <p class="dim small" style="margin:8px 0 0">Сообщение висит минуту и удаляется само.</p>
+    </div>`;
 }

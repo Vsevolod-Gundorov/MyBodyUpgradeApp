@@ -1894,3 +1894,18 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .dp-row > span { font-size: .72rem; color: var(--dim); letter-spacing: .02em; }
 .dp-row b { text-align: left; font-size: .86rem; }
 .sc-actions > * { min-height: 46px; margin: 0; box-sizing: border-box; display: grid; place-items: center; }
+
+/* ---------- добавки тише ---------- */
+.buff-check-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; margin-bottom: 4px;
+  border-bottom: 1px solid rgba(var(--t-acc-c), .12); font-size: .86rem; color: var(--bone); }
+.buff-check-line .link-btn { padding: 0; flex: none; }
+.buff-check-line.low .ico { width: 14px; height: 14px; vertical-align: -2px; color: var(--ember); }
+.buff-remind { margin: 10px 0 0; }
+.buff-remind span:first-child { display: grid; gap: 2px; text-align: left; }
+.buff-remind small { font-size: .72rem; }
+.buff-remind[disabled] { opacity: .55; }
+.rm-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 6px 0 2px; }
+.rm-time { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: .82rem; }
+.rm-time input { background: none; border: 0; color: var(--bone); font: 600 .9rem var(--font-mono); min-width: 0; color-scheme: dark; }
+.toggle-row[disabled] { opacity: .55; }
+.toggle-row > span:first-child { text-align: left; }

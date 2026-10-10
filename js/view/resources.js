@@ -137,7 +137,7 @@ function repeatBtnView(meal, r) {
 }
 
 /** Плашка снизу: что сделано и «Отменить». */
-export const snackView = (text) => `<span>${esc(text)}</span><button class="ft-undo" id="snack-undo">Отменить</button>`;
+export const snackView = (text, undo = true) => `<span>${esc(text)}</span>${undo ? `<button class="ft-undo" id="snack-undo">Отменить</button>` : ""}`;
 
 export function dayTipView({ T, day }) {
   return !L("dayTip") ? "" : day.dayType === "training"

@@ -2,6 +2,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import pg from "pg";
+import { SCHEMA_VERSION } from "../../server/db/migrations.js";
 import { freshDatabase, skip } from "./helpers.mjs";
 import { fakeBotToken, signInitData } from "../helpers/telegram-sign.mjs";
 import { config, LIMITS } from "../../server/config.js";
@@ -162,7 +163,7 @@ test("роль приложения не может удалить или под
   await assert.rejects(db.app([{ text: "UPDATE foods SET k = 1000" }]), (e) => e.code === "23514", "проверки в базе");
   await assert.rejects(db.app([{ text: "UPDATE foods SET search = 'x'" }]), (e) => ["428C9", "42601"].includes(e.code));
   const res = await handleHealth(req("GET", { user: null }), deps());
-  assert.equal((await res.json()).schema, 3);
+  assert.equal((await res.json()).schema, SCHEMA_VERSION);
 });
 
 async function su(text, params = []) {

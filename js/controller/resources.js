@@ -12,7 +12,8 @@ import { adjustHintView } from "../view/nutplan.js";
 import { save } from "../model/store.js";
 import { L, themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
-import { dayTipView, extrasView, mealsView, resourcesView, snackView, summaryView, weekStripView } from "../view/resources.js";
+import { dayTipView, extrasView, mealsView, resourcesView, summaryView, weekStripView } from "../view/resources.js";
+import { showSnack } from "./snack.js";
 import { fxTap } from "../view/fx.js";
 import { plural3 } from "../core/format.js";
 
@@ -88,14 +89,3 @@ export function renderResources() {
   });
 }
 
-/** Плашка внизу экрана с «Отменить»; гаснет сама через 5 секунд. */
-let snackTimer = null;
-function showSnack(text, onUndo) {
-  let el = document.getElementById("snack");
-  if (!el) { el = document.createElement("div"); el.id = "snack"; el.className = "snack"; el.setAttribute("role", "status"); document.body.appendChild(el); }
-  el.innerHTML = snackView(text);
-  el.hidden = false;
-  clearTimeout(snackTimer);
-  snackTimer = setTimeout(() => (el.hidden = true), 5000);
-  el.querySelector("#snack-undo").onclick = () => { clearTimeout(snackTimer); el.hidden = true; onUndo(); };
-}

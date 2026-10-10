@@ -1,4 +1,5 @@
 // Модель: каталог добавок, расписание приёма и запасы.
+import { SLOT_TIMES, hhmmToMin } from "../../data/reminders.js";
 import { today } from "../core/format.js";
 import { S } from "./store.js";
 
@@ -142,6 +143,22 @@ export const buffTimes = (b) => (b && b.times && b.times.length ? b.times : ["У
 export const dosesPerDay = (b) => buffTimes(b).length || 1;
 
 export function currentSlot() { const h = new Date().getHours(); if (h >= 5 && h < 11) return "Утро"; if (h >= 11 && h < 16) return "День"; if (h >= 16 && h < 21) return "Вечер"; return "Перед сном"; }
+
+/**
+ * Есть ли дело прямо сейчас: наступил час приёма, а он не отмечен, или запас
+ * на исходе (≤ 3 дней). Только тогда вкладка подсвечивается — без вечной точки.
+ */
+export function buffsActionable(now = new Date()) {
+  const active = (S.buffs && S.buffs.active) || {};
+  const list = allBuffs().filter((b) => active[b.id] != null);
+  if (!list.length) return false;
+  const log = (S.buffs.log && S.buffs.log[today()]) || {};
+  const min = now.getHours() * 60 + now.getMinutes();
+  const at = (slot) => hhmmToMin((S.reminders && S.reminders.times && S.reminders.times[slot]) || SLOT_TIMES[slot]);
+  const due = list.some((b) => buffTimes(b).some((slot) => SLOT_TIMES[slot] && at(slot) <= min && !log[`${b.id}@${slot}`]));
+  const low = list.some((b) => { const d = stockDaysLeft(b); return d != null && d <= 3; });
+  return due || low;
+}
 
 export function stockDaysLeft(b) { const s = S.buffs.stock ? S.buffs.stock[b.id] : null; return (typeof s === "number") ? Math.floor(s / dosesPerDay(b)) : null; }
 

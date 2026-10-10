@@ -137,6 +137,75 @@ BEGIN
 END
 $mig$;`,
   },
+  {
+    version: 4,
+    name: "напоминания в Telegram: добавки по расписанию и конец отдыха",
+    // Настройки — у каждого свои (RLS). Расписание добавок проходит по всем, у кого
+    // напоминания включены, — это делает только запуск по расписанию с секретом
+    // CRON_SECRET: он ставит app.cron, и отдельная политика пускает его читать
+    // ровно эти строки и только на чтение. Тексты напоминаний — короткие строки
+    // без разметки, проверяются сервером.
+    sql: `
+DO $mig$
+BEGIN
+  IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = 4) THEN RETURN; END IF;
+
+  CREATE TABLE reminder_settings (
+    user_id     bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    supp        boolean NOT NULL DEFAULT false,
+    rest        boolean NOT NULL DEFAULT false,
+    tz_min      smallint NOT NULL DEFAULT 180 CHECK (tz_min BETWEEN -840 AND 840),
+    slots       jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(slots) = 'array' AND jsonb_array_length(slots) <= 8),
+    updated_at  timestamptz NOT NULL DEFAULT now()
+  );
+
+  -- что отправлено: не слать дважды и удалить сообщение через минуту
+  CREATE TABLE reminder_sent (
+    user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key         text NOT NULL CHECK (key ~ '^[a-z]+:[0-9A-Za-z_:-]{1,60}$'),
+    message_id  bigint,
+    delete_at   timestamptz,
+    deleted     boolean NOT NULL DEFAULT false,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, key)
+  );
+  CREATE INDEX reminder_sent_delete_idx ON reminder_sent (delete_at) WHERE NOT deleted AND message_id IS NOT NULL;
+
+  -- один таймер отдыха на человека: новый подход заменяет старый, «пропустить» отменяет
+  CREATE TABLE rest_timers (
+    user_id     bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    token       text NOT NULL CHECK (token ~ '^[A-Za-z0-9_-]{8,40}$'),
+    fire_at     timestamptz NOT NULL,
+    cancelled   boolean NOT NULL DEFAULT false
+  );
+
+  REVOKE ALL ON reminder_settings, reminder_sent, rest_timers FROM PUBLIC;
+  GRANT SELECT, INSERT, UPDATE ON reminder_settings TO bu_app;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON reminder_sent TO bu_app;
+  GRANT SELECT, INSERT, UPDATE ON rest_timers TO bu_app;
+
+  ALTER TABLE reminder_settings ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE reminder_settings FORCE ROW LEVEL SECURITY;
+  CREATE POLICY rs_own ON reminder_settings TO bu_app
+    USING (user_id = nullif(current_setting('app.user_id', true), '')::bigint) WITH CHECK (user_id = nullif(current_setting('app.user_id', true), '')::bigint);
+  -- запуск по расписанию: только чтение и только тех, кто включил добавки
+  CREATE POLICY rs_cron ON reminder_settings FOR SELECT TO bu_app
+    USING (current_setting('app.cron', true) = 'reminders' AND supp);
+
+  ALTER TABLE reminder_sent ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE reminder_sent FORCE ROW LEVEL SECURITY;
+  CREATE POLICY sent_own ON reminder_sent TO bu_app
+    USING (user_id = nullif(current_setting('app.user_id', true), '')::bigint) WITH CHECK (user_id = nullif(current_setting('app.user_id', true), '')::bigint);
+
+  ALTER TABLE rest_timers ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE rest_timers FORCE ROW LEVEL SECURITY;
+  CREATE POLICY rest_own ON rest_timers TO bu_app
+    USING (user_id = nullif(current_setting('app.user_id', true), '')::bigint) WITH CHECK (user_id = nullif(current_setting('app.user_id', true), '')::bigint);
+
+  INSERT INTO schema_migrations (version, name) VALUES (4, 'reminders');
+END
+$mig$;`,
+  },
 ];
 
 export const SCHEMA_VERSION = Math.max(...MIGRATIONS.map((m) => m.version));

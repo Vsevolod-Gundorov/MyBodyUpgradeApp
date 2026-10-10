@@ -9,7 +9,7 @@ import { fakeBotToken, signInitData } from "../helpers/telegram-sign.mjs";
 import { config, LIMITS } from "../../server/config.js";
 import { createDb, pgExecutor } from "../../server/db/client.js";
 import { ensureSchema, _resetSchemaCache } from "../../server/db/migrate.js";
-import { MIGRATIONS } from "../../server/db/migrations.js";
+import { MIGRATIONS, SCHEMA_VERSION } from "../../server/db/migrations.js";
 import { getJournal, pruneVersions, saveJournal } from "../../server/models/journal.js";
 import { touchUser } from "../../server/models/user.js";
 import { handleJournal } from "../../server/controllers/journal.js";
@@ -78,11 +78,11 @@ test("миграции: обновление рабочей базы со схе
   _resetSchemaCache();
   const exec2 = await pgExecutor(base.ownerUrl);
   const [v1, v2] = await Promise.all([ensureSchema(db), (async () => { _resetSchemaCache(); return ensureSchema(createDb(exec2)); })()]);
-  assert.equal(v1, 3); assert.equal(v2, 3);
+  assert.equal(v1, SCHEMA_VERSION); assert.equal(v2, SCHEMA_VERSION);
   _resetSchemaCache();
-  assert.equal(await ensureSchema(db), 3);
+  assert.equal(await ensureSchema(db), SCHEMA_VERSION);
   const [[n]] = await db.owner([{ text: "SELECT count(*)::int AS n FROM schema_migrations" }]);
-  assert.equal(n.n, 3);
+  assert.equal(n.n, SCHEMA_VERSION);
   await exec2.end();
 
   // старый журнал цел, а размер старой версии база посчитала сама (даже если владелец не обходит RLS)
@@ -167,7 +167,7 @@ test("SQL-инъекции: опасные строки сохраняются �
   assert.deepEqual(row.data.notes, evil);
   assert.equal(row.data[evil[1]], evil[2]);
   const [[t]] = await db.owner([{ text: "SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = 'public'" }]);
-  assert.equal(t.n, 6);
+  assert.equal(t.n, 9, "таблицы на месте: 4 исходные + каталог + 3 таблицы напоминаний + schema_migrations");
   // имя пользователя с SQL до базы не доходит (проверка подписи его отбрасывает), а если бы дошло — CHECK
   await assert.rejects(db.asUser(B.id, [touchUser(B.id, "x'; DROP TABLE users; --")]), (e) => e.code === "23514");
 });
@@ -419,7 +419,7 @@ test("лимиты: перебор подписей с одного адреса
 test("/api/health: база отвечает, схема на месте, роль приложения под RLS", { skip }, async () => {
   const res = await handleHealth(req("GET", { user: null, path: "/api/health" }), deps);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, configured: true, db: "ok", schema: 3, rls: true, isolation: "role" });
+  assert.deepEqual(await res.json(), { ok: true, configured: true, db: "ok", schema: SCHEMA_VERSION, rls: true, isolation: "role" });
   const off = await handleHealth(req("GET", { user: null, path: "/api/health" }), { cfg: config({}), db: null });
   assert.deepEqual(await off.json(), { ok: false, configured: false });
 });

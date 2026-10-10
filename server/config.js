@@ -6,6 +6,10 @@
 //   DATABASE_URL_APP необязательно: отдельный логин приложения (см. SETUP.md) —
 //                   жёсткая граница между запросами пользователей и владельцем базы
 //   DATABASE_DRIVER необязательно: "pg" — обычный Postgres (свой сервер), иначе Neon
+//   CRON_SECRET     необязательно: секрет запуска напоминаний о добавках по расписанию
+//                   (GitHub Actions раз в 10 минут). Нет — напоминания о добавках выключены,
+//                   «пора подход» работает и без него.
+//   APP_URL         необязательно: адрес приложения для кнопки «Открыть» в сообщении бота
 //   ALLOWED_USERS   необязательно: закрытая бета — через запятую @username или числовые id.
 //                   Не задано — регистрация открыта: любой, кто открыл приложение через
 //                   бота (подпись Telegram проверена), заводится в базе сам.
@@ -32,6 +36,8 @@ export const LIMITS = Object.freeze({
   RATE_FOOD_ADD: { windowSec: 3600, max: 60 },
   RATE_OFF_ALL: { windowSec: 60, max: 12 },        // у OFF лимит 15 чтений в минуту с адреса — держимся ниже
   FOOD_RESULTS: 20,
+  // напоминания: настройки и таймеры отдыха одним человеком
+  RATE_REMIND: { windowSec: 3600, max: 240 },
   // бесплатная база Neon — 0,5 ГБ: ближе к пределу новых не заводим, у старых всё работает
   DB_CAP_BYTES: 400 * 1024 * 1024,
 });
@@ -53,6 +59,8 @@ export function config(env = process.env) {
     appDatabaseUrl: env.DATABASE_URL_APP || "",
     driver: env.DATABASE_DRIVER === "pg" ? "pg" : "neon",
     botToken: env.BOT_TOKEN || "",
+    cronSecret: env.CRON_SECRET && env.CRON_SECRET.length >= 32 ? env.CRON_SECRET : "",
+    appUrl: /^https:\/\/[A-Za-z0-9.-]+(\/[^\s]*)?$/.test(env.APP_URL || "") ? env.APP_URL : "",
     allowed,
     configured: Boolean(env.DATABASE_URL && env.BOT_TOKEN),
   };

@@ -5,7 +5,7 @@ import { BN, BSub, L, themeNow } from "../model/theme.js";
 import { runeSVG } from "./components.js";
 import { icon } from "./icons.js";
 
-export function buffsView({ activeBuffs, arsenal, checklist, lowAlert, reminder, stockCards, taken, total }) {
+export function buffsView({ activeBuffs, arsenal, checklist, lowAlert, reminder, stockCards, taken, total, remindRow = "" }) {
   return `
     ${L("buffsNote") ? `<p class="dim small" style="margin-top:2px">${L("buffsNote")}</p>` : ""}
     ${reminder}${lowAlert}
@@ -17,6 +17,7 @@ export function buffsView({ activeBuffs, arsenal, checklist, lowAlert, reminder,
     </div>
     <div class="dose-prog"><i style="width:${total ? Math.round(taken / total * 100) : 0}%"></i></div>
     <div id="checklist">${checklist}</div>
+    ${remindRow}
 
     ${activeBuffs.length ? `<div class="rune-divider">${runeSVG}</div>
     <div class="eyebrow" style="margin-bottom:6px">Запасы · ${activeBuffs.length}</div>
@@ -135,23 +136,26 @@ export function buffCatalogView({ active, cats }) {
   }).join("");
 }
 
+/** Сверка запасов раз в месяц — тихой строкой, и только когда пора. */
 export function buffReminderView({ days, due }) {
   return due
-    ? `<div class="buff-reminder due">
-         <div class="br-ico">${icon("hourglass")}</div>
-         <div class="br-body"><b>${L("buffDue")}</b><span class="dim small">${days === null ? L("buffNever") : `Прошло ${days} дн. с последней сверки.`}${themeNow() === "plain" ? "" : " Что заканчивается, что обновить."}</span></div>
-         <button class="br-ok" id="buff-check">Сверено</button>
+    ? `<div class="buff-check-line">
+         <span>${L("buffDue")}<span class="dim small"> · ${days === null ? "ещё не сверялись" : `${days} дн. с прошлой сверки`}</span></span>
+         <button class="link-btn" id="buff-check">Сверено</button>
        </div>`
-    : `<div class="buff-reminder ok">
-         <div class="br-ico">${icon("shield")}</div>
-         <div class="br-body"><b>${L("buffOk")}</b><span class="dim small">Следующая проверка через ${BUFF_CHECK_DAYS - days} дн.</span></div>
-       </div>`;
+    : "";
 }
 
 export function lowStockView({ lowList }) {
   return lowList.length
-    ? `<div class="buff-reminder due" style="margin-top:10px">
-         <div class="br-ico">${icon("flask")}</div>
-         <div class="br-body"><b>Скоро закончится</b><span class="dim small">${lowList.map((b) => `${BN(b)} (~${stockDaysLeft(b)} дн.)`).join(", ")}</span></div>
+    ? `<div class="buff-check-line low">
+         <span>${icon("flask")} Скоро закончится<span class="dim small"> · ${lowList.map((b) => `${BN(b)} ~${stockDaysLeft(b)} дн.`).join(", ")}</span></span>
        </div>` : "";
+}
+
+/** Напоминания в Телеграме — переключатель прямо у расписания приёма. */
+export function buffRemindRowView({ on, available }) {
+  return `<button class="toggle-row buff-remind" id="buff-remind" aria-pressed="${on}" ${available ? "" : "disabled"}>
+      <span>Напоминать в Telegram<small class="dim">${available ? "в часы приёма, сообщение исчезает через минуту" : "работает в приложении из Telegram"}</small></span>
+      <span class="tg ${on ? "on" : ""}"><i></i></span></button>`;
 }

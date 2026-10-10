@@ -11,7 +11,10 @@ import { cloudState, onCloudState } from "../model/sync.js";
 import { themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
 import { fxTap, haptic } from "../view/fx.js";
-import { profileView, syncNoteText } from "../view/profile.js";
+import { profileView, remindPanelView, syncNoteText } from "../view/profile.js";
+import { TIMED_SLOTS } from "../../data/reminders.js";
+import { reminders, slotTime } from "../model/reminders.js";
+import { changeSlotTime, remindersAvailable, toggleReminder } from "./reminders.js";
 import { openWeightSheet } from "./body.js";
 import { goalsPanelView } from "../view/onboarding.js";
 import { openProfileWizard } from "./onboarding.js";
@@ -43,7 +46,9 @@ export function renderProfile() {
   })() : null;
 
   const serverOn = () => !["off", "denied", "full"].includes(serverState);
-  app.innerHTML = profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn: serverOn(),
+  const rc = reminders();
+  const remind = remindPanelView({ conf: rc, available: remindersAvailable(), times: TIMED_SLOTS.map((slot) => ({ slot, at: slotTime(slot) })) });
+  app.innerHTML = profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn: serverOn(), remind,
     goals: goalsPanelView({ p: profile(), tTrain: targetsFor("training"), tRest: targetsFor("rest") }) });
   document.getElementById("goals-edit").onclick = () => { fxTap(); openProfileWizard({ editing: !!profile() }); };
   const gNut = document.getElementById("goals-nut");
@@ -55,6 +60,8 @@ export function renderProfile() {
   app.querySelectorAll("[data-theme-pick]").forEach((b) => b.onclick = () => { fxTap(); setTheme(b.dataset.themePick); });
   document.getElementById("tg-sound").onclick = () => { S.settings.sound = !S.settings.sound; if (S.settings.sound) fxTap(); save(); render(); };
   document.getElementById("tg-haptics").onclick = () => { S.settings.haptics = !S.settings.haptics; if (S.settings.haptics) haptic(15); save(); render(); };
+  ["rest", "supp"].forEach((k) => { const b = document.getElementById(`rm-${k}`); if (b) b.onclick = () => { fxTap(); toggleReminder(k, () => renderProfile()); }; });
+  app.querySelectorAll(".rm-time input").forEach((inp) => inp.onchange = () => changeSlotTime(inp.dataset.slot, inp.value));
   document.getElementById("tg-off").onclick = () => { S.settings.offSearch = !S.settings.offSearch; fxTap(); save(); render(); };
   app.querySelectorAll(".status-badge").forEach((b) => b.onclick = () => showAchievementDetail(ACH_BY_ID[b.dataset.ach]));
   document.getElementById("ach-all").onclick = showAllAchievements;

@@ -177,3 +177,15 @@ export function decideSync(local, cloud) {
   if (cloudChanged) return "pull";
   return "push";
 }
+
+/**
+ * Разрешить боту писать в личку (напоминания). Без Телеграма или старой версии —
+ * считаем, что разрешение есть: тогда сервер сам скажет, может ли бот писать.
+ * @returns Promise<boolean>
+ */
+export function requestWriteAccess() {
+  return new Promise((resolve) => {
+    if (!inTelegram || !verAtLeast("6.9") || typeof tg.requestWriteAccess !== "function") { resolve(true); return; }
+    try { tg.requestWriteAccess((ok) => resolve(!!ok)); } catch (e) { resolve(true); }
+  });
+}
