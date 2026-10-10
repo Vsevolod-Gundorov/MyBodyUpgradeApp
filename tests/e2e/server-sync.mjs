@@ -21,8 +21,10 @@ const seed = process.env.SEED ? JSON.parse(readFileSync(process.env.SEED, "utf8"
   hero: { name: "Всеволод", title: "Одинокий Гриндер", bodyweight: 93 }, xp: 1200, rev: 340,
   sessions: Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, workoutId: "A", date: `2026-09-${String(i + 1).padStart(2, "0")}`, verdict: "ok", entries: { squat: [{ w: 100 + i, r: 5 }] } })),
   settings: { sound: false, haptics: true, offSearch: true, theme: "plain" },
+  profile: { sex: "m", birthYear: 1996, height: 180, activity: "moderate", direction: "recomp", pace: "normal", program: "balanced", custom: null, experience: "intermediate", adjust: 0, override: null, maxes: { bench: 147, squat: 170, deadlift: 195, ohp: 100 }, maxesSource: "journal", createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
 };
 seed.rev = Math.max(seed.rev || 0, 340);
+seed.profile ||= { sex: "m", birthYear: 1996, height: 180, activity: "moderate", direction: "recomp", pace: "normal", program: "balanced", custom: null, experience: "intermediate", adjust: 0, override: null, maxes: { bench: 147, squat: 170, deadlift: 195, ohp: 100 }, maxesSource: "journal", createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" };   // без профиля приложение открывает мастер знакомства
 const SEED_SESSIONS = seed.sessions.length;
 
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });

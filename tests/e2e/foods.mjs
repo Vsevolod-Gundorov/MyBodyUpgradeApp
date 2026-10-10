@@ -40,6 +40,9 @@ const OFF_PRODUCTS = [
 const b = await chromium.launch();
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 await ctx.route(/telegram\.org/, (r) => r.fulfill({ contentType: "text/javascript", body: fakeSdk(USER) }));
+// профиль уже заполнен — иначе первым откроется мастер знакомства
+await ctx.addInitScript((id) => { const k = `bodyupgrade.v1.u${id}`; if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ rev: 1,
+  profile: { sex: "m", birthYear: 1996, height: 180, activity: "moderate", direction: "recomp", pace: "normal", program: "balanced", custom: null, experience: "intermediate", adjust: 0, override: null, maxes: { bench: 147, squat: 170, deadlift: 195, ohp: 100 }, maxesSource: "journal", createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" }, })); }, USER.id);
 await ctx.route(/openfoodfacts\.org\/cgi\/search\.pl/, (r) => {
   offQueries.push(new URL(r.request().url()).searchParams.get("search_terms"));
   r.fulfill({ contentType: "application/json", body: JSON.stringify({ products: OFF_PRODUCTS }) });

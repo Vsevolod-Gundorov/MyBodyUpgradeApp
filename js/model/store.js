@@ -50,6 +50,8 @@ export const defaultState = () => ({
   workReset: {}, // движение -> { date, one } — рабочий максимум, поправленный руками
   feel: null,    // { date, val } — самочувствие на сегодня: от него зависят вес, подходы и отдых
   meta: { exports: 0, imports: 0 }, // счётчики служебных действий (для достижений «Хроники»)
+  profile: null, // пол, возраст, рост, цель, программа питания, опыт (см. data/profile.js)
+  body: { weights: [] }, // история веса тела: [{ date, kg }]
   rev: 0,        // ревизия журнала — растёт с каждым сохранением
   updatedAt: null,
   sync: { syncedRev: 0, at: null }, // что и когда уехало в облако Телеграма
@@ -88,6 +90,8 @@ export function load() {
         ? parsed.achievements : migrateLegacyStatuses(S2.statuses);
       S2.meta = Object.assign({}, base.meta, parsed.meta);
       S2.plan = (parsed.plan && typeof parsed.plan === "object") ? parsed.plan : {};
+      S2.profile = (parsed.profile && typeof parsed.profile === "object") ? parsed.profile : null;
+      S2.body = { weights: (parsed.body && Array.isArray(parsed.body.weights)) ? parsed.body.weights : [] };
       S2.rev = Number.isFinite(parsed.rev) ? parsed.rev : 0;
       S2.sync = Object.assign({ syncedRev: 0, at: null }, parsed.sync);
       S2.settings = Object.assign({}, base.settings, parsed.settings);

@@ -1,7 +1,7 @@
 // Вид: питание. Только разметка: данные приходят готовыми из контроллера.
 // Всё, что могло прийти извне (названия продуктов из Open Food Facts, каталога,
 // своих продуктов), выводится только через esc().
-import { NUTRITION, WATER_TARGET_ML } from "../../data/nutrition.js";
+import { NUTRITION } from "../../data/nutrition.js";
 import { WD, addDays, dateLabel, esc, fmt, today } from "../core/format.js";
 import { MEALS } from "../model/foods.js";
 import { gaugeState, itemWaterMl } from "../model/nutrition.js";
@@ -71,9 +71,9 @@ export function summaryView({ T, tot, dayType, verdict }) {
 }
 
 /** Клетчатка и вода — по строке, вода с кнопками стакана. */
-export function extrasView({ fb, fbTgt, totalWater, drinkWater }) {
+export function extrasView({ fb, fbTgt, totalWater, waterTgt, drinkWater }) {
   const fbPct = Math.min(100, (fb / fbTgt) * 100);
-  const wPct = Math.min(100, (totalWater / WATER_TARGET_ML) * 100);
+  const wPct = Math.min(100, (totalWater / waterTgt) * 100);
   return `
     <section class="panel nut-extra">
       <div class="nx-row">
@@ -84,7 +84,7 @@ export function extrasView({ fb, fbTgt, totalWater, drinkWater }) {
       <div class="nx-row">
         <span class="nx-name" style="color:#7fc7d6">${icon("droplet")}<b>Вода</b></span>
         <div class="ns-bar"><i class="water" style="width:${wPct.toFixed(0)}%"></i></div>
-        <span class="nx-val mono">${fmt(totalWater / 1000)}<i>/${fmt(WATER_TARGET_ML / 1000)} л</i></span>
+        <span class="nx-val mono">${fmt(totalWater / 1000)}<i>/${fmt(waterTgt / 1000)} л</i></span>
       </div>
       <div class="nx-water">
         <span class="dim small mono">${drinkWater ? `из напитков ${drinkWater} мл` : "стакан — 250 мл"}</span>

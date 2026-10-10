@@ -1,12 +1,12 @@
 // Контроллер экрана питания: день, сводка, вода, приёмы пищи.
 // Добавление и порции — в controller/foods.js.
-import { NUTRITION } from "../../data/nutrition.js";
 import { openFoodSheet, openPortion } from "./foods.js";
 import { render } from "./router.js";
 import { addDays, today } from "../core/format.js";
 import { checkAchievements } from "../model/achievements.js";
 import { foodOfItem, mealByTime } from "../model/foods.js";
 import { drinkWaterOf, nutDay, nutRead, nutTotals } from "../model/nutrition.js";
+import { targetsFor } from "../model/profile.js";
 import { save } from "../model/store.js";
 import { L, themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
@@ -20,7 +20,7 @@ export function renderResources() {
   const date = curResDate();
   const isToday = date === today();
   const day = nutRead(date);
-  const T = NUTRITION.dayTypes[day.dayType];
+  const T = targetsFor(day.dayType);
   const tot = nutTotals(day);
 
   // В «Саге» под сводкой — вердикт дня, в «Чистой» только цифры
@@ -45,7 +45,7 @@ export function renderResources() {
     date, isToday,
     strip: weekStripView({ date, winEnd }),
     summary: summaryView({ T, tot, dayType: day.dayType, verdict }),
-    extras: extrasView({ fb: tot.fb, fbTgt: NUTRITION.constants.fiber[0], totalWater, drinkWater }),
+    extras: extrasView({ fb: tot.fb, fbTgt: T.fiber, totalWater, waterTgt: T.water, drinkWater }),
     meals: mealsView({ day, isToday }),
     tip: dayTipView({ T, day }),
   });

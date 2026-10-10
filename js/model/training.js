@@ -1,9 +1,10 @@
 // Модель: рабочие веса, история движений, отдых и разбор квеста.
-import { BASELINES, PROGRAM, SCHEME, TEMPLATES, buildExercises } from "../../data/program.js";
+import { PROGRAM, SCHEME, TEMPLATES, buildExercises } from "../../data/program.js";
 import { FEEL, PROG, e1rm as e1rmAvg, feelOf, isWarmup, priorSetsOf, progressionOf, restFor } from "../../data/progression.js";
 import { exById, setDone } from "../../data/exercises.js";
 import { epley, fmt, today } from "../core/format.js";
 import { ORDER, WORKOUTS, planOf, sessionExercises } from "./catalog.js";
+import { baselines, currentWeight } from "./profile.js";
 import { S, save } from "./store.js";
 import { L } from "./theme.js";
 
@@ -61,7 +62,7 @@ export function seed1RM(src) {
   if (!src || !src.k) return 0;
   const e = athleteE1RM();
   const refKey = src.ref || "bench";
-  const refVal = e[refKey] || BASELINES[refKey] || 0;
+  const refVal = e[refKey] || baselines()[refKey] || 0;
   return refVal > 0 ? refVal * src.k : 0;
 }
 
@@ -72,7 +73,7 @@ export function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, r
   return progressionOf(movementHistory()[key] || [], {
     reps, rir, equip: src.equip, prog, seed: seed1RM(src),
     sets, tier: src.tier || 2, rest: rest || 0, feel, deload, prior,
-    bodyweight: S.hero.bodyweight || 90, bw: !!src.bw, perHand: !!src.perHand,
+    bodyweight: currentWeight(), bw: !!src.bw, perHand: !!src.perHand,
     reset: (S.workReset || {})[key] || null,
   });
 }

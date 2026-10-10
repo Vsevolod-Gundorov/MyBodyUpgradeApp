@@ -1,5 +1,5 @@
 // Контроллер экрана прогресса.
-import { BASELINES } from "../../data/program.js";
+import { baselines } from "../model/profile.js";
 import { showSessionDetail } from "./overlays.js";
 import { epley } from "../core/format.js";
 import { sessionExercises } from "../model/catalog.js";
@@ -10,6 +10,7 @@ import { liftCardView, limitCardsView, progressView, sessionLogView } from "../v
 
 export function renderProgress() {
   const liftSeries = {};
+  const BASELINES = baselines();
   Object.keys(BASELINES).forEach((k) => (liftSeries[k] = []));
   S.sessions.forEach((s) => {
     sessionExercises(s).forEach((ex) => {

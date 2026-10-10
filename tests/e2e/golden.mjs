@@ -48,6 +48,7 @@ function seed() {
     buffs: { active: { creatine: 5, arginine: 7, omega3: 2 }, checkedAt: "2026-09-20", log: { [day(11)]: { "creatine@Утро": true } },
       stock: { creatine: 40 }, custom: [] },
     nutrition: { log, recent: [], foodStats: {} }, statuses: [], achievements: {},
+    profile: { sex: "m", birthYear: 1996, height: 180, activity: "moderate", direction: "recomp", pace: "normal", program: "balanced", custom: null, experience: "intermediate", adjust: 0, override: null, maxes: { bench: 147, squat: 170, deadlift: 195, ohp: 100 }, maxesSource: "journal", createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
     meta: { exports: 0, imports: 0 }, rev: 40, updatedAt: "2026-09-25T10:00:00.000Z", sync: { syncedRev: 0, at: null },
   };
 }

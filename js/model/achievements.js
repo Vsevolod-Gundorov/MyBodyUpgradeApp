@@ -1,12 +1,12 @@
 // Модель: контекст и начисление достижений.
-import { BASELINES, PROGRAM } from "../../data/program.js";
-import { NUTRITION, WATER_TARGET_ML } from "../../data/nutrition.js";
+import { PROGRAM } from "../../data/program.js";
 import { TIERS, catHidden, evaluate as evaluateAchievements } from "../../data/achievements.js";
 import { addDays, isoWeekStart, today } from "../core/format.js";
 import { buffById, buffTimes } from "./buffs.js";
 import { ORDER } from "./catalog.js";
 import { heroStats } from "./hero.js";
 import { drinkWaterOf, nutTotals } from "./nutrition.js";
+import { baselines, currentWeight, targetsFor } from "./profile.js";
 import { S, save } from "./store.js";
 import { themeNow } from "./theme.js";
 
@@ -31,14 +31,14 @@ export function nutritionStats() {
     if (!day || !((day.items && day.items.length) || day.water > 0)) return;
     out.daysLogged++;
     const t = nutTotals(day);
-    const target = NUTRITION.dayTypes[day.dayType] || NUTRITION.dayTypes.rest;
+    const target = targetsFor(day.dayType);
     const protein = t.p >= target.protein;
-    const water = (day.water || 0) + drinkWaterOf(day) >= WATER_TARGET_ML;
+    const water = (day.water || 0) + drinkWaterOf(day) >= target.water;
     const kcal = t.k > 0 && Math.abs(t.k - target.kcal) <= target.kcal * 0.07;
     if (protein) out.proteinDays++;
     if (water) out.waterDays++;
     if (kcal) out.kcalDays++;
-    if (t.fb >= NUTRITION.constants.fiber[0]) out.fiberDays++;
+    if (t.fb >= target.fiber) out.fiberDays++;
     if (protein && water && kcal) out.fullDays++;
     (day.items || []).forEach((it) => foods.add((it.n || "").trim().toLowerCase()));
   });
@@ -68,11 +68,12 @@ export function buildAchievementCtx(event) {
   let lifetime = 0; S.sessions.forEach((x) => (lifetime += sessionTonnage(x)));
   let goldStreak = 0; for (let i = S.sessions.length - 1; i >= 0 && S.sessions[i].score >= 85; i--) goldStreak++;
   const ws = weekStreak(S.sessions, 3);
-  const gains = Object.keys(BASELINES).map((k) => Math.max(0, (h.lifts[k].cur - BASELINES[k]) / BASELINES[k]));
+  const BASE = baselines();
+  const gains = Object.keys(BASE).map((k) => Math.max(0, (h.lifts[k].cur - BASE[k]) / BASE[k]));
   return {
     theme: themeNow(),   // от редакции зависят слова в заметках журнала получений
     event, session: event.session || null,
-    hero: { level: h.level, xp: S.xp, stats: h.stats, cls: h.cls, bodyweight: S.hero.bodyweight || 90 },
+    hero: { level: h.level, xp: S.xp, stats: h.stats, cls: h.cls, bodyweight: currentWeight() },
     lifts: h.lifts,
     totals: {
       sessions: S.sessions.length,

@@ -24,7 +24,7 @@ export const syncNoteText = (serverOn) => (serverOn
   ? "Журнал хранится на сервере, копия — в облаке Telegram."
   : "Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.");
 
-export function profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn }) {
+export function profileView({ achSum, achievements, bw, c, earnedList, h, summary, ring, serverOn, goals = "" }) {
   return `
     ${summary ? heroSummaryView(summary) : `
     <div class="hero-head gilded">
@@ -64,6 +64,8 @@ export function profileView({ achSum, achievements, bw, c, earnedList, h, summar
           </div>`).join("")}
       </div>
     </div>`}
+
+    ${goals}
 
     <div class="panel">
       <div class="ach-head">
