@@ -42,7 +42,7 @@ export function weightLabel(ex) {
   }
   const range = `${fmt(ex.w)} кг`;
   const mark = ex.wSource === "work" ? `<span class="w-src own" title="посчитано по твоим подходам">★</span>` : `<span class="w-src" title="оценка от базовых лифтов — уточнится после первых подходов">◎</span>`;
-  const note = ex.wNote === "на каждую руку" ? "на руку" : ex.wNote;
+  const note = { "на каждую руку": "на руку", "на каждую ногу": "на ногу" }[ex.wNote] || ex.wNote;
   return `<span class="badge b-weight">${range} ${mark}</span>${note ? `<span class="badge b-dim">${note}</span>` : ""}`;
 }
 
