@@ -166,16 +166,22 @@ test("в «Чистой» — короткий список без игровы�
   const plain = visibleAchievements("plain");
   assert.equal(saga.length, ACHIEVEMENTS.length, "в исходной редакции видно всё");
   const sagaCards = achCards({}, "saga"), plainCards = achCards({}, "plain");
-  assert.ok(plainCards.length * 3 <= sagaCards.length, `в «Чистой» в разы меньше карточек: ${plainCards.length} против ${sagaCards.length}`);
+  assert.ok(plainCards.length * 2 <= sagaCards.length, `в «Чистой» вдвое меньше карточек: ${plainCards.length} против ${sagaCards.length}`);
   assert.ok(plainCards.length >= 8, "но главное — на месте");
 
   // нет уровня, характеристик, случайных «даров» и наград за файлы
   const hidden = saga.filter((a) => !plain.includes(a));
-  for (const cat of ["hero", "fate", "chronicle"]) assert.ok(hidden.some((a) => a.cat === cat) && !plain.some((a) => a.cat === cat), `раздел ${cat} виден в «Чистой»`);
+  for (const cat of ["hero", "fate", "chronicle", "buffs"]) assert.ok(hidden.some((a) => a.cat === cat) && !plain.some((a) => a.cat === cat), `раздел ${cat} виден в «Чистой»`);
   assert.ok(catHidden("hero", "plain"));
   assert.ok(!catHidden("hero", "saga"));
   // главное для атлета — видно
   for (const id of ["awakened", "pr", "perfect", "life50", "gain10", "streak4", "protein7"]) assert.ok(plain.includes(ACH_BY_ID[id]), `${id} пропал из «Чистой»`);
+  // в «Чистой» только тренировки и питание, а по питанию — серия на каждый показатель дня
+  const allowed = new Set(["path", "quest", "tonnage", "strength", "discipline", "nutrition"]);
+  plain.forEach((a) => assert.ok(allowed.has(a.cat), `${a.id} (${a.cat}) — не тренировка и не питание`));
+  for (const k of ["kcal", "protein", "fat", "carbs", "fiber", "water"]) {
+    for (const n of [1, 7, 30]) assert.ok(plain.includes(ACH_BY_ID[`${k}${n}`]), `нет ${k}${n}`);
+  }
 
   // достижения не удалены: они по-прежнему в данных и начисляются
   hidden.forEach((a) => assert.ok(ACH_BY_ID[a.id], `${a.id}: пропало из данных`));

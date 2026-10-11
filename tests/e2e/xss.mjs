@@ -77,6 +77,10 @@ const close = () => page.evaluate(() => document.querySelectorAll("#overlay-root
 await page.goto(BASE + "/", { waitUntil: "domcontentloaded" }); await W(1500); await scan("start");
 for (const v of ["profile", "cycle", "buffs", "resources", "progress"]) await tryStep(`tab:${v}`, () => page.click(`.tab[data-view="${v}"]`));
 await tryStep("profile", () => page.click('.tab[data-view="profile"]'));
+await tryStep("settings", () => page.click("#pf-settings"));
+await tryStep("settings: english", () => page.click('[data-lang="en"]'));
+await tryStep("settings: russian", () => page.click('[data-lang="ru"]'));
+await tryStep("settings back", () => page.click("#back"));
 await tryStep("achievements", () => page.click("#ach-all"));
 await tryStep("achievement detail", async () => { await page.locator(".ach-row").first().click(); });
 await close();

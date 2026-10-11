@@ -104,10 +104,13 @@ const closeOverlays = async () => { await page.evaluate(() => document.querySele
 const openWeek = (n) => page.evaluate((k) => { const h = [...document.querySelectorAll(".week-head")].find((x) => x.dataset.week === String(k)); if (h && h.getAttribute("aria-expanded") !== "true") h.click(); }, n);
 
 async function flow(theme) {
-  // тема: через настоящий переключатель в профиле
+  // тема: через настоящий переключатель на странице «Настройки»
   await tab("profile");
+  await page.click("#pf-settings"); await wait();
   const cur = await page.evaluate(() => document.documentElement.dataset.theme);
   if (cur !== theme) { await page.click(`[data-theme-pick="${theme}"]`); await wait(); }
+  await snap(`${theme}-settings`);
+  await page.click("#back"); await wait();
   await snap(`${theme}-profile`);
   await page.click("#ach-all"); await wait(); await snap(`${theme}-achievements`);
   const first = await page.$("#overlay-root .ach-row");

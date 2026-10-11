@@ -1,13 +1,12 @@
 // Вид: profile. Только разметка: данные приходят готовыми из контроллера.
-import { LIFT_NAMES } from "../../data/program.js";
-import { THEMES, THEME_ORDER } from "../../data/theme.js";
-import { esc, fmt } from "../core/format.js";
+import { esc } from "../core/format.js";
+import { T } from "../model/settings.js";
 import { S } from "../model/store.js";
-import { AD, AN, L, themeNow } from "../model/theme.js";
-import { inTelegram, tgUserHandle, tgUserName } from "../telegram.js";
-import { STAT_ACCENT, STAT_GRAD, STAT_ICONS, achMedallion } from "./components.js";
+import { AD, AN, L } from "../model/theme.js";
+import { NUT_ACCENT, NUT_GRAD, STAT_ACCENT, STAT_GRAD, STAT_ICONS, achMedallion } from "./components.js";
 import { icon } from "./icons.js";
 
+const GEAR = '<svg class="ico ico-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 const PENCIL = '<svg class="ico ico-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>';
 
 /**
@@ -23,49 +22,91 @@ export function avatarView({ photo, name }) {
 
 /**
  * Карточка атлета: фото, имя, ник и главные цифры тела. Как в профилях лучших
- * фитнес-приложений (Apple Fitness, Strava, Hevy): кто ты — сверху, правка — в один тап.
+ * фитнес-приложений (Apple Fitness, Strava, Hevy): кто ты — сверху, правка и
+ * настройки — в один тап.
  */
-export function profileCardView({ me, cells }) {
+export function profileCardView({ me }) {
   return `
-    <section class="pf-card" aria-label="Профиль">
+    <section class="pf-card" aria-label="${T("editProfile")}">
       <div class="pf-top">
         ${avatarView(me)}
         <div class="pf-id">
           <h1 class="display pf-name hero-name">${esc(me.name)}</h1>
-          <div class="pf-handle">${me.handle ? esc(me.handle) : "Атлет"}</div>
+          <div class="pf-handle">${me.handle ? esc(me.handle) : T("athlete")}</div>
         </div>
-        <button class="pf-edit" id="pf-edit" aria-label="Изменить профиль">${PENCIL}</button>
+        <span class="pf-btns">
+          <button class="pf-edit" id="pf-edit" aria-label="${T("editProfile")}">${PENCIL}</button>
+          <button class="pf-edit" id="pf-settings" aria-label="${T("openSettings")}">${GEAR}</button>
+        </span>
       </div>
-      ${me.chips.length ? `<div class="pf-chips">${me.chips.map((c) => `<span class="pf-chip">${c}</span>`).join("")}</div>` : ""}
-      ${cells ? `<div class="pf-stats hero-sum">${cells.map(([v, l]) =>
-        `<span class="pf-stat hs-cell"><b class="mono">${v}</b><i>${l}</i></span>`).join("")}</div>` : ""}
+      ${me.chips.length ? `<div class="pf-chips">${me.chips.map((c) => `<span class="pf-chip">${esc(c)}</span>`).join("")}</div>` : ""}
     </section>`;
 }
 
 /** «Мои данные»: список как в настройках iOS — значок, что, сколько, стрелка. Тап — правка ровно этого пункта. */
 export function myDataView(rows) {
   return `
-    <section class="panel pf-list" aria-label="Мои данные">
-      <div class="eyebrow pf-list-h">Мои данные</div>
+    <section class="panel pf-list" aria-label="${T("myData")}">
+      <div class="eyebrow pf-list-h">${T("myData")}</div>
       ${rows.map((r) => `
         <button class="pf-row" ${r.id ? `id="${r.id}"` : ""} ${r.step ? `data-step="${r.step}"` : ""}>
           <span class="pf-ico">${icon(r.icon)}</span>
-          <span class="pf-l">${r.label}${r.sub ? `<i>${r.sub}</i>` : ""}</span>
-          <span class="pf-v">${r.value}</span>
+          <span class="pf-l">${esc(r.label)}${r.sub ? `<i>${esc(r.sub)}</i>` : ""}</span>
+          <span class="pf-v">${esc(r.value)}</span>
           <span class="pf-chev" aria-hidden="true">›</span>
         </button>`).join("")}
     </section>`;
 }
 
-/** Подпись под аккаунтом: где живёт журнал. */
-export const syncNoteText = (serverOn) => (serverOn
-  ? "Журнал хранится на сервере, копия — в облаке Telegram."
-  : "Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.");
+/**
+ * Питание в профиле: нормы дня тренировки и дня отдыха — калории крупно, БЖУ столбиком.
+ * Сегодняшний день подсвечен и показывает, сколько уже съедено, — как на вкладке «Питание».
+ * days: [{ key, on, T: нормы, tot: съедено (только у сегодняшнего) }]
+ */
+export function nutritionBlockView({ days, manual }) {
+  const MAC = [["protein", "p", "steak"], ["fat", "f", "avocado"], ["carbs", "cb", "wheat"]];
+  const bar = (cur, tgt, grad) => `<span class="pfn-bar"><i style="width:${Math.min(100, tgt ? (cur / tgt) * 100 : 0).toFixed(0)}%;background:${grad}"></i></span>`;
+  const day = (d) => {
+    const today = !!d.tot;
+    return `
+      <div class="pfn-day ${today ? "on" : ""}">
+        <div class="pfn-h"><span>${T(d.key === "training" ? "dayTraining" : "dayRest")}</span>${today ? `<i class="pfn-today">${T("today")}</i>` : ""}</div>
+        <div class="pfn-kcal">
+          <span class="pfn-ico" style="color:${NUT_ACCENT.kcal}">${icon("flame")}</span>
+          <b class="mono">${today ? Math.round(d.tot.k) : d.T.kcal}</b>
+        </div>
+        <div class="pfn-ksub mono">${today ? `/ ${d.T.kcal} ${T("kcal")}` : T("kcal")}</div>
+        ${today ? bar(d.tot.k, d.T.kcal, NUT_GRAD.kcal) : ""}
+        <div class="pfn-macros">
+          ${MAC.map(([k, tk, ic]) => `
+            <div class="pfn-m">
+              <span class="pfn-ico" style="color:${NUT_ACCENT[k]}">${icon(ic)}</span>
+              <span class="pfn-mn">${T(k)}</span>
+              <span class="pfn-mv mono">${today ? `${Math.round(d.tot[tk])}<small>/${d.T[k]}</small>` : `${d.T[k]}<i> ${T("g")}</i>`}</span>
+              ${today ? bar(d.tot[tk], d.T[k], NUT_GRAD[k]) : ""}
+            </div>`).join("")}
+        </div>
+      </div>`;
+  };
+  return `
+    <section class="panel pf-nut" aria-label="${T("nutTitle")}">
+      <div class="pfn-head">
+        <span class="eyebrow">${T("nutTitle")}</span>
+        <button class="pf-sq" id="goals-nut" aria-label="${T("nutEdit")}">${PENCIL}</button>
+      </div>
+      <button class="pfn-body" id="pf-nut-open" aria-label="${T("nutOpen")}">${days.map(day).join("")}</button>
+      ${manual ? `<div class="dim small pfn-note">${T("manualNorms")}</div>` : ""}
+    </section>`;
+}
 
-export function profileView({ achSum, c, earnedList, h, summary, ring, serverOn, goals = "", remind = "", card = "", myData = "" }) {
+export function profileView({ achSum, c, earnedList, h, saga, ring, card = "", myData = "", nutrition = "" }) {
   return `
     ${card}
-    ${summary ? "" : `
+    ${myData}
+
+    ${nutrition}
+
+    ${!saga ? "" : `
     <div class="hero-head gilded pf-saga">
       <div class="eyebrow">${L("heroEyebrow")}</div>
       <div class="hero-title">${c.novice ? L("heroNovice") : `«${esc(S.hero.title)}»`}</div>
@@ -103,9 +144,6 @@ export function profileView({ achSum, c, earnedList, h, summary, ring, serverOn,
       </div>
     </div>`}
 
-    ${goals}
-
-    ${myData}
 
     <div class="panel">
       <div class="ach-head">
@@ -119,63 +157,5 @@ export function profileView({ achSum, c, earnedList, h, summary, ring, serverOn,
               <span class="sb-name">${AN(a)}</span>
             </button>`; }).join("")}</div>`
         : `<div class="empty">${L("awardsEmpty")}</div>`}
-    </div>
-
-    <div class="panel">
-      <div class="eyebrow" style="margin-bottom:8px">${L("lifts")}</div>
-      ${Object.entries(h.lifts).map(([k, v]) => {
-        const d = v.cur - v.base;
-        return `<div class="kv"><span>${LIFT_NAMES[k]}</span>
-          <span class="mono">${fmt(v.cur)} кг ${d > 0.5 ? `<span class="verdict-gold">+${fmt(d)}</span>` : `<span class="dim">база</span>`}</span></div>`;
-      }).join("")}
-    </div>
-
-    <div class="panel">
-      <div class="eyebrow" style="margin-bottom:10px">Оформление</div>
-      <div class="theme-pick">
-        ${THEME_ORDER.map((id) => { const th = THEMES[id]; return `
-          <button class="theme-card ${id === themeNow() ? "on" : ""}" data-theme-pick="${id}" aria-pressed="${id === themeNow()}">
-            <span class="theme-swatch">${th.swatch.map((c) => `<i style="background:${c}"></i>`).join("")}</span>
-            <span class="theme-name">${th.name}</span>
-            <span class="theme-note dim small">${th.note}</span>
-          </button>`; }).join("")}
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="eyebrow" style="margin-bottom:10px">Настройки</div>
-      <button class="toggle-row" id="tg-sound"><span>Звук интерфейса</span><span class="tg ${S.settings?.sound ? "on" : ""}"><i></i></span></button>
-      <button class="toggle-row" id="tg-haptics"><span>Вибро-отдача</span><span class="tg ${S.settings?.haptics ? "on" : ""}"><i></i></span></button>
-      <button class="toggle-row" id="tg-off"><span>Поиск продуктов в открытой базе<span class="dim small" style="display:block">запрос уходит в Open Food Facts</span></span><span class="tg ${S.settings?.offSearch ? "on" : ""}"><i></i></span></button>
-    </div>
-
-    ${remind}
-
-    ${inTelegram ? `
-    <div class="panel">
-      <div class="panel-head">
-        <span class="eyebrow">Аккаунт Telegram</span>
-        <span class="badge b-dim" id="sync-badge">синхронизация…</span>
-      </div>
-      <div class="kv"><span>${tgUserName() || "Герой"}</span><span class="dim mono">${tgUserHandle() || ""}</span></div>
-      <div class="dim small" id="sync-note" style="margin-top:6px">${syncNoteText(serverOn)}</div>
-      <button class="btn-ghost" id="btn-sync" style="margin-top:12px">Синхронизировать сейчас</button>
-    </div>` : ""}
-
-`;
-}
-
-/** Напоминания в Telegram: добавки по расписанию и конец отдыха. Сообщение исчезает через минуту. */
-export function remindPanelView({ conf, available, times }) {
-  const row = (id, on, title, sub) => `<button class="toggle-row" id="${id}" aria-pressed="${on}" ${available ? "" : "disabled"}><span>${title}<span class="dim small" style="display:block">${sub}</span></span><span class="tg ${on ? "on" : ""}"><i></i></span></button>`;
-  return `
-    <div class="panel remind-panel">
-      <div class="eyebrow" style="margin-bottom:10px">Напоминания в Telegram</div>
-      ${available ? "" : `<p class="dim small" style="margin:0 0 8px">Работают в приложении, открытом из Telegram: пишет бот.</p>`}
-      ${row("rm-rest", !!conf.rest, "Конец отдыха", "«пора подход», если приложение свёрнуто")}
-      ${row("rm-supp", !!conf.supp, "Добавки по расписанию", "только то, что ещё не отмечено")}
-      ${conf.supp ? `<div class="rm-times">${times.map((t) => `<label class="rm-time"><span>${t.slot}</span><input type="time" data-slot="${esc(t.slot)}" value="${esc(t.at)}" step="300" /></label>`).join("")}</div>` : ""}
-      <p class="dim small" style="margin:8px 0 0">Сообщение висит минуту и удаляется само.</p>
     </div>`;
 }
-

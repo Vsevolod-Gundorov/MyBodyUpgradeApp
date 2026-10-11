@@ -23,10 +23,10 @@ const base = (over = {}) => ({
 const sessionCtx = (session, over = {}) => base({ event: { type: "session" }, session: { score: 0, doneSets: 0, plannedSets: 30, tonn: 0, durationSec: 0, prLifts: [], prMain: false, firstClear: false, hour: 12, feel: "norm", totalReps: 0, gapDays: 1, ...session }, ...over });
 const ids = (r) => r.unlocked.map((u) => u.ach.id).sort();
 
-test("каталог: ровно 100 достижений, уникальные id и имена, валидные ранги и иконки", () => {
-  assert.equal(ACHIEVEMENTS.length, 100);
-  assert.equal(new Set(ACHIEVEMENTS.map((a) => a.id)).size, 100);
-  assert.equal(new Set(ACHIEVEMENTS.map((a) => a.name)).size, 100);
+test("каталог: ровно 112 достижений, уникальные id и имена, валидные ранги и иконки", () => {
+  assert.equal(ACHIEVEMENTS.length, 112);
+  assert.equal(new Set(ACHIEVEMENTS.map((a) => a.id)).size, 112);
+  assert.equal(new Set(ACHIEVEMENTS.map((a) => a.name)).size, 112);
   for (const a of ACHIEVEMENTS) {
     assert.ok(TIERS[a.tier], `ранг ${a.tier} у ${a.id}`);
     assert.ok(ICONS[a.icon], `нет иконки ${a.icon} у ${a.id}`);

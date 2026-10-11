@@ -11,7 +11,7 @@
 // Список файлов и версия — tools/build-sw.mjs.
 
 // @@manifest-start
-const VERSION = "4bf5ae494cf6450e";
+const VERSION = "8e8d662eb4072c06";
 const PRECACHE = [
   "assets/fonts/cormorant-500-cyrillic.woff2",
   "assets/fonts/cormorant-500-latin.woff2",
@@ -44,6 +44,7 @@ const PRECACHE = [
   "data/bodymap.js",
   "data/complaints.js",
   "data/exercises.js",
+  "data/i18n.js",
   "data/icons-achievements.js",
   "data/icons-exercise.js",
   "data/icons-plain.js",
@@ -73,6 +74,7 @@ const PRECACHE = [
   "js/controller/rest.js",
   "js/controller/router.js",
   "js/controller/scanner.js",
+  "js/controller/settings.js",
   "js/controller/snack.js",
   "js/controller/workout.js",
   "js/core/format.js",
@@ -88,6 +90,7 @@ const PRECACHE = [
   "js/model/profile.js",
   "js/model/reminders.js",
   "js/model/server.js",
+  "js/model/settings.js",
   "js/model/store.js",
   "js/model/sync.js",
   "js/model/theme.js",
@@ -111,6 +114,7 @@ const PRECACHE = [
   "js/view/progress.js",
   "js/view/resources.js",
   "js/view/scanner.js",
+  "js/view/settings.js",
   "js/view/workout.js"
 ];
 // @@manifest-end

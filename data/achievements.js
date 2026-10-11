@@ -1,4 +1,4 @@
-// Достижения и знаки отличия: 100 уникальных наград шести рангов.
+// Достижения и знаки отличия: 112 уникальных наград шести рангов.
 // Чистые данные + чистая функция evaluate() — без DOM и без доступа к состоянию приложения.
 // Контекст ctx собирает js/app.js (buildAchievementCtx). Здесь только правила.
 //
@@ -172,10 +172,22 @@ export const ACHIEVEMENTS = [
   A("protein7",  "Неделя Белка",      "silver",   "nutrition", "steak",        "7 дней с нормой белка",                    (c) => nut(c).proteinDays >= 7, nutNote("proteinDays", "дн. с нормой белка")),
   A("protein30", "Месяц Белка",       "gold",     "nutrition", "steak",        "30 дней с нормой белка",                   (c) => nut(c).proteinDays >= 30, nutNote("proteinDays", "дн. с нормой белка")),
   A("water1",    "Родник",            "bronze",   "nutrition", "fountain",     "Выпить дневную норму воды",                (c) => nut(c).waterDays >= 1, nutNote("waterDays", "дн. с нормой воды")),
+  A("water7",    "Неделя у Родника",  "silver",   "nutrition", "fountain",     "7 дней с нормой воды",                     (c) => nut(c).waterDays >= 7, nutNote("waterDays", "дн. с нормой воды")),
+  A("water30",   "Месяц у Родника",   "gold",     "nutrition", "fountain",     "30 дней с нормой воды",                    (c) => nut(c).waterDays >= 30, nutNote("waterDays", "дн. с нормой воды")),
+  A("kcal1",     "Мера Пайка",        "bronze",   "nutrition", "kitchen-scale","День в цели по калориям (±7%)",            (c) => nut(c).kcalDays >= 1, nutNote("kcalDays", "дн. в цели по калориям")),
   A("kcal7",     "Точный Рацион",     "silver",   "nutrition", "kitchen-scale","7 дней в цели по калориям (±7%)",          (c) => nut(c).kcalDays >= 7, nutNote("kcalDays", "дн. в цели по калориям")),
+  A("kcal30",    "Месяц Точной Меры", "gold",     "nutrition", "kitchen-scale","30 дней в цели по калориям (±7%)",         (c) => nut(c).kcalDays >= 30, nutNote("kcalDays", "дн. в цели по калориям")),
+  A("fat1",      "Масло Светильника", "bronze",   "nutrition", "avocado",      "День с жирами в норме (±15%)",             (c) => nut(c).fatDays >= 1, nutNote("fatDays", "дн. с жирами в норме")),
+  A("fat7",      "Неделя Масла",      "silver",   "nutrition", "avocado",      "7 дней с жирами в норме",                  (c) => nut(c).fatDays >= 7, nutNote("fatDays", "дн. с жирами в норме")),
+  A("fat30",     "Месяц Масла",       "gold",     "nutrition", "avocado",      "30 дней с жирами в норме",                 (c) => nut(c).fatDays >= 30, nutNote("fatDays", "дн. с жирами в норме")),
+  A("carbs1",    "Хлеб Похода",       "bronze",   "nutrition", "wheat",        "День с углеводами в норме (±15%)",         (c) => nut(c).carbsDays >= 1, nutNote("carbsDays", "дн. с углеводами в норме")),
+  A("carbs7",    "Неделя Хлеба",      "silver",   "nutrition", "wheat",        "7 дней с углеводами в норме",              (c) => nut(c).carbsDays >= 7, nutNote("carbsDays", "дн. с углеводами в норме")),
+  A("carbs30",   "Месяц Хлеба",       "gold",     "nutrition", "wheat",        "30 дней с углеводами в норме",             (c) => nut(c).carbsDays >= 30, nutNote("carbsDays", "дн. с углеводами в норме")),
   A("full1",     "Полный Котёл",      "gold",     "nutrition", "cauldron",     "Белок, калории и вода в цели за один день",(c) => nut(c).fullDays >= 1, nutNote("fullDays", "полных дн.")),
   A("full7",     "Семь Полных Котлов","diamond",  "nutrition", "cauldron",     "7 дней с белком, калориями и водой в цели",(c) => nut(c).fullDays >= 7, nutNote("fullDays", "полных дн.")),
-  A("fiber1",    "Корни Здоровья",    "bronze",   "nutrition", "broccoli",     "30 г клетчатки за день",                   (c) => nut(c).fiberDays >= 1, nutNote("fiberDays", "дн. с клетчаткой 30 г+")),
+  A("fiber1",    "Корни Здоровья",    "bronze",   "nutrition", "broccoli",     "Норма клетчатки за день",                  (c) => nut(c).fiberDays >= 1, nutNote("fiberDays", "дн. с нормой клетчатки")),
+  A("fiber7",    "Неделя Корней",     "silver",   "nutrition", "broccoli",     "7 дней с нормой клетчатки",                (c) => nut(c).fiberDays >= 7, nutNote("fiberDays", "дн. с нормой клетчатки")),
+  A("fiber30",   "Месяц Корней",      "gold",     "nutrition", "broccoli",     "30 дней с нормой клетчатки",               (c) => nut(c).fiberDays >= 30, nutNote("fiberDays", "дн. с нормой клетчатки")),
   A("foods30",   "Гурман Кузницы",    "silver",   "nutrition", "cutlery",      "30 разных продуктов в журнале",            (c) => nut(c).distinctFoods >= 30, nutNote("distinctFoods", "продуктов")),
   A("days30",    "Летописец Стола",   "gold",     "nutrition", "notebook",     "30 дней с записями питания",               (c) => nut(c).daysLogged >= 30, nutNote("daysLogged", "дн. записано")),
 
@@ -293,10 +305,22 @@ export const ACH_PLAIN = {
   protein7: ["Неделя по белку", "7 дней с нормой белка"],
   protein30: ["Месяц по белку", "30 дней с нормой белка"],
   water1: ["Норма воды", "Выпить дневную норму воды"],
+  water7: ["Неделя по воде", "7 дней с нормой воды"],
+  water30: ["Месяц по воде", "30 дней с нормой воды"],
+  kcal1: ["Норма калорий", "День в цели по калориям (±7%)"],
   kcal7: ["Неделя по калориям", "7 дней в цели по калориям (±7%)"],
+  kcal30: ["Месяц по калориям", "30 дней в цели по калориям (±7%)"],
+  fat1: ["Норма жиров", "День с жирами в норме (±15%)"],
+  fat7: ["Неделя по жирам", "7 дней с жирами в норме"],
+  fat30: ["Месяц по жирам", "30 дней с жирами в норме"],
+  carbs1: ["Норма углеводов", "День с углеводами в норме (±15%; на кето — не больше нормы)"],
+  carbs7: ["Неделя по углеводам", "7 дней с углеводами в норме"],
+  carbs30: ["Месяц по углеводам", "30 дней с углеводами в норме"],
   full1: ["Полный день", "Белок, калории и вода в цели за один день"],
   full7: ["Неделя полных дней", "7 дней с белком, калориями и водой в цели"],
-  fiber1: ["Норма клетчатки", "30 г клетчатки за день"],
+  fiber1: ["Норма клетчатки", "Норма клетчатки за день"],
+  fiber7: ["Неделя по клетчатке", "7 дней с нормой клетчатки"],
+  fiber30: ["Месяц по клетчатке", "30 дней с нормой клетчатки"],
   foods30: ["Разнообразный рацион", "30 разных продуктов в журнале"],
   days30: ["Месяц учёта питания", "30 дней с записями питания"],
 
@@ -334,15 +358,54 @@ export const CATEGORIES_PLAIN = {
   fate:       "Бонусы",
 };
 
-/** Название достижения в нужной редакции. */
-export const achName = (a, theme) =>
-  (theme === "plain" && a && ACH_PLAIN[a.id] && ACH_PLAIN[a.id][0]) || (a ? a.name : "");
-/** Как получить — в нужной редакции. */
-export const achDesc = (a, theme) =>
-  (theme === "plain" && a && ACH_PLAIN[a.id] && ACH_PLAIN[a.id][1]) || (a ? a.desc : "");
-/** Раздел списка в нужной редакции. */
-export const catName = (key, theme) =>
-  (theme === "plain" ? CATEGORIES_PLAIN[key] : CATEGORIES[key]) || CATEGORIES[key] || key;
+/** По-английски: то, что видно в «Чистой», — тренировки и питание. Остальное пока по-русски. */
+export const ACH_EN = {
+  awakened: ["First workout", "Finish your first workout"],
+  grind10: ["10 workouts", "Finish 10 workouts"], grind50: ["50 workouts", "Finish 50 workouts"],
+  grind100: ["100 workouts", "Finish 100 workouts"], grind250: ["250 workouts", "Finish 250 workouts"],
+  grind500: ["500 workouts", "Finish 500 workouts"],
+  cycle1: ["Cycle complete", "Finish every workout of the cycle at least once"],
+  cycle3: ["Three cycles", "Complete the full cycle three times"], cycle6: ["Six cycles", "Complete the full cycle six times"],
+  overkill: ["Plan done", "Finish all sets with a score of 80%+"], flawless: ["Clean work", "Finish a workout at 90%+"],
+  perfect: ["One hundred percent", "Finish a workout at 100%"],
+  pr: ["Personal record", "New estimated 1RM record"], pr_main: ["Main lift record", "Record in the lift of the day"],
+  pr_double: ["Two records", "Two records in one workout"],
+  life50: ["50 tonnes total", "50 t lifted in total"], life100: ["100 tonnes total", "100 t in total"],
+  life250: ["250 tonnes total", "250 t in total"], life500: ["500 tonnes total", "500 t in total"],
+  life1000: ["1000 tonnes total", "1000 t in total"], life2500: ["2500 tonnes total", "2500 t in total"],
+  total550: ["Total 550 kg", "Bench + squat + deadlift ≥ 550 kg"], total600: ["Total 600 kg", "Powerlifting total ≥ 600 kg"],
+  total650: ["Total 650 kg", "Powerlifting total ≥ 650 kg"], total700: ["Total 700 kg", "Powerlifting total ≥ 700 kg"],
+  total800: ["Total 800 kg", "Powerlifting total ≥ 800 kg"],
+  gain5: ["+5% over start", "Average 1RM gain ≥ 5%"], gain10: ["+10% over start", "Average 1RM gain ≥ 10%"],
+  gain20: ["+20% over start", "Average 1RM gain ≥ 20%"], gain35: ["+35% over start", "Average 1RM gain ≥ 35%"],
+  week3: ["Full week", "3 workouts in one week"], streak4: ["A month without skips", "4 weeks in a row with 3 workouts"],
+  streak8: ["Two months without skips", "8 weeks in a row with 3 workouts"], streak12: ["A quarter without skips", "12 weeks in a row with 3 workouts"],
+  streak26: ["Half a year without skips", "26 weeks in a row with 3 workouts"], streak52: ["A year without skips", "52 weeks in a row with 3 workouts"],
+  meal1: ["First nutrition day", "Log your first day of nutrition"], days30: ["A month of logging", "30 days with nutrition logged"],
+  kcal1: ["Calorie target", "A day on calorie target (±7%)"], kcal7: ["Calorie week", "7 days on calorie target"], kcal30: ["Calorie month", "30 days on calorie target"],
+  protein1: ["Protein target", "Hit your protein target for a day"], protein7: ["Protein week", "7 days with protein on target"], protein30: ["Protein month", "30 days with protein on target"],
+  fat1: ["Fat target", "A day with fat on target (±15%)"], fat7: ["Fat week", "7 days with fat on target"], fat30: ["Fat month", "30 days with fat on target"],
+  carbs1: ["Carb target", "A day with carbs on target (±15%; on keto — not above it)"], carbs7: ["Carb week", "7 days with carbs on target"], carbs30: ["Carb month", "30 days with carbs on target"],
+  fiber1: ["Fiber target", "Hit your fiber target for a day"], fiber7: ["Fiber week", "7 days with fiber on target"], fiber30: ["Fiber month", "30 days with fiber on target"],
+  water1: ["Water target", "Drink your daily water target"], water7: ["Water week", "7 days with water on target"], water30: ["Water month", "30 days with water on target"],
+  full1: ["Full day", "Protein, calories and water on target in one day"], full7: ["A week of full days", "7 days with protein, calories and water on target"],
+};
+export const CATEGORIES_EN = {
+  path: "Path", quest: "Workouts", tonnage: "Tonnage", strength: "Strength", discipline: "Consistency",
+  hero: "Form", nutrition: "Nutrition", buffs: "Supplements", chronicle: "Data", fate: "Bonuses",
+};
+
+/** Название достижения в нужной редакции и на нужном языке. */
+export const achName = (a, theme, lang = "ru") =>
+  (lang === "en" && a && ACH_EN[a.id] && ACH_EN[a.id][0])
+  || (theme === "plain" && a && ACH_PLAIN[a.id] && ACH_PLAIN[a.id][0]) || (a ? a.name : "");
+/** Как получить — в нужной редакции и на нужном языке. */
+export const achDesc = (a, theme, lang = "ru") =>
+  (lang === "en" && a && ACH_EN[a.id] && ACH_EN[a.id][1])
+  || (theme === "plain" && a && ACH_PLAIN[a.id] && ACH_PLAIN[a.id][1]) || (a ? a.desc : "");
+/** Раздел списка в нужной редакции и на нужном языке. */
+export const catName = (key, theme, lang = "ru") =>
+  (lang === "en" && CATEGORIES_EN[key]) || (theme === "plain" ? CATEGORIES_PLAIN[key] : CATEGORIES[key]) || CATEGORIES[key] || key;
 
 export const ACH_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
@@ -426,7 +489,12 @@ export const SERIES = [
   S_("lvl", ["lvl5", "lvl10", "lvl20", "lvl30"], (c) => (c.hero && c.hero.level) || 0, [5, 10, 20, 30], ""),
   S_("stat", ["stat75", "stat90"], (c) => Math.max(0, ...allStats(c)), [75, 90], ""),
   S_("all", ["all60", "all80"], (c) => (allStats(c).length ? Math.min(...allStats(c)) : 0), [60, 80], ""),
+  S_("kcal", ["kcal1", "kcal7", "kcal30"], (c) => nut(c).kcalDays || 0, [1, 7, 30], "дн."),
   S_("protein", ["protein1", "protein7", "protein30"], (c) => nut(c).proteinDays || 0, [1, 7, 30], "дн."),
+  S_("fat", ["fat1", "fat7", "fat30"], (c) => nut(c).fatDays || 0, [1, 7, 30], "дн."),
+  S_("carbs", ["carbs1", "carbs7", "carbs30"], (c) => nut(c).carbsDays || 0, [1, 7, 30], "дн."),
+  S_("fiber", ["fiber1", "fiber7", "fiber30"], (c) => nut(c).fiberDays || 0, [1, 7, 30], "дн."),
+  S_("water", ["water1", "water7", "water30"], (c) => nut(c).waterDays || 0, [1, 7, 30], "дн."),
   S_("full", ["full1", "full7"], (c) => nut(c).fullDays || 0, [1, 7], "дн."),
   S_("nutlog", ["meal1", "days30"], (c) => nut(c).daysLogged || 0, [1, 30], "дн."),
   S_("buffs", ["buffday", "buff7", "buff30"], (c) => buffs(c).fullDays || 0, [1, 7, 30], "дн."),
@@ -442,11 +510,16 @@ export const cardKey = (id) => (SERIES_OF[id] ? SERIES_OF[id].sr.key : id);
  * Что показывать в каждой редакции.
  * «Сага» — коллекция: видно всё, кроме того, что схлопнуто в серии.
  * «Чистая» — короткий список того, что атлету действительно важно: сколько
- * тренировок и как регулярно, рекорды, прибавка в силе, питание и добавки.
- * Уровня, класса, случайных «даров» и наград за экспорт файла там нет.
+ * тренировок и как регулярно, рекорды, прибавка в силе и питание — по серии на каждый показатель.
+ * Уровня, класса, случайных «даров», добавок и наград за экспорт файла там нет.
  * Остальное по-прежнему начисляется — переключил тему, и оно на месте.
  */
-const PLAIN_CARDS = new Set(["sessions", "cycles", "quality", "pr", "life", "total", "gain", "streak", "protein", "full", "nutlog", "buffs"]);
+const PLAIN_CARDS = new Set([
+  // тренировки
+  "sessions", "cycles", "quality", "pr", "life", "total", "gain", "streak",
+  // питание — по серии на каждый показатель дня
+  "kcal", "protein", "fat", "carbs", "fiber", "water", "full", "nutlog",
+]);
 const HIDDEN_CATS = { plain: ["hero"] };
 export const catHidden = (key, theme) => (HIDDEN_CATS[theme] || []).includes(key);
 export const achVisible = (a, theme) => !!a && !catHidden(a.cat, theme) && (theme !== "plain" || PLAIN_CARDS.has(cardKey(a.id)));
