@@ -257,9 +257,8 @@ export async function remindersPost(body, { keepalive = false } = {}) {
 }
 
 /* ---------------- фото профиля ---------------- */
-/** Фото профиля через сервер: data:URL, null — фото нет; undefined — сервер не ответил. */
+/** Фото профиля через сервер: { status, json } — status 0, если сервера нет или нет сети. */
 export async function avatarGet() {
-  if (!serverActive() || serverState === "offline") return undefined;
-  const { status, json } = await api("GET", null, { url: AVATAR_API });
-  return status === 200 && json ? json.photo : undefined;
+  if (!serverActive() || serverState === "offline") return { status: 0, json: null };
+  return api("GET", null, { url: AVATAR_API });
 }

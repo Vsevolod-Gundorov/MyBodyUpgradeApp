@@ -60,22 +60,29 @@ export function pickSize(sizes = []) {
   return ok.find((x) => x.width >= 160 && !(x.file_size > AVATAR_MAX_BYTES)) || ok.filter((x) => !(x.file_size > AVATAR_MAX_BYTES)).pop() || null;
 }
 
-/** Фото профиля как data:URL или null (фото нет или скрыто настройками приватности). */
-export async function userPhoto(token, userId, { timeoutMs = 6000, fetchImpl = fetch } = {}) {
+/**
+ * Фото профиля: { photo: data:URL } или { photo: null, reason } — почему фото нет:
+ *   none — Telegram не показывает боту ни одного фото (нет фото или скрыто приватностью);
+ *   path / big / type — файл не прошёл проверку.
+ */
+export async function userPhotoInfo(token, userId, { timeoutMs = 6000, fetchImpl = fetch } = {}) {
   const opts = { timeoutMs, fetchImpl };
   const r = await call(token, "getUserProfilePhotos", { user_id: Number(userId), limit: 1 }, opts);
   const size = pickSize(r && Array.isArray(r.photos) ? r.photos[0] : []);
-  if (!size) return null;
+  if (!size) return { photo: null, reason: "none" };
   const f = await call(token, "getFile", { file_id: size.file_id }, opts);
   const path = f && f.file_path;
-  if (typeof path !== "string" || path.length > 200 || !FILE_PATH.test(path) || path.includes("..")) return null;
+  if (typeof path !== "string" || path.length > 200 || !FILE_PATH.test(path) || path.includes("..")) return { photo: null, reason: "path" };
   const res = await fetchImpl(`${API}/file/bot${token}/${path}`, { signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
   if (!res || res.status !== 200) { const e = new Error("tg_file"); e.code = res ? res.status : 0; throw e; }
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > AVATAR_MAX_BYTES) return null;
+  if (buf.length > AVATAR_MAX_BYTES) return { photo: null, reason: "big" };
   const type = imageType(buf);
-  return type ? `data:${type};base64,${buf.toString("base64")}` : null;
+  return type ? { photo: `data:${type};base64,${buf.toString("base64")}` } : { photo: null, reason: "type" };
 }
+
+/** Фото профиля как data:URL или null. */
+export const userPhoto = async (token, userId, opts) => (await userPhotoInfo(token, userId, opts)).photo;
 
 /** Фоновая работа после ответа (Vercel: waitUntil). Без Vercel — просто ждём её до ответа. */
 export function background(promise) {
