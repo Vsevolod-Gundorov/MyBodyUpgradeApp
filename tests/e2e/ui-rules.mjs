@@ -1,5 +1,5 @@
 // Проверка правил интерфейса (docs/UI_RULES.md, «Проверка перед выкладкой») на профиле:
-//   • строки двух колонок блока «Питание» — на одной высоте до пикселя;
+//   • «Питание» — таблица: ячейки строки на одной линии, строки ≤ 32 px, без пустых заглушек;
 //   • содержимое не выходит за края карточек, подписи не обрезаны;
 //   • заголовки блоков — 40 px, кнопка — по центру той же строки;
 //   • нажимаемое — не меньше 40 px.
@@ -27,20 +27,26 @@ for (const theme of ["plain", "saga"]) for (const width of [360, 390, 430]) {
   await p.goto(`${BASE}/#profile`); await p.waitForTimeout(1200);
   const r = await p.evaluate(() => {
     const bad = [];
-    const days = [...document.querySelectorAll(".pfn-day")];
-    if (days.length !== 2) bad.push("в блоке «Питание» не две колонки");
+    // «Питание» — таблица: у каждой строки все ячейки на одной линии, строки не выше 32 px,
+    // заглушек (пустых шкал) нет — симметрия строится структурой, а не пустыми элементами
+    const tbl = document.querySelector(".pfn-tbl");
+    if (!tbl) bad.push("в блоке «Питание» нет таблицы");
     else {
-      const ys = (el) => [...el.querySelectorAll(".pfn-tag,.pfn-name,.pfn-kcal,.pfn-ksub,.pfn-day > .pfn-bar,.pfn-m .pfn-ico,.pfn-mn,.pfn-mv,.pfn-m .pfn-bar")]
-        .map((x) => Math.round(x.getBoundingClientRect().top - el.getBoundingClientRect().top));
-      const a = ys(days[0]), c = ys(days[1]);
-      if (a.length !== c.length) bad.push("колонки питания устроены по-разному");
-      a.forEach((y, i) => { if (y !== c[i]) bad.push(`строка ${i} колонок питания: ${y} и ${c[i]}`); });
+      const cells = [...tbl.children];
+      if (cells.length % 3) bad.push("в таблице питания не три столбца");
+      for (let i = 0; i < cells.length; i += 3) {
+        const tops = cells.slice(i, i + 3).map((c) => Math.round(c.getBoundingClientRect().top));
+        const hs = cells.slice(i, i + 3).map((c) => Math.round(c.getBoundingClientRect().height));
+        if (new Set(tops).size > 1) bad.push(`строка ${i / 3} таблицы питания вразнобой: ${tops}`);
+        if (Math.max(...hs) > 32) bad.push(`строка ${i / 3} таблицы питания выше 32 px`);
+      }
     }
-    document.querySelectorAll(".pfn-day, .pf-card, .panel").forEach((el) => {
+    if (document.querySelector(".pfn-bar")) bad.push("пустые шкалы-заглушки");
+    document.querySelectorAll(".pf-card, .panel").forEach((el) => {
       const box = el.getBoundingClientRect();
       if ([...el.querySelectorAll("*")].some((c) => { const q = c.getBoundingClientRect(); return q.width && (q.right > box.right + 0.5 || q.left < box.left - 0.5); })) bad.push(`вылезает за край: ${el.className}`);
     });
-    document.querySelectorAll(".pfn-mn, .pfn-mv, .pfn-name, .pfn-ksub, .blk-title").forEach((t) => { if (t.scrollWidth > t.clientWidth + 1) bad.push(`обрезано: ${t.textContent.trim()}`); });
+    document.querySelectorAll(".pfn-c, .pf-v, .pf-l, .blk-title, .pf-chip").forEach((t) => { if (t.scrollWidth > t.clientWidth + 1) bad.push(`обрезано: ${t.textContent.trim()}`); });
     document.querySelectorAll(".blk-head").forEach((h) => {
       const hb = h.getBoundingClientRect(), t = h.querySelector(".blk-title").getBoundingClientRect();
       if (Math.round(hb.height) !== 40) bad.push(`заголовок блока ${Math.round(hb.height)} px`);

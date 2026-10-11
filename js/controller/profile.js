@@ -51,7 +51,8 @@ export function renderProfile() {
     ...(p ? [
       { step: "about", icon: "stairs", label: T("body"), value: `${p.height} ${T("cm")} · ${age} · ${nameOf("sex", p.sex, (SEXES[p.sex] || "").slice(0, 3).toLowerCase())}` },
       { step: "goal", icon: "on-target", label: T("goal"), value: `${dir}${pace ? ` · ${nameOf("pace", pace.id, pace.name.toLowerCase())}` : ""}` },
-      { step: "food", icon: "cutlery", label: T("food"), sub: nameOf("activity", p.activity, ACTIVITY[p.activity].name.toLowerCase()), value: nameOf("program", p.program, PROGRAMS[p.program].name) },
+      { step: "food", icon: "cutlery", label: T("food"), value: nameOf("program", p.program, PROGRAMS[p.program].name) },
+      { step: "activity", icon: "footprint", label: T("activity"), value: nameOf("activity", p.activity, ACTIVITY[p.activity].name.toLowerCase()) },
       { step: "training", icon: "biceps", label: T("experience"), value: nameOf("experience", p.experience, EXPERIENCE[p.experience] && EXPERIENCE[p.experience].name) },
     ] : []),
   ]);

@@ -63,39 +63,31 @@ export function myDataView(rows) {
  * Сегодняшний день подсвечен и показывает, сколько уже съедено, — как на вкладке «Питание».
  * days: [{ key, on, T: нормы, tot: съедено (только у сегодняшнего) }]
  */
+/**
+ * Питание в профиле — таблица: строки «ккал, белки, жиры, углеводы», столбцы «тренировка | отдых».
+ * Подпись со значком — один раз слева, каждая строка — одна линия на оба дня: плотно и симметрично.
+ * Сегодняшний столбец подсвечен, в нём «съедено / норма», а прогресс — заливкой под числом,
+ * без отдельных строк со шкалами. days: [{ key, T: нормы, tot: съедено (только у сегодняшнего) }]
+ */
 export function nutritionBlockView({ days, manual }) {
-  const MAC = [["protein", "p", "steak"], ["fat", "f", "avocado"], ["carbs", "cb", "wheat"]];
-  // шкала есть у обеих колонок: у сегодняшнего дня — заполненная, у другого — пустая дорожка.
-  // Так строки двух колонок стоят на одной высоте (docs/UI_RULES.md, п. 2)
-  const bar = (cur, tgt, grad) => `<span class="pfn-bar"><i style="width:${Math.min(100, tgt && cur ? (cur / tgt) * 100 : 0).toFixed(0)}%;background:${grad}"></i></span>`;
-  const day = (d) => {
-    const today = !!d.tot;
-    const cur = (k) => (today ? Math.round(d.tot[k]) : 0);
-    return `
-      <div class="pfn-day ${today ? "on" : ""}">
-        <span class="pfn-tag">${today ? T("today") : ""}</span>
-        <span class="pfn-name">${T(d.key === "training" ? "dayTraining" : "dayRest")}</span>
-        <div class="pfn-kcal">
-          <span class="pfn-ico" style="color:${NUT_ACCENT.kcal}">${icon("flame")}</span>
-          <b class="mono">${today ? cur("k") : d.T.kcal}</b>
-        </div>
-        <span class="pfn-ksub mono">${today ? `/ ${d.T.kcal} ${T("kcal")}` : T("kcal")}</span>
-        ${bar(cur("k"), d.T.kcal, NUT_GRAD.kcal)}
-        <div class="pfn-macros">
-          ${MAC.map(([k, tk, ic]) => `
-            <div class="pfn-m">
-              <span class="pfn-ico" style="color:${NUT_ACCENT[k]}">${icon(ic)}</span>
-              <span class="pfn-mn" data-short="${T(`${k}Short`)}"><span>${T(k)}</span></span>
-              <span class="pfn-mv mono">${today ? `${cur(tk)}<small>/${d.T[k]}</small>` : d.T[k]}</span>
-              ${bar(cur(tk), d.T[k], NUT_GRAD[k])}
-            </div>`).join("")}
-        </div>
-      </div>`;
+  const ROWS = [["kcal", "k", "flame", "kcalShort"], ["protein", "p", "steak", "protein"], ["fat", "f", "avocado", "fat"], ["carbs", "cb", "wheat", "carbs"]];
+  const cell = (d, k, tk) => {
+    const norm = d.T[k === "kcal" ? "kcal" : k];
+    if (!d.tot) return `<span class="pfn-c pfn-v mono">${norm}</span>`;
+    const cur = Math.round(d.tot[tk]);
+    const pct = norm ? Math.min(100, (cur / norm) * 100) : 0;
+    return `<span class="pfn-c pfn-v on mono"><i class="pfn-fill"><i style="width:${pct.toFixed(0)}%;background:${NUT_GRAD[k]}"></i></i><b>${cur}</b><small>/${norm}</small></span>`;
   };
   return `
     <section class="panel pf-nut" aria-label="${T("nutTitle")}">
       ${blockHead(T("nutTitle"), `<button class="pf-sq" id="goals-nut" aria-label="${T("nutEdit")}">${PENCIL}</button>`)}
-      <button class="pfn-body" id="pf-nut-open" aria-label="${T("nutOpen")}">${days.map(day).join("")}</button>
+      <button class="pfn-tbl" id="pf-nut-open" aria-label="${T("nutOpen")}">
+        <span class="pfn-c pfn-corner"></span>
+        ${days.map((d) => `<span class="pfn-c pfn-hd ${d.tot ? "on" : ""}">${d.tot ? `<i class="pfn-dot" title="${T("today")}"></i>` : ""}${T(d.key === "training" ? "dayTraining" : "dayRest")}</span>`).join("")}
+        ${ROWS.map(([k, tk, ic, lbl]) => `
+          <span class="pfn-c pfn-lbl"><span class="pfn-ico" style="color:${NUT_ACCENT[k]}">${icon(ic)}</span>${T(lbl)}</span>
+          ${days.map((d) => cell(d, k, tk)).join("")}`).join("")}
+      </button>
       ${manual ? `<div class="dim small pfn-note">${T("manualNorms")}</div>` : ""}
     </section>`;
 }
