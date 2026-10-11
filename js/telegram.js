@@ -157,7 +157,7 @@ export function tgUserName() {
  * Иначе подменённый initDataUnsafe мог бы подсунуть картинку с чужого сервера
  * (и узнать IP атлета) или схему javascript:/data:. Чистая функция — проверяется тестом.
  */
-const AVATAR_HOSTS = /^(?:t\.me|(?:[a-z0-9-]+\.)*(?:t\.me|telegram\.org|telegram-cdn\.org|cdn-telegram\.org))$/;
+const AVATAR_HOSTS = /^(?:t\.me|(?:[a-z0-9-]+\.)*(?:t\.me|telegram\.org|telegram-cdn\.org|cdn-telegram\.org|telesco\.pe))$/;
 export function safeAvatarUrl(url) {
   if (typeof url !== "string" || url.length > 512) return null;
   let u;
