@@ -88,8 +88,9 @@ test("подпись Telegram уходит только на свой серве
   assert.match(srv, /const REMIND_API = "\/api\/reminders";/, "напоминания — тоже свой адрес");
   assert.match(srv, /const API = "\/api\/journal";/, "адреса — свои, относительные");
   assert.match(srv, /const FOODS_API = "\/api\/foods";/);
+  assert.match(srv, /const AVATAR_API = "\/api\/avatar";/, "фото профиля — тоже свой адрес");
   const urls = [...srv.matchAll(/url: (`[^`]*`|\w+)/g)].map((m) => m[1].trim());
-  assert.ok(urls.length && urls.every((u) => /^(`\$\{FOODS_API\}\?q=\$\{encodeURIComponent\(q\)\}`|FOODS_API|REMIND_API)$/.test(u)), `адреса запросов: ${urls}`);
+  assert.ok(urls.length && urls.every((u) => /^(`\$\{FOODS_API\}\?q=\$\{encodeURIComponent\(q\)\}`|FOODS_API|REMIND_API|AVATAR_API)$/.test(u)), `адреса запросов: ${urls}`);
   assert.match(srv, /credentials: "omit"/, "без cookies");
   assert.match(srv, /redirect: "error"/, "подпись не уходит по перенаправлению");
   assert.match(srv, /authorization: `tma \$\{tgInitData\(\)\}`/);

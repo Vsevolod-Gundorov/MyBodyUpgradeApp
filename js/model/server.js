@@ -17,6 +17,7 @@ import { invalidateE1RM } from "./training.js";
 const API = "/api/journal";
 const FOODS_API = "/api/foods";   // общий каталог продуктов
 const REMIND_API = "/api/reminders";   // напоминания в Telegram
+const AVATAR_API = "/api/avatar";      // фото профиля из Telegram
 export const PREMIGRATE_KEY = `${DB_KEY}.before-server`;   // журнал до первого переезда на сервер
 export const BACKUP_KEY = `${DB_KEY}.before-pull`;         // локальная копия перед заменой серверной
 
@@ -253,4 +254,12 @@ export async function remindersPut(payload) {
 export async function remindersPost(body, { keepalive = false } = {}) {
   if (!serverActive() || serverState === "offline") return { status: 0, json: null };
   return api("POST", body, { url: REMIND_API, keepalive });
+}
+
+/* ---------------- фото профиля ---------------- */
+/** Фото профиля через сервер: data:URL, null — фото нет; undefined — сервер не ответил. */
+export async function avatarGet() {
+  if (!serverActive() || serverState === "offline") return undefined;
+  const { status, json } = await api("GET", null, { url: AVATAR_API });
+  return status === 200 && json ? json.photo : undefined;
 }

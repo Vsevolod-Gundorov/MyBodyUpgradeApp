@@ -13,7 +13,8 @@ import { app } from "../view/dom.js";
 import { fxTap, haptic } from "../view/fx.js";
 import { myDataView, profileCardView, profileView, remindPanelView, syncNoteText } from "../view/profile.js";
 import { ACTIVITY, DIRECTIONS, EXPERIENCE, PACES, PROGRAMS, SEXES } from "../../data/profile.js";
-import { tgAvatar, tgUserHandle } from "../telegram.js";
+import { tgUserHandle } from "../telegram.js";
+import { avatarNow, refreshAvatar } from "../model/avatar.js";
 import { TIMED_SLOTS } from "../../data/reminders.js";
 import { reminders, slotTime } from "../model/reminders.js";
 import { changeSlotTime, remindersAvailable, toggleReminder } from "./reminders.js";
@@ -55,7 +56,7 @@ export function renderProfile() {
   const age = p ? new Date().getFullYear() - p.birthYear : null;
   const handle = tgUserHandle();
   const me = {
-    name: S.hero.name, photo: tgAvatar(),
+    name: S.hero.name, photo: avatarNow(),
     handle: handle && handle !== S.hero.name ? handle : null,
     chips: [`${fmt(bw)} кг`, p && `${p.height} см`, age && `${age} лет`, p && DIRECTIONS[p.direction] && DIRECTIONS[p.direction].name].filter(Boolean),
   };
@@ -82,6 +83,8 @@ export function renderProfile() {
   // фото не загрузилось (нет сети, Телеграм не отдал) — остаются инициалы
   const photo = app.querySelector(".pf-photo");
   if (photo) photo.onerror = () => photo.remove();
+  // фото пришло от бота позже — перерисуем, если профиль ещё на экране
+  refreshAvatar(() => { if (document.getElementById("pf-edit")) renderProfile(); });
 
   // Вес меняется: от него считаются нормы питания, подтягивания, брусья и гиперэкстензия.
   // Запись идёт в историю взвешиваний — график и тренд на вкладке «Прогресс».
