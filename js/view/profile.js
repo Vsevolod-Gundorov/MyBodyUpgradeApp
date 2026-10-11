@@ -16,7 +16,8 @@ const PENCIL = '<svg class="ico ico-line" viewBox="0 0 24 24" fill="none" stroke
  */
 export function avatarView({ photo, name }) {
   const ini = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
-  return `<span class="pf-ava" aria-hidden="true"><span class="pf-ini">${esc(ini)}</span>${photo
+  const ok = typeof photo === "string" && /^(https:\/\/|data:image\/(?:jpeg|png|webp);base64,)/.test(photo);
+  return `<span class="pf-ava" aria-hidden="true"><span class="pf-ini">${esc(ini)}</span>${ok
     ? `<img class="pf-photo" src="${esc(photo)}" alt="" referrerpolicy="no-referrer" decoding="async" />` : ""}</span>`;
 }
 

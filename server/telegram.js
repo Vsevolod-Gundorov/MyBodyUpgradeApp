@@ -38,6 +38,45 @@ export async function deleteMessage(token, chatId, messageId, opts = {}) {
   }
 }
 
+/* ---------------- фото профиля ---------------- */
+// Telegram кладёт photo_url в данные запуска только для приложений из меню вложений.
+// Поэтому фото берём сами: getUserProfilePhotos → getFile → файл. Токен остаётся на
+// сервере: приложению уходит готовая картинка data:, а не ссылка с токеном внутри.
+export const AVATAR_MAX_BYTES = 200 * 1024;
+const FILE_PATH = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_.-]+)*$/;
+
+/** Тип картинки по первым байтам: присланному заголовку не верим. */
+export function imageType(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+  if (buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+/** Самый маленький размер не меньше 160 px — на кружок 72 px хватает с запасом для ретины. */
+export function pickSize(sizes = []) {
+  const ok = sizes.filter((x) => x && typeof x.file_id === "string" && x.width > 0).sort((a, b) => a.width - b.width);
+  return ok.find((x) => x.width >= 160 && !(x.file_size > AVATAR_MAX_BYTES)) || ok.filter((x) => !(x.file_size > AVATAR_MAX_BYTES)).pop() || null;
+}
+
+/** Фото профиля как data:URL или null (фото нет или скрыто настройками приватности). */
+export async function userPhoto(token, userId, { timeoutMs = 6000, fetchImpl = fetch } = {}) {
+  const opts = { timeoutMs, fetchImpl };
+  const r = await call(token, "getUserProfilePhotos", { user_id: Number(userId), limit: 1 }, opts);
+  const size = pickSize(r && Array.isArray(r.photos) ? r.photos[0] : []);
+  if (!size) return null;
+  const f = await call(token, "getFile", { file_id: size.file_id }, opts);
+  const path = f && f.file_path;
+  if (typeof path !== "string" || path.length > 200 || !FILE_PATH.test(path) || path.includes("..")) return null;
+  const res = await fetchImpl(`${API}/file/bot${token}/${path}`, { signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
+  if (!res || res.status !== 200) { const e = new Error("tg_file"); e.code = res ? res.status : 0; throw e; }
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > AVATAR_MAX_BYTES) return null;
+  const type = imageType(buf);
+  return type ? `data:${type};base64,${buf.toString("base64")}` : null;
+}
+
 /** Фоновая работа после ответа (Vercel: waitUntil). Без Vercel — просто ждём её до ответа. */
 export function background(promise) {
   const ctx = globalThis[Symbol.for("@vercel/request-context")];

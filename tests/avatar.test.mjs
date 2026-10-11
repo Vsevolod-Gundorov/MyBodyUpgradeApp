@@ -26,3 +26,76 @@ test("в разметку адрес и инициалы попадают экр
   assert.match(html, /referrerpolicy="no-referrer"/, "Телеграму не уходит адрес страницы");
   assert.match(avatarView({ photo: null, name: "Всеволод Гундоров" }), /ВГ/);
 });
+
+/* ---------------- сервер: фото берётся у бота, токен наружу не уходит ---------------- */
+import { imageType, pickSize, userPhoto, AVATAR_MAX_BYTES } from "../server/telegram.js";
+
+const TOKEN = "123456789:" + "A".repeat(35);
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200, 7)]);
+
+function fakeBot({ photos = [[{ file_id: "s", width: 160, height: 160 }, { file_id: "b", width: 640, height: 640 }]], path = "profile_photos/file_1.jpg", body = JPEG, status = 200 } = {}) {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ url, init });
+    const method = url.split("/").pop();
+    const reply = (obj) => ({ status: 200, json: async () => obj });
+    if (url.includes("/file/bot")) return { status, arrayBuffer: async () => body };
+    if (method === "getUserProfilePhotos") return reply({ ok: true, result: { total_count: photos.length, photos } });
+    if (method === "getFile") return reply({ ok: true, result: { file_id: JSON.parse(init.body).file_id, file_path: path } });
+    return reply({ ok: false, error_code: 404 });
+  };
+  return { fetchImpl, calls };
+}
+
+test("тип картинки — по байтам, а не по заголовку", () => {
+  assert.equal(imageType(JPEG), "image/jpeg");
+  assert.equal(imageType(Buffer.from("<svg onload=alert(1)></svg>")), null);
+  assert.equal(imageType(Buffer.from("<html><script>x</script></html>")), null);
+});
+
+test("размер — самый маленький от 160 px", () => {
+  assert.equal(pickSize([{ file_id: "a", width: 640 }, { file_id: "b", width: 160 }, { file_id: "c", width: 320 }]).file_id, "b");
+  assert.equal(pickSize([{ file_id: "a", width: 100 }]).file_id, "a", "маленькое лучше, чем ничего");
+  assert.equal(pickSize([]), null);
+});
+
+test("фото приходит data:URL, своего пользователя, без лишних запросов", async () => {
+  const bot = fakeBot();
+  const photo = await userPhoto(TOKEN, "777", { fetchImpl: bot.fetchImpl });
+  assert.match(photo, /^data:image\/jpeg;base64,/);
+  assert.equal(JSON.parse(bot.calls[0].init.body).user_id, 777);
+  assert.equal(JSON.parse(bot.calls[1].init.body).file_id, "s", "берём маленький размер");
+  assert.equal(bot.calls.length, 3);
+  assert.ok(bot.calls.every((c) => c.url.startsWith("https://api.telegram.org/")), "ходим только в Telegram");
+  assert.ok(!photo.includes(TOKEN));
+});
+
+test("нет фото, подозрительный путь, не картинка, слишком большой файл — null", async () => {
+  assert.equal(await userPhoto(TOKEN, "1", fakeBot({ photos: [] })), null);
+  for (const path of ["../../etc/passwd", "a/../b.jpg", "x.jpg?y=1", "https://evil/x.jpg", "a b.jpg"]) {
+    const bot = fakeBot({ path });
+    assert.equal(await userPhoto(TOKEN, "1", bot), null, path);
+    assert.equal(bot.calls.length, 2, `${path}: файл не скачивается`);
+  }
+  assert.equal(await userPhoto(TOKEN, "1", fakeBot({ body: Buffer.from("<svg onload=alert(1)>") })), null);
+  assert.equal(await userPhoto(TOKEN, "1", fakeBot({ body: Buffer.concat([JPEG, Buffer.alloc(AVATAR_MAX_BYTES)]) })), null);
+});
+
+test("ошибка Telegram не выдаёт токен", async () => {
+  const bot = fakeBot({ status: 404 });
+  await assert.rejects(userPhoto(TOKEN, "1", bot), (e) => !String(e.message).includes(TOKEN) && e.code === 404);
+});
+
+/* ---------------- клиент: принимается только безопасная картинка ---------------- */
+const mem = new Map();
+globalThis.localStorage = globalThis.localStorage || { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
+const { safeDataUrl } = await import("../js/model/avatar.js");
+
+test("от сервера берём только data:image jpeg/png/webp", () => {
+  assert.ok(safeDataUrl("data:image/jpeg;base64,/9j/4AAQ=="));
+  for (const bad of ["data:image/svg+xml;base64,PHN2Zz4=", "data:text/html;base64,PGI+", "javascript:alert(1)",
+    "https://evil.example/x.jpg", 'data:image/jpeg;base64,AA"><script>', null, 5, "data:image/jpeg;base64," + "A".repeat(300000)]) {
+    assert.equal(safeDataUrl(bad), null, String(bad).slice(0, 40));
+  }
+  assert.doesNotMatch(avatarView({ photo: "javascript:alert(1)", name: "X" }), /<img/, "вид сам не вставит чужую схему");
+});
