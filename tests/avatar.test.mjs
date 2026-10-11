@@ -92,7 +92,6 @@ test("ошибка Telegram не выдаёт токен", async () => {
 const mem = new Map();
 globalThis.localStorage = globalThis.localStorage || { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
 const { safeDataUrl, avatarOutcome } = await import("../js/model/avatar.js");
-const { avatarNoteText } = await import("../js/view/profile.js");
 
 test("от сервера берём только data:image jpeg/png/webp", () => {
   assert.ok(safeDataUrl("data:image/jpeg;base64,/9j/4AAQ=="));
@@ -103,16 +102,12 @@ test("от сервера берём только data:image jpeg/png/webp", () 
   assert.doesNotMatch(avatarView({ photo: "javascript:alert(1)", name: "X" }), /<img/, "вид сам не вставит чужую схему");
 });
 
-test("причина, почему фото нет, — понятным языком", () => {
-  const ok = avatarOutcome({ status: 200, json: { photo: "data:image/jpeg;base64,/9j/" } });
-  assert.equal(ok.state, "ok");
+test("ответ сервера: фото, «нет фото» или сбой", () => {
+  assert.equal(avatarOutcome({ status: 200, json: { photo: "data:image/jpeg;base64,/9j/" } }).state, "ok");
   assert.equal(avatarOutcome({ status: 200, json: { photo: null, reason: "none" } }).state, "none");
-  assert.equal(avatarOutcome({ status: 0, json: null }).state, "offline");
-  assert.deepEqual(avatarOutcome({ status: 502, json: { error: "telegram_unavailable", tg: 400 } }), { state: "error", code: 400 });
+  assert.equal(avatarOutcome({ status: 0, json: null }).state, "error");
+  assert.equal(avatarOutcome({ status: 502, json: { error: "telegram_unavailable", tg: 400 } }).state, "error");
   assert.equal(avatarOutcome({ status: 200, json: { photo: "javascript:alert(1)" } }).state, "error", "мусор вместо картинки — сбой, а не фото");
-  assert.match(avatarNoteText({ state: "none" }), /Конфиденциальность/);
-  assert.match(avatarNoteText({ state: "error", code: 400 }), /код 400/);
-  assert.match(avatarNoteText({ state: "error", code: "<b>" }), /код 0/, "в текст попадает только число");
 });
 
 test("сервер называет причину, если фото нет", async () => {

@@ -11,7 +11,7 @@ import { cloudState, onCloudState } from "../model/sync.js";
 import { themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
 import { fxTap, haptic } from "../view/fx.js";
-import { avatarNoteText, myDataView, profileCardView, profileView, remindPanelView, syncNoteText } from "../view/profile.js";
+import { myDataView, profileCardView, profileView, remindPanelView, syncNoteText } from "../view/profile.js";
 import { ACTIVITY, DIRECTIONS, EXPERIENCE, PACES, PROGRAMS, SEXES } from "../../data/profile.js";
 import { tgUserHandle } from "../telegram.js";
 import { avatarNow, refreshAvatar } from "../model/avatar.js";
@@ -84,18 +84,7 @@ export function renderProfile() {
   const photo = app.querySelector(".pf-photo");
   if (photo) photo.onerror = () => photo.remove();
   // фото пришло от бота позже — перерисуем, если профиль ещё на экране
-  const redraw = () => { if (document.getElementById("pf-edit")) renderProfile(); };
-  refreshAvatar({ onChange: redraw });
-  // тап по аватару — спросить заново и сказать, что ответил Telegram
-  document.getElementById("pf-ava").onclick = () => {
-    fxTap();
-    const note = document.getElementById("pf-note");
-    note.hidden = false; note.textContent = "Спрашиваю Telegram…";
-    refreshAvatar({ force: true, onChange: redraw, onResult: (out) => {
-      const n = document.getElementById("pf-note");
-      if (n) { n.hidden = false; n.textContent = avatarNoteText(out); }
-    } });
-  };
+  refreshAvatar({ onChange: () => { if (document.getElementById("pf-edit")) renderProfile(); } });
 
   // Вес меняется: от него считаются нормы питания, подтягивания, брусья и гиперэкстензия.
   // Запись идёт в историю взвешиваний — график и тренд на вкладке «Прогресс».

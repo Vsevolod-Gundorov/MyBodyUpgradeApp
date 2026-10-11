@@ -1967,7 +1967,3 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 /* нормы на день: две плитки делят ширину поровну и не вылезают за панель */
 .gp-days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .gp-days .mono { white-space: nowrap; font-size: .66rem; letter-spacing: -.01em; }
-.pf-ava-btn { flex: 0 0 auto; display: block; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
-.pf-ava-btn .pf-ava { display: block; }
-.pf-ava-btn:active { transform: scale(.96); }
-.pf-note { margin-top: 10px; font-size: .78rem; line-height: 1.35; color: var(--dim); }
