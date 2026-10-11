@@ -93,6 +93,14 @@ export function achLogHTML(got) {
 }
 
 /* ================= РЕСУРСЫ (снабжение / питание) ================= */
+/**
+ * Заголовок блока (docs/UI_RULES.md, п. 3): одна строка высотой с кнопку — 40 px,
+ * название 17 px слева, действие справа, оба по центру. Без действия высота та же.
+ * action — готовая разметка кнопки (квадрат 40×40 или текстовая кнопка той же высоты).
+ */
+export const blockHead = (title, action = "") =>
+  `<div class="blk-head"><h2 class="blk-title">${title}</h2>${action}</div>`;
+
 export const NUT_ICON = { kcal: "flame", protein: "drumstick", carbs: "wheat", fat: "avocado", fiber: "leaf" };
 
 // у каждой шкалы — свой цвет заливки и акцент иконки

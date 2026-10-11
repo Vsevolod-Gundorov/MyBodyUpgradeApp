@@ -11,7 +11,7 @@
 // Список файлов и версия — tools/build-sw.mjs.
 
 // @@manifest-start
-const VERSION = "85da6a3950731a7b";
+const VERSION = "9200a89b1c54516f";
 const PRECACHE = [
   "assets/fonts/cormorant-500-cyrillic.woff2",
   "assets/fonts/cormorant-500-latin.woff2",

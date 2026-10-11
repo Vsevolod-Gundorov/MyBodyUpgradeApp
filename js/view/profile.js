@@ -3,7 +3,7 @@ import { esc } from "../core/format.js";
 import { T } from "../model/settings.js";
 import { S } from "../model/store.js";
 import { AD, AN, L } from "../model/theme.js";
-import { NUT_ACCENT, NUT_GRAD, STAT_ACCENT, STAT_GRAD, STAT_ICONS, achMedallion } from "./components.js";
+import { NUT_ACCENT, NUT_GRAD, STAT_ACCENT, STAT_GRAD, STAT_ICONS, achMedallion, blockHead } from "./components.js";
 import { icon } from "./icons.js";
 
 const GEAR = '<svg class="ico ico-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
@@ -47,7 +47,7 @@ export function profileCardView({ me }) {
 export function myDataView(rows) {
   return `
     <section class="panel pf-list" aria-label="${T("myData")}">
-      <div class="eyebrow pf-list-h">${T("myData")}</div>
+      ${blockHead(T("myData"))}
       ${rows.map((r) => `
         <button class="pf-row" ${r.id ? `id="${r.id}"` : ""} ${r.step ? `data-step="${r.step}"` : ""}>
           <span class="pf-ico">${icon(r.icon)}</span>
@@ -65,35 +65,36 @@ export function myDataView(rows) {
  */
 export function nutritionBlockView({ days, manual }) {
   const MAC = [["protein", "p", "steak"], ["fat", "f", "avocado"], ["carbs", "cb", "wheat"]];
-  const bar = (cur, tgt, grad) => `<span class="pfn-bar"><i style="width:${Math.min(100, tgt ? (cur / tgt) * 100 : 0).toFixed(0)}%;background:${grad}"></i></span>`;
+  // шкала есть у обеих колонок: у сегодняшнего дня — заполненная, у другого — пустая дорожка.
+  // Так строки двух колонок стоят на одной высоте (docs/UI_RULES.md, п. 2)
+  const bar = (cur, tgt, grad) => `<span class="pfn-bar"><i style="width:${Math.min(100, tgt && cur ? (cur / tgt) * 100 : 0).toFixed(0)}%;background:${grad}"></i></span>`;
   const day = (d) => {
     const today = !!d.tot;
+    const cur = (k) => (today ? Math.round(d.tot[k]) : 0);
     return `
       <div class="pfn-day ${today ? "on" : ""}">
-        <div class="pfn-h"><span>${T(d.key === "training" ? "dayTraining" : "dayRest")}</span>${today ? `<i class="pfn-today">${T("today")}</i>` : ""}</div>
+        <span class="pfn-tag">${today ? T("today") : ""}</span>
+        <span class="pfn-name">${T(d.key === "training" ? "dayTraining" : "dayRest")}</span>
         <div class="pfn-kcal">
           <span class="pfn-ico" style="color:${NUT_ACCENT.kcal}">${icon("flame")}</span>
-          <b class="mono">${today ? Math.round(d.tot.k) : d.T.kcal}</b>
+          <b class="mono">${today ? cur("k") : d.T.kcal}</b>
         </div>
-        <div class="pfn-ksub mono">${today ? `/ ${d.T.kcal} ${T("kcal")}` : T("kcal")}</div>
-        ${today ? bar(d.tot.k, d.T.kcal, NUT_GRAD.kcal) : ""}
+        <span class="pfn-ksub mono">${today ? `/ ${d.T.kcal} ${T("kcal")}` : T("kcal")}</span>
+        ${bar(cur("k"), d.T.kcal, NUT_GRAD.kcal)}
         <div class="pfn-macros">
           ${MAC.map(([k, tk, ic]) => `
             <div class="pfn-m">
               <span class="pfn-ico" style="color:${NUT_ACCENT[k]}">${icon(ic)}</span>
-              <span class="pfn-mn">${T(k)}</span>
-              <span class="pfn-mv mono">${today ? `${Math.round(d.tot[tk])}<small>/${d.T[k]}</small>` : `${d.T[k]}<i> ${T("g")}</i>`}</span>
-              ${today ? bar(d.tot[tk], d.T[k], NUT_GRAD[k]) : ""}
+              <span class="pfn-mn" data-short="${T(`${k}Short`)}"><span>${T(k)}</span></span>
+              <span class="pfn-mv mono">${today ? `${cur(tk)}<small>/${d.T[k]}</small>` : d.T[k]}</span>
+              ${bar(cur(tk), d.T[k], NUT_GRAD[k])}
             </div>`).join("")}
         </div>
       </div>`;
   };
   return `
     <section class="panel pf-nut" aria-label="${T("nutTitle")}">
-      <div class="pfn-head">
-        <span class="eyebrow">${T("nutTitle")}</span>
-        <button class="pf-sq" id="goals-nut" aria-label="${T("nutEdit")}">${PENCIL}</button>
-      </div>
+      ${blockHead(T("nutTitle"), `<button class="pf-sq" id="goals-nut" aria-label="${T("nutEdit")}">${PENCIL}</button>`)}
       <button class="pfn-body" id="pf-nut-open" aria-label="${T("nutOpen")}">${days.map(day).join("")}</button>
       ${manual ? `<div class="dim small pfn-note">${T("manualNorms")}</div>` : ""}
     </section>`;
@@ -146,10 +147,7 @@ export function profileView({ achSum, c, earnedList, h, saga, ring, card = "", m
 
 
     <div class="panel">
-      <div class="ach-head">
-        <div class="eyebrow">${L("awards")} · ${achSum.total}/${achSum.of}</div>
-        <button class="ach-all-btn" id="ach-all">${L("awardsAll")}</button>
-      </div>
+      ${blockHead(`${L("awards")} <span class="blk-count mono">${achSum.total}/${achSum.of}</span>`, `<button class="blk-link" id="ach-all">${T("all")}</button>`)}
       ${earnedList.length
         ? `<div class="status-grid ach-recent">${earnedList.slice(0, 8).map((c) => { const a = c.shown, g = c.got; return `
             <button class="status-badge" data-ach="${a.id}" title="${AN(a)}: ${AD(a)}">

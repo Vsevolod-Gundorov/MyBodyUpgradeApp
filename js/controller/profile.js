@@ -47,7 +47,7 @@ export function renderProfile() {
   };
   const pace = p && PACES[p.direction] ? (PACES[p.direction].find((x) => x.id === p.pace) || null) : null;
   const myData = myDataView([
-    { id: "edit-bw", icon: "weight-scale", label: T("weight"), sub: T("weightSub"), value: `${fmt(bw)} ${T("kg")}` },
+    { id: "edit-bw", icon: "weight-scale", label: T("weight"), value: `${fmt(bw)} ${T("kg")}` },
     ...(p ? [
       { step: "about", icon: "stairs", label: T("body"), value: `${p.height} ${T("cm")} · ${age} · ${nameOf("sex", p.sex, (SEXES[p.sex] || "").slice(0, 3).toLowerCase())}` },
       { step: "goal", icon: "on-target", label: T("goal"), value: `${dir}${pace ? ` · ${nameOf("pace", pace.id, pace.name.toLowerCase())}` : ""}` },
