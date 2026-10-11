@@ -110,7 +110,7 @@ test("политика безопасности на сервере совпад
   const img = (csp.value.match(/img-src([^;]*)/) || [])[1] || "";
   assert.doesNotMatch(img, /(^|\s)(https:|\*|http:)(\s|$)/, "img-src не должен пускать любой адрес");
   for (const src of img.trim().split(/\s+/)) {
-    assert.ok(["'self'", "data:"].includes(src) || /^https:\/\/(\*\.)?(t\.me|telegram\.org|telegram-cdn\.org|cdn-telegram\.org)$/.test(src), `чужой источник картинок: ${src}`);
+    assert.ok(["'self'", "data:"].includes(src) || /^https:\/\/(\*\.)?(t\.me|telegram\.org|telegram-cdn\.org|cdn-telegram\.org|telesco\.pe)$/.test(src), `чужой источник картинок: ${src}`);
   }
   for (const key of ["Referrer-Policy", "X-Content-Type-Options", "Permissions-Policy", "Strict-Transport-Security"]) {
     assert.ok(headers.some((h) => h.key === key), `нет заголовка ${key}`);

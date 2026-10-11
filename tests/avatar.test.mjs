@@ -10,6 +10,8 @@ test("адреса Телеграма проходят", () => {
   assert.equal(safeAvatarUrl("https://t.me/i/userpic/320/abc.jpg"), "https://t.me/i/userpic/320/abc.jpg");
   assert.ok(safeAvatarUrl("https://cdn4.cdn-telegram.org/file/x.jpg"));
   assert.ok(safeAvatarUrl("https://cdn5.telegram-cdn.org/file/x.jpg"));
+  assert.ok(safeAvatarUrl("https://cdn4.telesco.pe/file/x.jpg"), "CDN, на который Телеграм перенаправляет userpic");
+  assert.equal(safeAvatarUrl("https://telesco.pe.evil.example/x.jpg"), null);
 });
 
 test("всё остальное — нет", () => {

@@ -1,6 +1,7 @@
-// Модель: фото профиля. Сначала — то, что Telegram прислал в данных запуска
-// (photo_url бывает только при запуске из меню вложений), иначе — через сервер,
-// который берёт фото у бота. Фото хранится на устройстве сутки, «фото нет» —
+// Модель: фото профиля. Главное — фото через сервер: он берёт его у бота и отдаёт
+// картинкой data:, без сторонних запросов с телефона. Ссылка photo_url из данных
+// запуска — только запасной вариант, пока сервер не ответил: её картинка лежит
+// на CDN Телеграма и может не загрузиться. Фото хранится на устройстве сутки, «фото нет» —
 // четверть часа: поставил фото в Telegram — оно появится, не дожидаясь завтра.
 import { tgAvatar, tgUserId } from "../telegram.js";
 import { avatarGet, onServerState, serverActive } from "./server.js";
@@ -21,8 +22,8 @@ function cached() {
 }
 const fresh = (c) => !!c && Date.now() - c.at < (c.photo ? TTL_PHOTO : TTL_NONE);
 
-/** Что показать прямо сейчас: адрес Телеграма, сохранённая картинка или null. */
-export const avatarNow = () => tgAvatar() || (cached() && safeDataUrl(cached().photo)) || null;
+/** Что показать прямо сейчас: фото от сервера, иначе ссылка Телеграма, иначе null (инициалы). */
+export const avatarNow = () => (cached() && safeDataUrl(cached().photo)) || tgAvatar() || null;
 
 /**
  * Итог запроса для человека: ok — фото есть; none — Telegram не показывает фото боту;
@@ -43,7 +44,7 @@ let pending = null;
  */
 export function refreshAvatar({ force = false, onChange = () => {}, onResult = () => {} } = {}) {
   if (!tgUserId()) { onResult({ state: "offline" }); return; }
-  if (!force && (tgAvatar() || fresh(cached()))) return;
+  if (!force && fresh(cached())) return;
   const run = () => {
     if (!pending) {
       pending = (async () => {
