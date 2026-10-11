@@ -2043,3 +2043,88 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 .st-test .ico { width: 16px; height: 16px; }
 /* штриховые значки (ручка, шестерёнка) рисуются линией в обеих темах — заливка их портит */
 .pf-edit .ico-line, .pf-sq .ico-line { fill: none; stroke: currentColor; }
+
+/* ---------- знакомство v2: плитки с картинками, ползунки, план ---------- */
+.ob-sheet .ob-title { font-size: 1.75rem; margin: 10px 0 6px; }
+.ob-sheet .ob-sub { margin-bottom: 18px; }
+.ob-step-sex .ob-title, .ob-step-goal .ob-title, .ob-step-activity .ob-title, .ob-step-experience .ob-title { margin-bottom: 18px; }
+.ob-tile { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px; text-align: left; cursor: pointer; font: inherit;
+  color: var(--bone); background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+  transition: border-color .15s, background .15s, transform .1s; }
+.ob-tile:active { transform: scale(.98); }
+.ob-tile.on { border-color: var(--gold); background: linear-gradient(180deg, rgba(var(--t-acc),.14), var(--panel)); box-shadow: inset 0 0 0 1px var(--gold); }
+.ob-tile-art { flex: 0 0 auto; display: grid; place-content: center; width: 52px; height: 52px; border-radius: 14px;
+  background: rgba(var(--t-acc-b),.08); color: var(--gold-bright); }
+.ob-tile-art .ico { width: 28px; height: 28px; }
+.ob-tile.on .ob-tile-art { background: rgba(var(--t-acc-b),.18); }
+.ob-tile-t { display: grid; gap: 3px; min-width: 0; }
+.ob-tile-t b { font-size: 1.02rem; font-weight: 600; }
+.ob-tile-t i { font-style: normal; font-size: .82rem; color: var(--dim); }
+/* пол: две большие фигуры рядом */
+.ob-sex { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ob-tile-big { flex-direction: column; justify-content: center; gap: 12px; padding: 22px 10px 18px; text-align: center; }
+.ob-tile-big .ob-tile-art { width: 100%; height: 150px; background: none; }
+.ob-tile-big .ob-art { width: auto; height: 140px; }
+.ob-tile-big .ob-tile-t { justify-items: center; }
+.ob-tile-big .ob-tile-t b { font-size: 1.1rem; }
+.ob-tile-big:not(.on) .ob-art { opacity: .55; }
+/* цель, программа: сетка 2×2 — значок над подписью */
+.ob-grid-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ob-grid-tiles .ob-tile { flex-direction: column; align-items: flex-start; gap: 14px; min-height: 128px; padding: 16px 14px; }
+.ob-grid-tiles .ob-tile-t b { font-size: .98rem; line-height: 1.2; }
+/* активность, опыт: список — столбики уровня слева */
+.ob-list-tiles { display: grid; gap: 10px; }
+.ob-art.ob-bars { width: 34px; height: 26px; }
+/* ползунки возраста, роста и веса */
+.ob-ruler { display: grid; gap: 8px; padding: 14px 14px 10px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.ob-ruler-h { display: flex; align-items: center; gap: 8px; font-size: .86rem; color: var(--dim); }
+.ob-ruler-ico { color: var(--gold-bright); display: inline-grid; }
+.ob-ruler-ico .ico { width: 18px; height: 18px; }
+.ob-ruler-v { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; }
+.ob-ruler-v output { text-align: center; color: var(--bone); }
+.ob-ruler-v output b { font-size: 2.2rem; font-weight: 600; letter-spacing: -.02em; }
+.ob-ruler-v output i { font-style: normal; font-size: .9rem; color: var(--dim); margin-left: 6px; }
+.ob-pm { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line-strong); background: rgba(var(--t-acc-b),.06);
+  color: var(--gold-bright); font: inherit; font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.ob-pm:active { transform: scale(.94); background: rgba(var(--t-acc-b),.16); }
+.ob-ruler input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 30px; margin: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.ob-ruler input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 99px;
+  background: repeating-linear-gradient(90deg, rgba(var(--t-acc),.35) 0 2px, transparent 2px 10px), rgba(var(--t-acc),.12); }
+.ob-ruler input[type="range"]::-moz-range-track { height: 6px; border-radius: 99px; background: rgba(var(--t-acc),.18); }
+.ob-ruler input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -11px; border-radius: 50%;
+  background: var(--gold-bright); border: 4px solid var(--panel); box-shadow: 0 0 0 1px var(--line-strong), 0 4px 12px rgba(0,0,0,.4); }
+.ob-ruler input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--gold-bright); border: 4px solid var(--panel); }
+/* план */
+.ob-plan-goal { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); }
+.ob-plan-gi { display: grid; place-content: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(var(--t-acc-b),.12); color: var(--gold-bright); }
+.ob-plan-gi .ico { width: 24px; height: 24px; }
+.ob-plan-goal > span:last-child { display: grid; gap: 2px; }
+.ob-plan-goal b { font-size: 1.02rem; }
+.ob-plan-goal i { font-style: normal; font-size: .8rem; color: var(--dim); }
+.ob-plan-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.ob-plan-day { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 14px 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); min-width: 0; }
+.ob-plan-day.on { border-color: rgba(var(--t-acc-c),.55); }
+.ob-plan-n { font-size: .8rem; color: var(--dim); }
+.ob-plan-day > b { font-size: 2rem; font-weight: 600; color: var(--bone); line-height: 1; }
+.ob-plan-day > i { font-style: normal; font-size: .74rem; color: var(--dim); margin-top: -4px; }
+.ob-plan-bar { display: flex; gap: 2px; height: 8px; border-radius: 99px; overflow: hidden; margin: 4px 0 2px; }
+.ob-plan-bar i { display: block; height: 100%; }
+.ob-plan-m { display: grid; gap: 4px; font-size: .8rem; color: var(--bone); }
+.ob-plan-m > span { display: flex; align-items: center; gap: 6px; }
+.ob-plan-m small { color: var(--dim); }
+.ob-plan-ico { display: inline-grid; }
+.ob-plan-ico .ico { width: 15px; height: 15px; }
+.ob-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ob-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 99px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--dim); font: inherit; font-size: .84rem; cursor: pointer; }
+.ob-chip .ico { width: 16px; height: 16px; }
+.ob-chip.on { border-color: var(--gold); color: var(--gold-bright); background: rgba(var(--t-acc),.12); }
+.ob-plan-max { display: grid; gap: 6px; margin-top: 4px; }
+.ob-plan-max-r { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .84rem; color: var(--dim); }
+.ob-plan-max-r b { color: var(--bone); font-weight: 500; }
+.ob-foot[hidden] { display: none; }
+.ob-plan-m em { font-style: normal; color: var(--dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-plan-m b { font-weight: 500; }
+/* ползунки — без подложки общего стиля полей ввода (в «Чистой» она с !important) */
+.ob-ruler input[type="range"], .st-slider input[type="range"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.ob-grid-tiles .ob-tile-t b { font-size: .9rem; hyphens: auto; overflow-wrap: anywhere; }
