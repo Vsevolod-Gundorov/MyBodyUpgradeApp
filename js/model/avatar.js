@@ -1,12 +1,13 @@
 // Модель: фото профиля. Сначала — то, что Telegram прислал в данных запуска
 // (photo_url бывает только при запуске из меню вложений), иначе — через сервер,
-// который берёт фото у бота. Ответ сервера хранится на устройстве сутки:
-// фото не тянется заново при каждом открытии профиля.
+// который берёт фото у бота. Фото хранится на устройстве сутки, «фото нет» —
+// четверть часа: поставил фото в Telegram — оно появится, не дожидаясь завтра.
 import { tgAvatar, tgUserId } from "../telegram.js";
 import { avatarGet, onServerState, serverActive } from "./server.js";
 
 const KEY = "bodyupgrade.avatar";
-const TTL = 24 * 3600 * 1000;
+const TTL_PHOTO = 24 * 3600 * 1000;
+const TTL_NONE = 15 * 60 * 1000;
 const DATA_URL = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 
 /** Картинка от сервера — только data:URL известного типа и разумного размера. */
@@ -18,31 +19,45 @@ function cached() {
     return c && c.uid === tgUserId() ? c : null;   // другой аккаунт — чужое фото не показываем
   } catch (e) { return null; }
 }
+const fresh = (c) => !!c && Date.now() - c.at < (c.photo ? TTL_PHOTO : TTL_NONE);
 
 /** Что показать прямо сейчас: адрес Телеграма, сохранённая картинка или null. */
 export const avatarNow = () => tgAvatar() || (cached() && safeDataUrl(cached().photo)) || null;
 
+/**
+ * Итог запроса для человека: ok — фото есть; none — Telegram не показывает фото боту;
+ * offline — сервер приложения недоступен; error — сбой (code — код Telegram или HTTP).
+ */
+export function avatarOutcome({ status, json }) {
+  if (status === 200 && json && safeDataUrl(json.photo)) return { state: "ok", photo: json.photo };
+  if (status === 200 && json && json.photo === null) return { state: "none", reason: String(json.reason || "none") };
+  if (status === 0) return { state: "offline" };
+  return { state: "error", code: (json && Number.isInteger(json.tg) && json.tg) || status };
+}
+
 let pending = null;
 /**
- * Обновить фото с сервера, если сохранённое старше суток. onChange — когда картинка
- * поменялась. Сервер ещё не готов — дождёмся, пока синхронизация его включит.
+ * Обновить фото с сервера. Без force — только если сохранённое устарело.
+ * onChange(photo) — картинка поменялась; onResult(outcome) — чем закончилось (для «обновить фото»).
+ * Сервер ещё не готов — без force дождёмся, пока синхронизация его включит.
  */
-export function refreshAvatar(onChange = () => {}) {
-  if (tgAvatar() || !tgUserId()) return;
-  const c = cached();
-  if (c && Date.now() - c.at < TTL) return;
-  const run = async () => {
-    if (pending) return pending;
-    pending = (async () => {
-      const got = await avatarGet();
-      if (got === undefined) return;                 // сервер не ответил — попробуем в следующий раз
-      const photo = safeDataUrl(got);
-      const before = avatarNow();
-      try { localStorage.setItem(KEY, JSON.stringify({ uid: tgUserId(), at: Date.now(), photo })); } catch (e) { /* нет места — без кэша */ }
-      if (photo !== before) onChange(photo);
-    })().finally(() => { pending = null; });
-    return pending;
+export function refreshAvatar({ force = false, onChange = () => {}, onResult = () => {} } = {}) {
+  if (!tgUserId()) { onResult({ state: "offline" }); return; }
+  if (!force && (tgAvatar() || fresh(cached()))) return;
+  const run = () => {
+    if (!pending) {
+      pending = (async () => {
+        const out = avatarOutcome(await avatarGet());
+        if (out.state === "ok" || out.state === "none") {
+          const before = avatarNow();
+          try { localStorage.setItem(KEY, JSON.stringify({ uid: tgUserId(), at: Date.now(), photo: out.photo || null })); } catch (e) { /* нет места — без кэша */ }
+          if (avatarNow() !== before) onChange(avatarNow());
+        }
+        return out;
+      })().finally(() => { pending = null; });
+    }
+    return pending.then(onResult);
   };
-  if (serverActive()) { run(); return; }
+  if (serverActive() || force) { run(); return; }
   const off = onServerState(() => { if (serverActive()) { off(); run(); } });
 }

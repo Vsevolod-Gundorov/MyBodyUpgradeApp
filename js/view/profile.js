@@ -29,13 +29,14 @@ export function profileCardView({ me, cells }) {
   return `
     <section class="pf-card" aria-label="Профиль">
       <div class="pf-top">
-        ${avatarView(me)}
+        <button class="pf-ava-btn" id="pf-ava" aria-label="Обновить фото из Telegram">${avatarView(me)}</button>
         <div class="pf-id">
           <h1 class="display pf-name hero-name">${esc(me.name)}</h1>
           <div class="pf-handle">${me.handle ? esc(me.handle) : "Атлет"}</div>
         </div>
         <button class="pf-edit" id="pf-edit" aria-label="Изменить профиль">${PENCIL}</button>
       </div>
+      <div class="pf-note" id="pf-note" role="status" hidden></div>
       ${me.chips.length ? `<div class="pf-chips">${me.chips.map((c) => `<span class="pf-chip">${c}</span>`).join("")}</div>` : ""}
       ${cells ? `<div class="pf-stats hero-sum">${cells.map(([v, l]) =>
         `<span class="pf-stat hs-cell"><b class="mono">${v}</b><i>${l}</i></span>`).join("")}</div>` : ""}
@@ -177,4 +178,13 @@ export function remindPanelView({ conf, available, times }) {
       ${conf.supp ? `<div class="rm-times">${times.map((t) => `<label class="rm-time"><span>${t.slot}</span><input type="time" data-slot="${esc(t.slot)}" value="${esc(t.at)}" step="300" /></label>`).join("")}</div>` : ""}
       <p class="dim small" style="margin:8px 0 0">Сообщение висит минуту и удаляется само.</p>
     </div>`;
+}
+
+/** Что ответил Telegram на «обновить фото» — простыми словами. */
+export function avatarNoteText(out) {
+  if (out.state === "ok") return "Фото обновлено.";
+  if (out.state === "none") return "Telegram не показывает боту фото профиля. Проверь: Настройки → Конфиденциальность → Фотографии профиля → «Все», и чтобы бот не был в исключениях.";
+  if (out.state === "offline") return "Нет связи с сервером приложения — фото подтянется, когда он ответит.";
+  if (out.code === 429) return "Слишком часто — попробуй через час.";
+  return `Telegram не отдал фото (код ${Number(out.code) || 0}). Попробуй позже.`;
 }

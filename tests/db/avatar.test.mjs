@@ -73,7 +73,7 @@ test("ошибка Telegram — 502 без подробностей и без т
   try {
     const r = await call(req(), deps(fakeTelegram({ fail: 500 })));
     assert.equal(r.status, 502);
-    assert.deepEqual(r.body, { error: "telegram_unavailable" });
+    assert.deepEqual(r.body, { error: "telegram_unavailable", tg: 500 }, "наружу — только код Telegram");
   } finally { console.error = orig; }
   assert.ok(logs.length && logs.every((l) => !l.includes(botToken) && !l.includes(botToken.split(":")[1])), "токен не в журнале");
 });
