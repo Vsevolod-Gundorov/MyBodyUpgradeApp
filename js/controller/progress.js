@@ -42,7 +42,8 @@ function liftGroups(q) {
   const hist = movementHistory();
   const keys = [...LIFTS.filter((k) => hist[k]), ...Object.keys(hist).filter((k) => !LIFTS.includes(k)).sort((a, b) => hist[b].length - hist[a].length)];
   const needle = q.trim().toLowerCase();
-  const rows = keys.map(liftRowOf).filter((r) => !needle || r.name.toLowerCase().includes(needle));
+  const rows = keys.map(liftRowOf).filter((r) => !needle || r.name.toLowerCase().includes(needle)
+    || (r.src && MUSCLES[r.src.group] && MUSCLES[r.src.group].toLowerCase().includes(needle)));
   const by = new Map();
   rows.forEach((r) => {
     const g = LIFTS.includes(r.k) ? "base" : (r.src && r.src.group) || "other";
@@ -56,7 +57,9 @@ function liftGroups(q) {
 function mountLifts() {
   const list = document.getElementById("lr-list");
   const draw = () => {
-    list.innerHTML = liftListView({ groups: liftGroups(ui.q), openG: ui.openG, openK: ui.openK, q: ui.q });
+    const groups = liftGroups(ui.q);
+    list.innerHTML = liftListView({ groups, openG: ui.openG, openK: ui.openK, q: ui.q });
+    document.getElementById("lr-count").textContent = groups.reduce((a, g) => a + g.rows.length, 0);
     list.querySelectorAll("[data-g]").forEach((b) => b.onclick = () => {
       const g = b.dataset.g;
       if (ui.openG.has(g)) ui.openG.delete(g); else ui.openG.add(g);

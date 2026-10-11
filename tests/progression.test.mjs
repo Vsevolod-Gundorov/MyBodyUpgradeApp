@@ -398,10 +398,12 @@ test("верхняя ступень лесенки остаётся размин
 
 /* ---------- объём и отдых ---------- */
 
-test("отдых назначается по тяжести движения: базе минуты, изоляции секунды", () => {
-  assert.ok(restFor(1, 5) >= 240, "тяжёлая база на пятёрках — от четырёх минут");
-  assert.ok(restFor(2, 10) >= 120, "многосуставному на десятке — от двух минут");
-  assert.ok(restFor(3, 12) <= 120 && restFor(3, 12) >= 60, "изоляции хватает минуты-полутора");
+test("отдых длинный: длинный отдых растит больше, чем короткий (Schoenfeld 2016, Singer 2024)", () => {
+  assert.ok(restFor(1, 5) >= 300, "тяжёлая база на пятёрках — пять минут");
+  assert.ok(restFor(1, 8) >= 240, "база на восьмёрках — от четырёх минут");
+  assert.ok(restFor(2, 10) >= 180, "многосуставному на десятке — от трёх минут");
+  assert.ok(restFor(3, 12) >= 120 && restFor(3, 12) <= 150, "изоляции — две минуты, а не одна");
+  for (const tier of [1, 2, 3]) for (let r = 1; r <= 30; r++) assert.ok(restFor(tier, r) >= 90, `${tier}×${r}: короче полутора минут не бывает`);
   for (const tier of [1, 2, 3]) {
     for (let r = 3; r <= 20; r++) assert.ok(restFor(tier, r) >= restFor(tier, r + 1), `${tier}: отдых должен падать с ростом повторов`);
     assert.ok(restFor(tier, 10) > restFor(3, 20));
@@ -444,7 +446,7 @@ test("самочувствие двигает вес, подходы и отды
   assert.equal(feelOf("tired").sets, -1, "и на подход меньше");
   assert.ok(feelOf("tired").rest > 1, "и отдых длиннее");
   assert.ok(feelOf("fresh").k > 1 && feelOf("fresh").k <= 1.05, "свежему чуть больше, без геройства");
-  assert.ok(feelOf("fresh").rest < 1, "и отдых короче");
+  assert.ok(feelOf("fresh").rest >= 1, "а отдых свежему не урезается: короткий отдых съедает повторы");
   assert.equal(feelOf("чушь").k, 1, "неизвестное состояние — это норма, а не поломка");
 });
 
@@ -456,7 +458,8 @@ test("на разбитом самочувствии квест даёт вес 
   const fresh = progressionOf(hist, { ...base, feel: "fresh" });
   assert.ok(tired.target < norm.target, `устал: ${tired.target} должно быть меньше ${norm.target}`);
   assert.ok(fresh.target > norm.target, `свежий: ${fresh.target} должно быть больше ${norm.target}`);
-  assert.ok(tired.rest > norm.rest && fresh.rest < norm.rest, "отдых едет вслед за состоянием");
+  assert.ok(tired.rest > norm.rest, "усталому отдых длиннее");
+  assert.equal(fresh.rest, norm.rest, "свежему — не короче плана");
   assert.ok(tired.target >= norm.target * 0.9, "но не превращается в другую тренировку");
 });
 

@@ -8,14 +8,52 @@ import { inTelegram, tgUserHandle, tgUserName } from "../telegram.js";
 import { STAT_ACCENT, STAT_GRAD, STAT_ICONS, achMedallion } from "./components.js";
 import { icon } from "./icons.js";
 
-/** Шапка «Чистой»: три числа вместо уровня, опыта и характеристик. */
-export function heroSummaryView(cells) {
+const PENCIL = '<svg class="ico ico-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>';
+
+/**
+ * Аватар: фото из Телеграма поверх инициалов. Адрес уже проверен (safeAvatarUrl);
+ * не загрузилось — контроллер снимает картинку, и остаются инициалы.
+ */
+export function avatarView({ photo, name }) {
+  const ini = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+  return `<span class="pf-ava" aria-hidden="true"><span class="pf-ini">${esc(ini)}</span>${photo
+    ? `<img class="pf-photo" src="${esc(photo)}" alt="" referrerpolicy="no-referrer" decoding="async" />` : ""}</span>`;
+}
+
+/**
+ * Карточка атлета: фото, имя, ник и главные цифры тела. Как в профилях лучших
+ * фитнес-приложений (Apple Fitness, Strava, Hevy): кто ты — сверху, правка — в один тап.
+ */
+export function profileCardView({ me, cells }) {
   return `
-    <div class="hero-head">
-      <h1 class="display hero-name">${esc(S.hero.name)}</h1>
-      <div class="hero-sum">${cells.map(([v, l]) =>
-        `<span class="hs-cell"><b class="mono">${v}</b><i>${l}</i></span>`).join("")}</div>
-    </div>`;
+    <section class="pf-card" aria-label="Профиль">
+      <div class="pf-top">
+        ${avatarView(me)}
+        <div class="pf-id">
+          <h1 class="display pf-name hero-name">${esc(me.name)}</h1>
+          <div class="pf-handle">${me.handle ? esc(me.handle) : "Атлет"}</div>
+        </div>
+        <button class="pf-edit" id="pf-edit" aria-label="Изменить профиль">${PENCIL}</button>
+      </div>
+      ${me.chips.length ? `<div class="pf-chips">${me.chips.map((c) => `<span class="pf-chip">${c}</span>`).join("")}</div>` : ""}
+      ${cells ? `<div class="pf-stats hero-sum">${cells.map(([v, l]) =>
+        `<span class="pf-stat hs-cell"><b class="mono">${v}</b><i>${l}</i></span>`).join("")}</div>` : ""}
+    </section>`;
+}
+
+/** «Мои данные»: список как в настройках iOS — значок, что, сколько, стрелка. Тап — правка ровно этого пункта. */
+export function myDataView(rows) {
+  return `
+    <section class="panel pf-list" aria-label="Мои данные">
+      <div class="eyebrow pf-list-h">Мои данные</div>
+      ${rows.map((r) => `
+        <button class="pf-row" ${r.id ? `id="${r.id}"` : ""} ${r.step ? `data-step="${r.step}"` : ""}>
+          <span class="pf-ico">${icon(r.icon)}</span>
+          <span class="pf-l">${r.label}${r.sub ? `<i>${r.sub}</i>` : ""}</span>
+          <span class="pf-v">${r.value}</span>
+          <span class="pf-chev" aria-hidden="true">›</span>
+        </button>`).join("")}
+    </section>`;
 }
 
 /** Подпись под аккаунтом: где живёт журнал. */
@@ -23,12 +61,12 @@ export const syncNoteText = (serverOn) => (serverOn
   ? "Журнал хранится на сервере, копия — в облаке Telegram."
   : "Журнал привязан к этому аккаунту и сам уезжает в облако Telegram: открой приложение с другого телефона — прогресс будет там же.");
 
-export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn, goals = "", remind = "" }) {
+export function profileView({ achSum, c, earnedList, h, summary, ring, serverOn, goals = "", remind = "", card = "", myData = "" }) {
   return `
-    ${summary ? heroSummaryView(summary) : `
-    <div class="hero-head gilded">
+    ${card}
+    ${summary ? "" : `
+    <div class="hero-head gilded pf-saga">
       <div class="eyebrow">${L("heroEyebrow")}</div>
-      <h1 class="display hero-name">${esc(S.hero.name)}</h1>
       <div class="hero-title">${c.novice ? L("heroNovice") : `«${esc(S.hero.title)}»`}</div>
       <div class="level-ring">
         <svg viewBox="0 0 120 120">
@@ -66,6 +104,8 @@ export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serve
 
     ${goals}
 
+    ${myData}
+
     <div class="panel">
       <div class="ach-head">
         <div class="eyebrow">${L("awards")} · ${achSum.total}/${achSum.of}</div>
@@ -87,7 +127,6 @@ export function profileView({ achSum, bw, c, earnedList, h, summary, ring, serve
         return `<div class="kv"><span>${LIFT_NAMES[k]}</span>
           <span class="mono">${fmt(v.cur)} кг ${d > 0.5 ? `<span class="verdict-gold">+${fmt(d)}</span>` : `<span class="dim">база</span>`}</span></div>`;
       }).join("")}
-      <button class="kv kv-btn" id="edit-bw"><span>${L("bodyweight")}</span><span class="mono">${fmt(bw)} кг <i class="dim">изменить</i></span></button>
     </div>
 
     <div class="panel">

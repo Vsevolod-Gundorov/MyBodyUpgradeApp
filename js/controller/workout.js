@@ -22,7 +22,6 @@ import { countView, dotsView, exerciseCardView, healthBoxView, roundLabelView, r
 
 export let questTimerId = null;         // интервал часов квеста (перерисовывается на каждый render)
 
-export let stickWatchers = [];          // следят, прилипла ли раскрытая карточка к шапке
 
 /* ================= ЭКРАН ТРЕНИРОВКИ ================= */
 export function renderWorkout(wid) {
@@ -112,8 +111,38 @@ export function renderWorkout(wid) {
   const qh = document.querySelector(".qhead");
   const headLine = qh ? Math.round(qh.getBoundingClientRect().height) : 56;
   document.documentElement.style.setProperty("--qhead-h", `${headLine}px`);
-  stickWatchers.forEach((o) => o.disconnect());
-  stickWatchers = [];
+
+  // Раскрыть карточку (одна раскрытая за раз) и поставить её начало под шапку.
+  // Карточки не прилипают к шапке: длинная прилипшая карточка закрывала список
+  // и нижние кнопки, а закрытая — висела поверх полупрозрачной
+  const openCard = (el, scroll = true) => {
+    list.querySelectorAll(".ex.open").forEach((x) => {
+      if (x === el) return;
+      x.classList.remove("open");
+      const h = x.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "false");
+    });
+    el.classList.add("open");
+    const h = el.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "true");
+    if (!scroll) return;
+    const top = el.getBoundingClientRect().top;
+    if (top < headLine + 4 || top > window.innerHeight * 0.45) {
+      window.scrollTo({ top: Math.max(0, window.scrollY + top - headLine - 8), behavior: "smooth" });
+    }
+  };
+  const closeCard = (el) => {
+    el.classList.remove("open");
+    const h = el.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "false");
+  };
+  // Движение закрыто — карточка сворачивается сама, и раскрывается следующее
+  // незакрытое (сначала ниже по списку, потом выше). Пауза — чтобы увидеть галочку
+  const advanceFrom = (el) => setTimeout(() => {
+    if (!el.isConnected || !el.classList.contains("open") || !el.classList.contains("done")) return;
+    if (el.contains(document.activeElement)) document.activeElement.blur();
+    const cards = [...list.querySelectorAll(".ex")];
+    const at = cards.indexOf(el);
+    const next = [...cards.slice(at + 1), ...cards.slice(0, at)].find((x) => !x.classList.contains("done"));
+    if (next) openCard(next); else closeCard(el);
+  }, 650);
 
   // суперсет — одна сцепка: партнёры встают рядом, в общей рамке и с буквами А/Б,
   // чтобы с одного взгляда было видно, что с чем чередовать
@@ -126,7 +155,7 @@ export function renderWorkout(wid) {
     groups.push(pair);
   });
 
-  const addCard = (ex, i, parent) => {
+  const addCard = (ex, parent) => {
     const el = document.createElement("div");
     el.className = `ex ${ex.main ? "main-ex" : ""}`;
     el.dataset.ex = ex.id;
@@ -144,37 +173,10 @@ export function renderWorkout(wid) {
     const dots = (n) => dotsView(n, ex.sets);
 
     el.innerHTML = exerciseCardView({ ex, floor, heavy, mv, prev, repTxt, saved, src, target, wNoteShort, note: exNote(wid, ex.id) });
-    const mark = document.createElement("div");
-    mark.className = "ex-mark";
-    parent.appendChild(mark);
     parent.appendChild(el);
-    // пока карточка на своём месте — она полная; прилипла к шапке — ужимается
-    // до главного: название, цель и подходы. Иначе закреп съедает пол-экрана
-    if (window.IntersectionObserver) {
-      const io = new IntersectionObserver(
-        ([e]) => el.classList.toggle("stuck", !e.isIntersecting),
-        { rootMargin: `-${headLine + 2}px 0px 0px 0px`, threshold: 0 });
-      io.observe(mark);
-      stickWatchers.push(io);
-    }
 
     const head = el.querySelector(".ex-head");
-    head.onclick = () => {
-      const open = !el.classList.contains("open");
-      // раскрытая карточка висит под шапкой, поэтому раскрытой может быть только одна
-      if (open) list.querySelectorAll(".ex.open").forEach((x) => {
-        x.classList.remove("open");
-        const h = x.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "false");
-      });
-      el.classList.toggle("open", open);
-      head.setAttribute("aria-expanded", open);
-      if (open) {
-        const line = (document.querySelector(".qhead") || {}).getBoundingClientRect
-          ? document.querySelector(".qhead").getBoundingClientRect().height : 56;
-        const y = window.scrollY + el.getBoundingClientRect().top - line - 6;
-        if (el.getBoundingClientRect().top < line + 4) window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
-      }
-    };
+    head.onclick = () => { if (el.classList.contains("open")) closeCard(el); else openCard(el); };
 
     const setsBox = el.querySelector(".sets");
     const status = el.querySelector(".ex-status");
@@ -232,7 +234,7 @@ export function renderWorkout(wid) {
           startRest(smartRest(ex, s, ex.wp), `${ex.name} · ${repZone(s.r)}`);
         }
       };
-      const done = () => { maybeRest(); drawSets(); };
+      const done = () => { maybeRest(); drawSets(); upd(); if (justClosed()) advanceFrom(el); };
       ri.onchange = done;
       wi.onchange = () => { if (cur().r > 0) done(); };
       ri.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); ri.blur(); } };
@@ -242,7 +244,7 @@ export function renderWorkout(wid) {
         if (!s) return;
         timedSets.delete(s);
         if (si >= ex.sets) arr.splice(si, 1); else { s.w = 0; s.r = 0; }
-        save(); drawSets(); upd();
+        save(); drawSets(); upd(); justClosed();
       };
       return row;
     }
@@ -283,6 +285,9 @@ export function renderWorkout(wid) {
       el.classList.toggle("done", n >= ex.sets);
       if (dotsBox) dotsBox.innerHTML = dots(n);
     }
+    // движение только что закрыто последним рабочим подходом (а не было закрыто раньше)
+    let wasDone = false;
+    const justClosed = () => { const now = workDone(slots()) >= ex.sets, j = now && !wasDone; wasDone = now; return j; };
     // разминка встаёт на место текущего подхода: лесенка 40/60/80% под тяжёлую базу,
     // одна ступень в половину рабочего — под остальное
     const warmBtn = el.querySelector(".add-warm");
@@ -307,7 +312,7 @@ export function renderWorkout(wid) {
       if (inputs[1]) inputs[1].focus();
     };
 
-    drawSets(); upd();
+    drawSets(); upd(); justClosed();
 
     // инструменты: заменить / разбор / убрать
     el.querySelector("[data-note]").onclick = () => openExerciseNote(wid, ex, w.exercises, () => renderWorkout(wid));
@@ -339,12 +344,11 @@ export function renderWorkout(wid) {
       fxTap(); save(); renderWorkout(wid);
     };
 
-    if (i === 0 && !saved.length) { el.classList.add("open"); head.setAttribute("aria-expanded", "true"); }
   };
 
   // Суперсет — одна карточка на пару, а не две рядом: работают их кругами,
   // и счётчик должен считать круги, а не подходы по отдельности.
-  const addSuperCard = (pair, i, parent) => {
+  const addSuperCard = (pair, parent) => {
     const el = document.createElement("div");
     el.className = "ex ss-card";
     el.dataset.ex = pair.map((x) => x.id).join("+");
@@ -395,6 +399,8 @@ export function renderWorkout(wid) {
       el.classList.toggle("done", n >= rounds);
       dotsBox.innerHTML = dots(n);
     }
+    let wasDone = false;
+    const justClosed = () => { const now = roundsDone() >= rounds, j = now && !wasDone; wasDone = now; return j; };
     // Круги, как и обычные подходы, живут долго: узлы не пересоздаются, а
     // обновляются на месте — иначе тап по соседнему полю приходится на удалённый
     // узел, и клавиатура закрывается сама
@@ -423,7 +429,7 @@ export function renderWorkout(wid) {
           markActivity();
           startRest(smartRest(m.ex, s, m.ex.wp), `круг ${k + 1} · ${meta.map((mm) => mm.ex.short || mm.ex.name).join(" + ")}`);
         };
-        const done = () => { maybeRest(); draw(); };
+        const done = () => { maybeRest(); draw(); upd(); if (justClosed()) advanceFrom(el); };
         ri.onchange = done;
         wi.onchange = () => { if (cur().r > 0) done(); };
         ri.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); ri.blur(); } };
@@ -433,7 +439,7 @@ export function renderWorkout(wid) {
           timedSets.delete(s);
           if (k >= rounds) meta.forEach((mm) => rowsOf(mm).splice(k, 1));
           else { s.w = 0; s.r = 0; }
-          save(); draw(); upd();
+          save(); draw(); upd(); justClosed();
         };
         wrap.appendChild(row);
       });
@@ -468,18 +474,7 @@ export function renderWorkout(wid) {
       }
     }
 
-    head.onclick = () => {
-      const open = !el.classList.contains("open");
-      if (open) list.querySelectorAll(".ex.open").forEach((x) => {
-        x.classList.remove("open");
-        const h = x.querySelector(".ex-head"); if (h) h.setAttribute("aria-expanded", "false");
-      });
-      el.classList.toggle("open", open);
-      head.setAttribute("aria-expanded", open);
-      if (open && el.getBoundingClientRect().top < headLine + 4) {
-        window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - headLine - 6), behavior: "smooth" });
-      }
-    };
+    head.onclick = () => { if (el.classList.contains("open")) closeCard(el); else openCard(el); };
     el.querySelector(".add-set").onclick = () => {
       meta.forEach((m) => { const arr = rowsOf(m); const last = [...arr].reverse().find((x) => filledIn(m, x)); arr.push({ w: last ? last.w : m.target, r: 0 }); });
       markActivity(); save(); draw(); upd();
@@ -509,25 +504,16 @@ export function renderWorkout(wid) {
       });
     });
 
-    if (window.IntersectionObserver) {
-      const mark = document.createElement("div");
-      mark.className = "ex-mark";
-      parent.insertBefore(mark, el);
-      const io = new IntersectionObserver(([e]) => el.classList.toggle("stuck", !e.isIntersecting),
-        { rootMargin: `-${headLine + 2}px 0px 0px 0px`, threshold: 0 });
-      io.observe(mark);
-      stickWatchers.push(io);
-    }
-
-    draw(); upd();
-    if (i === 0 && !roundsDone()) { el.classList.add("open"); head.setAttribute("aria-expanded", "true"); }
+    draw(); upd(); justClosed();
   };
 
-  let idx = 0;
   groups.forEach((pair) => {
-    if (pair.length < 2) addCard(pair[0], idx++, list);
-    else addSuperCard(pair, idx++, list);
+    if (pair.length < 2) addCard(pair[0], list);
+    else addSuperCard(pair, list);
   });
+  // раскрыто первое незакрытое движение: с него и продолжать
+  const firstOpen = list.querySelector(".ex:not(.done)");
+  if (firstOpen) openCard(firstOpen, false);
 
   // вернуть состав по умолчанию, если атлет что-то менял
   const pl = planOf(wid);

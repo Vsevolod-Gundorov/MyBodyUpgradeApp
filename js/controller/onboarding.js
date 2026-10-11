@@ -32,11 +32,14 @@ function draftOf() {
 
 /**
  * @param opts.editing — правка из профиля (можно закрыть); иначе первый запуск
+ * @param opts.step — правка одного пункта из профиля: открывается сразу этот шаг,
+ *                    и «Сохранить» сохраняет профиль, не проводя по остальным
  */
-export function openProfileWizard({ editing = false } = {}) {
+export function openProfileWizard({ editing = false, step: only = null } = {}) {
   if (document.querySelector(".ob-sheet")) return;
   const f = draftOf();
-  let step = "about";
+  const quick = !!(editing && only && STEPS.includes(only) && profile());
+  let step = quick ? only : "about";
   const hasJournal = S.sessions.length > 0;
 
   const o = document.createElement("div");
@@ -85,7 +88,7 @@ export function openProfileWizard({ editing = false } = {}) {
   };
 
   function draw() {
-    o.innerHTML = wizardView({ step, editing });
+    o.innerHTML = wizardView({ step, editing, quick });
     const box = $("#ob-step");
     if (step === "about") box.innerHTML = aboutStepView(f);
     if (step === "goal") box.innerHTML = goalStepView(f);
@@ -115,7 +118,7 @@ export function openProfileWizard({ editing = false } = {}) {
     const back = $("#ob-back");
     if (back) back.onclick = () => {
       const i = STEPS.indexOf(step);
-      if (i === 0) { o.remove(); return; }
+      if (i === 0 || quick) { o.remove(); return; }
       readStep(); err(null); step = STEPS[i - 1]; draw();
     };
     const close = $("#ob-close");
@@ -129,7 +132,7 @@ export function openProfileWizard({ editing = false } = {}) {
     const code = checkStep();
     if (code) { err(code); return; }
     const i = STEPS.indexOf(step);
-    if (step !== "plan") { step = STEPS[i + 1]; fxTap(); draw(); $("#ob-body").scrollTop = 0; return; }
+    if (step !== "plan" && !quick) { step = STEPS[i + 1]; fxTap(); draw(); $("#ob-body").scrollTop = 0; return; }
     const m = maxesOf();
     const res = saveProfile({ ...f, maxes: m.entered ? m.maxes : null });
     if (!res.ok) { err(res.error); return; }

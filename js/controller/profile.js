@@ -2,7 +2,7 @@
 import { ACH_BY_ID, TIERS, summary as achSummary } from "../../data/achievements.js";
 import { showAchievementDetail, showAllAchievements } from "./overlays.js";
 import { render, setTheme } from "./router.js";
-import { fmtTonn, plural3 } from "../core/format.js";
+import { fmt, fmtTonn, plural3 } from "../core/format.js";
 import { achievementCards, sessionTonnage, weekStreak } from "../model/achievements.js";
 import { heroStats } from "../model/hero.js";
 import { S, save } from "../model/store.js";
@@ -11,7 +11,9 @@ import { cloudState, onCloudState } from "../model/sync.js";
 import { themeNow } from "../model/theme.js";
 import { app } from "../view/dom.js";
 import { fxTap, haptic } from "../view/fx.js";
-import { profileView, remindPanelView, syncNoteText } from "../view/profile.js";
+import { myDataView, profileCardView, profileView, remindPanelView, syncNoteText } from "../view/profile.js";
+import { ACTIVITY, DIRECTIONS, EXPERIENCE, PACES, PROGRAMS, SEXES } from "../../data/profile.js";
+import { tgAvatar, tgUserHandle } from "../telegram.js";
 import { TIMED_SLOTS } from "../../data/reminders.js";
 import { reminders, slotTime } from "../model/reminders.js";
 import { changeSlotTime, remindersAvailable, toggleReminder } from "./reminders.js";
@@ -48,11 +50,38 @@ export function renderProfile() {
   const serverOn = () => !["off", "denied", "full"].includes(serverState);
   const rc = reminders();
   const remind = remindPanelView({ conf: rc, available: remindersAvailable(), times: TIMED_SLOTS.map((slot) => ({ slot, at: slotTime(slot) })) });
-  app.innerHTML = profileView({ achSum, bw, c, earnedList, h, summary, ring, serverOn: serverOn(), remind,
-    goals: goalsPanelView({ p: profile(), tTrain: targetsFor("training"), tRest: targetsFor("rest") }) });
-  document.getElementById("goals-edit").onclick = () => { fxTap(); openProfileWizard({ editing: !!profile() }); };
+  const p = profile();
+  const tTrain = targetsFor("training"), tRest = targetsFor("rest");
+  const age = p ? new Date().getFullYear() - p.birthYear : null;
+  const handle = tgUserHandle();
+  const me = {
+    name: S.hero.name, photo: tgAvatar(),
+    handle: handle && handle !== S.hero.name ? handle : null,
+    chips: [`${fmt(bw)} кг`, p && `${p.height} см`, age && `${age} лет`, p && DIRECTIONS[p.direction] && DIRECTIONS[p.direction].name].filter(Boolean),
+  };
+  const pace = p && PACES[p.direction] ? (PACES[p.direction].find((x) => x.id === p.pace) || {}).name : null;
+  const myData = myDataView([
+    { id: "edit-bw", icon: "weight-scale", label: "Вес", sub: "история и тренд — на «Прогрессе»", value: `${fmt(bw)} кг` },
+    ...(p ? [
+      { step: "about", icon: "stairs", label: "Рост, возраст, пол", value: `${p.height} см · ${age} · ${(SEXES[p.sex] || "").slice(0, 3).toLowerCase()}` },
+      { step: "goal", icon: "on-target", label: "Цель", value: `${DIRECTIONS[p.direction].name}${pace ? ` · ${pace.toLowerCase()}` : ""}` },
+      { step: "food", icon: "cutlery", label: "Питание", sub: ACTIVITY[p.activity].name.toLowerCase(), value: PROGRAMS[p.program].name },
+      { step: "training", icon: "biceps", label: "Опыт в зале", value: EXPERIENCE[p.experience] ? EXPERIENCE[p.experience].name : "—" },
+    ] : []),
+  ]);
+  app.innerHTML = profileView({ achSum, c, earnedList, h, summary, ring, serverOn: serverOn(), remind,
+    card: profileCardView({ me, cells: summary }), myData,
+    goals: goalsPanelView({ p, tTrain, tRest }) });
+  const edit = (opts = {}) => { fxTap(); openProfileWizard({ editing: !!profile(), ...opts }); };
+  const gEdit = document.getElementById("goals-edit");   // есть, пока профиль не заполнен
+  if (gEdit) gEdit.onclick = () => edit();
+  document.getElementById("pf-edit").onclick = () => edit();
+  app.querySelectorAll(".pf-row[data-step]").forEach((b) => b.onclick = () => edit({ step: b.dataset.step }));
   const gNut = document.getElementById("goals-nut");
   if (gNut) gNut.onclick = () => { fxTap(); openNutritionPlan(); };
+  // фото не загрузилось (нет сети, Телеграм не отдал) — остаются инициалы
+  const photo = app.querySelector(".pf-photo");
+  if (photo) photo.onerror = () => photo.remove();
 
   // Вес меняется: от него считаются нормы питания, подтягивания, брусья и гиперэкстензия.
   // Запись идёт в историю взвешиваний — график и тренд на вкладке «Прогресс».
