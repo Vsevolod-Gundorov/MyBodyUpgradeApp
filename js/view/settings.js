@@ -4,6 +4,7 @@ import { LANGS, LANG_ORDER, THEME_EN } from "../../data/i18n.js";
 import { THEMES, THEME_ORDER } from "../../data/theme.js";
 import { esc } from "../core/format.js";
 import { BRIGHT, SIZE_ORDER, T } from "../model/settings.js";
+import { blockHead } from "./components.js";
 import { icon } from "./icons.js";
 
 const BACK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l-8 8 8 8V4z"/></svg>';
@@ -37,7 +38,7 @@ export function settingsView({ theme, lang, bright, size, volume, sound, haptics
     </div>
 
     <section class="panel st-sec" aria-label="${T("look")}">
-      <div class="eyebrow st-h">${T("look")}</div>
+      ${blockHead(T("look"))}
       <div class="theme-pick">
         ${THEME_ORDER.map((id) => `
           <button class="theme-card ${id === theme ? "on" : ""}" data-theme-pick="${id}" aria-pressed="${id === theme}">
@@ -49,7 +50,7 @@ export function settingsView({ theme, lang, bright, size, volume, sound, haptics
     </section>
 
     <section class="panel st-sec" aria-label="${T("screen")}">
-      <div class="eyebrow st-h">${T("screen")}</div>
+      ${blockHead(T("screen"))}
       ${slider("st-bright", T("brightness"), bright, BRIGHT.min, BRIGHT.max, 5, "%")}
       <div class="st-field"><span class="st-l">${T("uiSize")}</span>
         ${seg("size", SIZE_ORDER.map((k) => [k, `<span class="st-aa st-aa-${k}">Aa</span><i>${T(`size${k.toUpperCase()}`)}</i>`]), size, T("uiSize"))}
@@ -57,13 +58,13 @@ export function settingsView({ theme, lang, bright, size, volume, sound, haptics
     </section>
 
     <section class="panel st-sec" aria-label="${T("language")}">
-      <div class="eyebrow st-h">${T("language")}</div>
+      ${blockHead(T("language"))}
       ${seg("lang", LANG_ORDER.map((k) => [k, LANGS[k]]), lang, T("language"))}
       ${lang === "en" ? `<p class="dim small st-note">${T("langBeta")}</p>` : ""}
     </section>
 
     <section class="panel st-sec" aria-label="${T("sound")}">
-      <div class="eyebrow st-h">${T("sound")}</div>
+      ${blockHead(T("sound"))}
       ${slider("st-volume", T("volume"), volume, 0, 100, 5, "%")}
       <button class="btn-ghost st-test" id="st-volume-test">${icon("stopwatch")}<span>${T("volumeTest")}</span></button>
       ${toggle("tg-sound", sound, T("uiSound"))}
@@ -71,8 +72,8 @@ export function settingsView({ theme, lang, bright, size, volume, sound, haptics
     </section>
 
     <section class="panel st-sec" aria-label="${T("data")}">
-      <div class="eyebrow st-h">${T("data")}</div>
-      ${toggle("tg-off", offSearch, T("offSearch"), T("offSearchSub"))}
+      ${blockHead(T("data"))}
+      ${toggle("tg-off", offSearch, T("offSearch"))}
     </section>
 
     ${remind}
@@ -83,7 +84,7 @@ export function settingsView({ theme, lang, bright, size, volume, sound, haptics
 export function remindPanelView({ conf, available, times }) {
   return `
     <section class="panel st-sec remind-panel" aria-label="${T("reminders")}">
-      <div class="eyebrow st-h">${T("reminders")}</div>
+      ${blockHead(T("reminders"))}
       ${available ? "" : `<p class="dim small" style="margin:0 0 8px">${T("remindersOff")}</p>`}
       ${toggle("rm-rest", !!conf.rest, T("remindRest"), "", !available)}
       ${toggle("rm-supp", !!conf.supp, T("remindSupp"), "", !available)}
@@ -95,10 +96,7 @@ export function remindPanelView({ conf, available, times }) {
 export function accountView({ name, handle, serverOn }) {
   return `
     <section class="panel st-sec" aria-label="${T("account")}">
-      <div class="panel-head">
-        <span class="eyebrow">${T("account")}</span>
-        <span class="badge b-dim" id="sync-badge">${T("syncing")}</span>
-      </div>
+      ${blockHead(T("account"), `<span class="badge b-dim" id="sync-badge">${T("syncing")}</span>`)}
       <div class="kv"><span>${esc(name || T("hero"))}</span><span class="dim mono">${esc(handle || "")}</span></div>
       <div class="dim small" id="sync-note" style="margin-top:6px">${syncNoteText(serverOn)}</div>
       <button class="btn-ghost" id="btn-sync" style="margin-top:12px">${T("syncNow")}</button>

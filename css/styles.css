@@ -1949,10 +1949,8 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .pf-saga .hero-title { margin-top: 0; }
 
 .pf-list { padding-bottom: 6px; }
-.pf-list-h { margin-bottom: 4px; }
 .pf-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 0;
   background: none; border: 0; border-top: 1px solid rgba(var(--t-acc-c),.12); color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.pf-list-h + .pf-row { border-top: 0; }
 .pf-row:active { background: rgba(255,255,255,.03); }
 .pf-ico { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-content: center;
   background: rgba(var(--t-acc-b),.1); border: 1px solid var(--line); color: var(--gold-bright); }
@@ -1985,35 +1983,31 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 .pf-sq .ico { width: 18px; height: 18px; }
 .pf-sq:active { transform: scale(.95); }
 
-.pf-nut { padding-bottom: 14px; }
-.pfn-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.pfn-body { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+/* блок «Питание»: две колонки одной конструкции — строки совпадают по высоте до пикселя */
+.pf-nut { padding-bottom: 16px; }
+.pfn-body { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch;
   padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .pfn-body:active .pfn-day { border-color: var(--line-strong); }
-.pfn-day { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; min-width: 0; overflow: hidden; padding: 12px 10px 12px; border-radius: 14px;
-  border: 1px solid var(--line); background: rgba(0,0,0,.2); }
+.pfn-day { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 16px 20px 36px 16px 6px auto; row-gap: 4px;
+  min-width: 0; overflow: hidden; padding: 12px; border-radius: 16px; border: 1px solid var(--line); background: rgba(0,0,0,.2); }
 .pfn-day.on { border-color: rgba(var(--t-acc-c),.55); background: linear-gradient(180deg, rgba(var(--t-acc-b),.10), rgba(0,0,0,.18)); }
-.pfn-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 6px; min-width: 0; font-size: .82rem; color: var(--dim); }
-.pfn-today { font-style: normal; font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-bright);
-  padding: 2px 7px; border-radius: 99px; border: 1px solid rgba(var(--t-acc-c),.5); }
-.pfn-kcal { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.pfn-kcal b { font-size: 1.6rem; font-weight: 600; color: var(--bone); line-height: 1; white-space: nowrap; }
-.pfn-kcal b small { font-size: .62em; color: var(--dim); font-weight: 400; }
-.pfn-kcal > i { font-style: normal; font-size: .72rem; color: var(--dim); }
-.pfn-kcal .pfn-ico { align-self: center; }
-.pfn-ksub { margin-top: -4px; font-size: .72rem; color: var(--dim); white-space: nowrap; }
-.pfn-ico { flex: 0 0 auto; display: inline-grid; place-content: center; width: 18px; height: 18px; }
+.pfn-tag { font-size: .64rem; line-height: 16px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-bright); white-space: nowrap; }
+.pfn-name { font-size: .86rem; line-height: 20px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pfn-kcal { display: flex; align-items: center; gap: 6px; min-width: 0; height: 36px; }
+.pfn-kcal b { font-size: 1.75rem; font-weight: 600; color: var(--bone); line-height: 1; white-space: nowrap; }
+.pfn-ksub { font-size: .74rem; line-height: 16px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pfn-ico { flex: 0 0 auto; display: grid; place-content: center; width: 18px; height: 18px; }
 .pfn-ico .ico { width: 16px; height: 16px; }
-.pfn-bar { display: block; height: 5px; border-radius: 99px; background: rgba(var(--t-acc),.08); overflow: hidden; }
+.pfn-bar { display: block; align-self: center; height: 6px; border-radius: 99px; background: rgba(var(--t-acc),.10); overflow: hidden; }
 .pfn-bar i { display: block; height: 100%; border-radius: 99px; }
-.pfn-macros { display: grid; gap: 9px; padding-top: 10px; border-top: 1px solid rgba(var(--t-acc-c),.12); }
-.pfn-m { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; column-gap: 6px; row-gap: 5px; }
+.pfn-macros { display: grid; row-gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid rgba(var(--t-acc-c),.12); }
+/* строка макроса: значок | название | число, под ними шкала — от края названия до края числа */
+.pfn-m { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; grid-template-rows: 20px 6px; align-items: center; column-gap: 8px; row-gap: 6px; }
 .pfn-m .pfn-bar { grid-column: 2 / 4; }
-.pfn-mn { font-size: .8rem; color: var(--bone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pfn-mv { font-size: .76rem; color: var(--bone); white-space: nowrap; }
+.pfn-mn { font-size: .82rem; line-height: 20px; color: var(--bone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pfn-mv { font-size: .8rem; line-height: 20px; color: var(--bone); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
 .pfn-mv small { color: var(--dim); font-size: .9em; }
-.pfn-mv i { font-style: normal; color: var(--dim); font-size: .85em; }
-.pfn-note { margin-top: 10px; }
+.pfn-note { margin-top: 12px; }
 
 /* ---------- страница «Настройки» ---------- */
 .st-sec { padding-bottom: 12px; }
@@ -2128,3 +2122,26 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 /* ползунки — без подложки общего стиля полей ввода (в «Чистой» она с !important) */
 .ob-ruler input[type="range"], .st-slider input[type="range"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
 .ob-grid-tiles .ob-tile-t b { font-size: .9rem; hyphens: auto; overflow-wrap: anywhere; }
+
+/* ---------- заголовок блока (docs/UI_RULES.md, п. 3) ---------- */
+.blk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; margin: -4px 0 12px; }
+.blk-title { margin: 0; min-width: 0; font-family: var(--font-body, inherit); font-size: 1.0625rem; line-height: 1.25; font-weight: 650;
+  letter-spacing: 0; text-transform: none; color: var(--bone); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk-count { margin-left: 6px; font-size: .82rem; font-weight: 500; color: var(--dim); }
+.blk-link { flex: 0 0 auto; min-width: 44px; height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line-strong);
+  background: rgba(var(--t-acc-b),.08); color: var(--gold-bright); font: inherit; font-size: .86rem; font-weight: 600; cursor: pointer; }
+.blk-link:active { transform: scale(.97); }
+.blk-head .pf-sq { width: 40px; height: 40px; }
+.blk-head .badge { flex: 0 0 auto; }
+.pf-list .blk-head + .pf-row { border-top: 0; }
+/* кнопки-квадраты: видимые 40×40, зона касания — 44×44 (docs/UI_RULES.md, п. 3–4) */
+.pf-edit, .pf-sq { position: relative; width: 40px; height: 40px; }
+.pf-edit::after, .pf-sq::after, .blk-link::after { content: ""; position: absolute; inset: -2px; }
+.blk-link { position: relative; }
+/* узкая колонка: «Белки 100/186» не помещается — подпись сокращается до Б/Ж/У,
+   значок и цвет остаются (docs/UI_RULES.md, п. 2: ничего не обрезается случайно) */
+.pfn-day { container-type: inline-size; }
+@container (max-width: 150px) {
+  .pfn-mn > span { display: none; }
+  .pfn-mn::before { content: attr(data-short); font-weight: 600; }
+}
