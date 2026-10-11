@@ -128,12 +128,76 @@ const PLAIN = {
 };
 const LEX = { saga: SAGA, plain: PLAIN };
 
-/** Слово по ключу в заданной теме. Неизвестный ключ возвращается как есть —
+/* ---------- английский ----------
+   Английский словарь «Чистой» — полный: им пользуются и меню, и профиль.
+   У «Саги» по-английски свои только игровые слова; остальное берётся из «Чистой». */
+const PLAIN_EN = {
+  tabHero: "Profile", tabQuests: "Workouts", tabBuffs: "Supplements",
+  tabFood: "Nutrition", tabLog: "Progress",
+
+  quest: "workout", questA: "workouts", questMany: "workouts",
+  Quest: "Workout", quests: "Workouts", lastQuest: "Last workout",
+  questOne: "Finish workout", questEmpty: "Empty: log at least one set.",
+  questAbout: "About the workout", questStart: "Which workout starts the cycle",
+  nextQuest: "planned", firstQuest: "the first workout",
+
+  pool: "Exercise catalog", poolAbout: "About the catalog",
+  lifts: "Main lifts · estimated 1RM",
+  bodyweight: "Bodyweight",
+  awards: "Achievements", awardsAll: "All achievements", awardsEmpty:
+    "Nothing yet. Achievements arrive on their own — for records, consistency and completed workouts.",
+  saga: "block",
+  heroEyebrow: "BODY UPGRADE · strength progress",
+  heroNovice: "first cycle",
+  doneCount: "workouts done",
+  classLbl: "Training level", classSub: "Profile", classHint: "finish your first workouts — the stats will fill in",
+
+  vGold: "Done", vGoldSub: "The plan is fully complete. Keep it up.",
+  vMid: "Almost", vMidSub: "The main work is done, but the plan is not complete.",
+  vBack: "To workouts",
+  vFail: "Short", vFailSub: "More than half of the plan was left on the floor.",
+
+  ration: "diet", nGold: "Target reached", nMid: "Building up", nFail: "Almost nothing",
+  buff: "supplement", buffNew: "New supplement", buffEdit: "Edit supplement", buffOff: "Remove supplement",
+  buffDue: "Time to check supplements", buffOk: "List checked", buffNever: "The list has not been checked yet.",
+  buffsNote: "",
+  buffAdd: "+ Add your own supplement",
+  logNote: "",
+  logEmptyW: "Nothing yet. Your first workout will add working weights here.",
+  logEmptyR: "",
+  logLast: "Recent workouts", logEmpty: "No entries yet.",
+  foodEmpty: "Nothing added yet.", dayTip: "",
+  achNew: "New achievement", achAgain: "Again",
+  helpHeavy: "the heaviest workout — do it on fresh legs",
+  helpStart: "the header button picks the starting workout if you don't begin the cycle with the first one",
+  helpFeel: "how you feel before the workout",
+  helpFocus: "which muscle group gets the most sets in this workout",
+  helpDeload: "same workouts and the same number of sets",
+  cycleNote: "workouts",
+  helpFeelTail: "The engine remembers how you felt and does not count a hard day as a strength drop",
+  stockHead: "Supplement catalog", stockHint: "",
+  programNote: "",
+};
+const SAGA_EN = {
+  tabHero: "Hero", tabQuests: "Quests", tabBuffs: "Buffs", tabFood: "Supplies", tabLog: "Chronicles",
+  quest: "quest", questA: "quests", questMany: "quests", Quest: "Quest", quests: "Quests", lastQuest: "Last quest",
+  pool: "Arsenal", awards: "Insignia", awardsAll: "All insignia", heroEyebrow: "SOLO WIN · level up your hero",
+  doneCount: "quests cleared", classLbl: "Class", classSub: "Subclass", buff: "buff",
+};
+const LEX_EN = { saga: SAGA_EN, plain: PLAIN_EN };
+
+/** Слово по ключу в заданной теме и языке. Неизвестный ключ возвращается как есть —
  *  это видно на экране и чинится за минуту, а не падает приложением. */
-export const say = (theme, key) => {
+export const say = (theme, key, lang = "ru") => {
+  if (lang === "en") {
+    const e = LEX_EN[theme] || SAGA_EN;
+    if (e[key] != null) return e[key];
+    if (PLAIN_EN[key] != null && PLAIN_EN[key] !== "") return PLAIN_EN[key];
+  }
   const d = LEX[theme] || SAGA;
   return d[key] != null ? d[key] : (SAGA[key] != null ? SAGA[key] : key);
 };
+export { PLAIN_EN };
 
 /** Все ключи словаря — нужно тестам: ни один не должен потеряться в теме. */
 export const LEX_KEYS = Object.keys(SAGA);

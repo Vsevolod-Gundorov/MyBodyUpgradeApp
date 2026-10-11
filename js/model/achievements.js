@@ -23,9 +23,16 @@ export function weekStreak(sessions, min = 3) {
   return { streak: n, maxWeek: Math.max(0, ...Object.values(counts)) };
 }
 
+/**
+ * Жиры и углеводы «в норме» — в пределах ±15%: точнее их не попасть ни на одной кухне.
+ * На кето и низкоуглеводной (норма углеводов до 60 г) недобор — не промах: цель там «не больше».
+ */
+export const inBand = (cur, target, ceilingOnly = false) =>
+  target > 0 && cur <= target * 1.15 && (ceilingOnly || cur >= target * 0.85);
+
 export function nutritionStats() {
   const log = (S.nutrition && S.nutrition.log) || {};
-  const out = { daysLogged: 0, proteinDays: 0, waterDays: 0, kcalDays: 0, fiberDays: 0, fullDays: 0, distinctFoods: 0 };
+  const out = { daysLogged: 0, proteinDays: 0, fatDays: 0, carbsDays: 0, waterDays: 0, kcalDays: 0, fiberDays: 0, fullDays: 0, distinctFoods: 0 };
   const foods = new Set();
   Object.values(log).forEach((day) => {
     if (!day || !((day.items && day.items.length) || day.water > 0)) return;
@@ -39,6 +46,8 @@ export function nutritionStats() {
     if (water) out.waterDays++;
     if (kcal) out.kcalDays++;
     if (t.fb >= target.fiber) out.fiberDays++;
+    if (t.k > 0 && inBand(t.f, target.fat)) out.fatDays++;
+    if (t.k > 0 && inBand(t.cb, target.carbs, target.carbs <= 60)) out.carbsDays++;
     if (protein && water && kcal) out.fullDays++;
     (day.items || []).forEach((it) => foods.add((it.n || "").trim().toLowerCase()));
   });

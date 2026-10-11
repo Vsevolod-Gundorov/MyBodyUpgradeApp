@@ -2,6 +2,7 @@
 import { DEFAULT_THEME, THEMES, say } from "../../data/theme.js";
 import { ARCHIVED_WORKOUTS, PROGRAM, TEMPLATES, TYPE_NAMES } from "../../data/program.js";
 import { achDesc, achName, catName } from "../../data/achievements.js";
+import { langNow } from "./settings.js";
 import { S } from "./store.js";
 
 /* ================= оформление: «Сага» или «Чистая» =================
@@ -19,7 +20,7 @@ export function themeNow() {
 }
 
 /** Слово в текущей теме: квест или тренировка, Персонаж или Профиль. */
-export const L = (key) => say(themeNow(), key);
+export const L = (key) => say(themeNow(), key, langNow());
 
 /** Добавка в текущей редакции: в «Саге» у неё игровое имя, в «Чистой» —
  *  настоящее название вещества, которое и так лежит рядом в данных. */
@@ -30,11 +31,11 @@ export const BN = (b) => (themeNow() === "plain" ? (b.real || b.name) : (b.name 
 export const BSub = (b) => (themeNow() === "plain" ? "" : (b.real || ""));
 
 /** Достижение в текущей редакции: название, условие и раздел списка. */
-export const AN = (a) => achName(a, themeNow());
+export const AN = (a) => achName(a, themeNow(), langNow());
 
-export const AD = (a) => achDesc(a, themeNow());
+export const AD = (a) => achDesc(a, themeNow(), langNow());
 
-export const CN = (k) => catName(k, themeNow());
+export const CN = (k) => catName(k, themeNow(), langNow());
 
 /** Короткое название для шапки тренировки: тип дня уже стоит строкой ниже. */
 export function questTitle(w) {

@@ -68,12 +68,26 @@ async function device(user, { local = null, dialog = "accept" } = {}) {
   await page.goto(BASE + "/#profile");
   return { ctx, page, api };
 }
-const badge = (page) => page.locator("#sync-badge").textContent();
+// статус синхронизации живёт на странице «Настройки» (шестерёнка в профиле)
+const badge = async (page) => {
+  if (!(await page.locator("#sync-badge").count())) {
+    if (await page.locator("#pf-settings").count()) await page.click("#pf-settings");
+    return "";
+  }
+  return page.locator("#sync-badge").textContent();
+};
+// вес правится из профиля: со страницы настроек — назад
+const toProfile = async (page) => {
+  for (let i = 0; i < 20 && !(await page.locator("#edit-bw").count()); i++) {
+    if (await page.locator("#back").count()) await page.click("#back");
+    await page.waitForTimeout(150);
+  }
+};
 const settle = async (page, want = "синхронизировано") => {
   for (let i = 0; i < 40; i++) { if ((await badge(page)) === want) return true; await page.waitForTimeout(250); }
   return false;
 };
-const shot = (page, name) => page.locator("#sync-badge").locator("xpath=ancestor::div[contains(concat(' ',normalize-space(@class),' '),' panel ')][1]").screenshot({ path: `${OUT}/${name}` });
+const shot = (page, name) => page.locator("#sync-badge").locator("xpath=ancestor::*[contains(concat(' ',normalize-space(@class),' '),' panel ')][1]").screenshot({ path: `${OUT}/${name}` });
 const local = (page, id) => page.evaluate((k) => JSON.parse(localStorage.getItem(k)), `bodyupgrade.v1.u${id}`);
 
 /* 1. Первый запуск у владельца: журнал с телефона переезжает на сервер */
@@ -97,7 +111,7 @@ check("второе устройство: журнал с сервера", l2.se
 await shot(d2.page, "2-second-device.png");
 
 /* 3. Правка на втором устройстве уезжает на сервер */
-await d2.page.click("#edit-bw");
+await toProfile(d2.page); await d2.page.click("#edit-bw");
 await d2.page.fill("#ws-kg", "91.5");
 await d2.page.click("#ws-save");
 await settle(d2.page, "сохраняю…");
@@ -113,12 +127,12 @@ check("первое устройство: правка приехала", l1.her
 
 /* 5. Конфликт: оба меняли, пока одно было без сети */
 await d1.ctx.route(/\/api\//, (r) => r.abort());
-await d1.page.evaluate(() => { document.getElementById("edit-bw").click(); });
+await toProfile(d1.page); await d1.page.evaluate(() => { document.getElementById("edit-bw").click(); });
 await d1.page.fill("#ws-kg", "90");
 await d1.page.click("#ws-save");
 check("без сети: статус честный, журнал на устройстве", await settle(d1.page, "нет сети · сохранено здесь"));
 await shot(d1.page, "3-offline.png");
-await d2.page.click("#edit-bw");
+await toProfile(d2.page); await d2.page.click("#edit-bw");
 await d2.page.fill("#ws-kg", "92");
 await d2.page.click("#ws-save");
 await settle(d2.page, "сохраняю…"); await settle(d2.page);
