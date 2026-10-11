@@ -1921,12 +1921,12 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .lr-cat .lc-target { font-family: var(--font-body); }
 
 /* ---------- профиль: карточка атлета и «мои данные» ---------- */
-.pf-card { position: relative; overflow: hidden; margin: 2px 0 14px; padding: 18px 16px 14px; border-radius: 18px;
+.pf-card { position: relative; overflow: hidden; margin: 2px 0 10px; padding: 14px 14px 12px; border-radius: 18px;
   border: 1px solid var(--line-strong);
   background: radial-gradient(120% 90% at 0% 0%, rgba(var(--t-acc-b),.16), transparent 60%),
               radial-gradient(90% 80% at 100% 0%, rgba(var(--t-sec),.10), transparent 55%), var(--panel); }
-.pf-top { display: flex; align-items: center; gap: 14px; }
-.pf-ava { position: relative; flex: 0 0 auto; width: 72px; height: 72px; border-radius: 50%; padding: 3px;
+.pf-top { display: flex; align-items: center; gap: 12px; }
+.pf-ava { position: relative; flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%; padding: 3px;
   background: conic-gradient(from 210deg, var(--gold-bright), var(--teal), var(--gold), var(--gold-bright)); }
 .pf-ini, .pf-photo { position: absolute; inset: 3px; width: calc(100% - 6px); height: calc(100% - 6px); border-radius: 50%; }
 .pf-ini { display: grid; place-content: center; background: var(--panel-2, var(--panel)); color: var(--gold-bright);
@@ -1940,7 +1940,7 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
   background: rgba(var(--t-acc-b),.08); border: 1px solid var(--line-strong); color: var(--gold-bright); cursor: pointer; }
 .pf-edit .ico { width: 18px; height: 18px; }
 .pf-edit:active { transform: scale(.95); }
-.pf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.pf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .pf-chip { font-size: .78rem; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); background: rgba(0,0,0,.22); color: var(--bone); white-space: nowrap; }
 .pf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .pf-stat { display: grid; gap: 2px; justify-items: center; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); }
@@ -1948,16 +1948,16 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .pf-stat i { font-style: normal; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
 .pf-saga .hero-title { margin-top: 0; }
 
-.pf-list { padding-bottom: 6px; }
-.pf-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 0;
+.pf-list { padding-bottom: 4px; }
+.pf-row { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 0;
   background: none; border: 0; border-top: 1px solid rgba(var(--t-acc-c),.12); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .pf-row:active { background: rgba(255,255,255,.03); }
-.pf-ico { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-content: center;
+.pf-ico { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; display: grid; place-content: center;
   background: rgba(var(--t-acc-b),.1); border: 1px solid var(--line); color: var(--gold-bright); }
-.pf-ico .ico { width: 19px; height: 19px; }
-.pf-l { flex: 1; min-width: 0; display: grid; gap: 1px; font-size: .92rem; }
+.pf-ico .ico { width: 17px; height: 17px; }
+.pf-l { flex: 1 0 auto; min-width: 0; display: grid; gap: 1px; font-size: .92rem; white-space: nowrap; }
 .pf-l i { font-style: normal; font-size: .72rem; color: var(--dim); }
-.pf-v { flex: 0 1 auto; min-width: 0; max-width: 52%; text-align: right; font-size: .84rem; color: var(--dim);
+.pf-v { flex: 0 1 auto; min-width: 0; max-width: 64%; text-align: right; font-size: .84rem; color: var(--dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf-chev { flex: 0 0 auto; color: var(--dim); font-size: 1.1rem; line-height: 1; }
 .pf-row:active .pf-chev, .pf-row:active .pf-ico { color: var(--gold); }
@@ -1983,31 +1983,30 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 .pf-sq .ico { width: 18px; height: 18px; }
 .pf-sq:active { transform: scale(.95); }
 
-/* блок «Питание»: две колонки одной конструкции — строки совпадают по высоте до пикселя */
-.pf-nut { padding-bottom: 16px; }
-.pfn-body { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch;
+/* блок «Питание» — таблица: подпись слева один раз, два дня столбцами, строка — одна линия */
+.pf-nut { padding-bottom: 10px; }
+.pfn-tbl { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); align-items: stretch;
   padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.pfn-body:active .pfn-day { border-color: var(--line-strong); }
-.pfn-day { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 16px 20px 36px 16px 6px auto; row-gap: 4px;
-  min-width: 0; overflow: hidden; padding: 12px; border-radius: 16px; border: 1px solid var(--line); background: rgba(0,0,0,.2); }
-.pfn-day.on { border-color: rgba(var(--t-acc-c),.55); background: linear-gradient(180deg, rgba(var(--t-acc-b),.10), rgba(0,0,0,.18)); }
-.pfn-tag { font-size: .64rem; line-height: 16px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-bright); white-space: nowrap; }
-.pfn-name { font-size: .86rem; line-height: 20px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pfn-kcal { display: flex; align-items: center; gap: 6px; min-width: 0; height: 36px; }
-.pfn-kcal b { font-size: 1.75rem; font-weight: 600; color: var(--bone); line-height: 1; white-space: nowrap; }
-.pfn-ksub { font-size: .74rem; line-height: 16px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pfn-c { display: flex; align-items: center; min-width: 0; height: 32px; padding: 0 8px; white-space: nowrap;
+  border-top: 1px solid rgba(var(--t-acc-c),.10); }
+.pfn-corner, .pfn-hd { border-top: 0; height: 26px; }
+.pfn-hd { justify-content: flex-end; gap: 6px; font-size: .78rem; color: var(--dim); }
+.pfn-hd.on { color: var(--gold-bright); font-weight: 600; }
+.pfn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold-bright); box-shadow: 0 0 6px rgba(var(--t-acc-b),.8); }
+.pfn-lbl { gap: 8px; padding-left: 0; font-size: .86rem; color: var(--bone); }
 .pfn-ico { flex: 0 0 auto; display: grid; place-content: center; width: 18px; height: 18px; }
 .pfn-ico .ico { width: 16px; height: 16px; }
-.pfn-bar { display: block; align-self: center; height: 6px; border-radius: 99px; background: rgba(var(--t-acc),.10); overflow: hidden; }
-.pfn-bar i { display: block; height: 100%; border-radius: 99px; }
-.pfn-macros { display: grid; row-gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid rgba(var(--t-acc-c),.12); }
-/* строка макроса: значок | название | число, под ними шкала — от края названия до края числа */
-.pfn-m { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; grid-template-rows: 20px 6px; align-items: center; column-gap: 8px; row-gap: 6px; }
-.pfn-m .pfn-bar { grid-column: 2 / 4; }
-.pfn-mn { font-size: .82rem; line-height: 20px; color: var(--bone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pfn-mv { font-size: .8rem; line-height: 20px; color: var(--bone); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
-.pfn-mv small { color: var(--dim); font-size: .9em; }
-.pfn-note { margin-top: 12px; }
+.pfn-v { position: relative; justify-content: flex-end; gap: 1px; font-size: .86rem; color: var(--bone); font-variant-numeric: tabular-nums; }
+.pfn-v b { position: relative; font-weight: 600; }
+.pfn-v small { position: relative; color: var(--dim); font-size: .86em; }
+/* прогресс за сегодня — тонкой линией по низу той же ячейки: строка не растёт */
+.pfn-fill { position: absolute; left: 8px; right: 8px; bottom: 3px; height: 3px; border-radius: 99px; background: rgba(var(--t-acc),.12); overflow: hidden; }
+.pfn-fill i { display: block; height: 100%; border-radius: 99px; }
+/* сегодняшний столбец подсвечен целиком */
+.pfn-hd.on, .pfn-v.on { background: rgba(var(--t-acc-b),.07); }
+.pfn-hd.on { border-radius: 10px 10px 0 0; }
+.pfn-tbl > .pfn-v.on:nth-last-child(2), .pfn-tbl > .pfn-v.on:last-child { border-radius: 0 0 10px 10px; }
+.pfn-note { margin-top: 8px; }
 
 /* ---------- страница «Настройки» ---------- */
 .st-sec { padding-bottom: 12px; }
@@ -2124,7 +2123,7 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 .ob-grid-tiles .ob-tile-t b { font-size: .9rem; hyphens: auto; overflow-wrap: anywhere; }
 
 /* ---------- заголовок блока (docs/UI_RULES.md, п. 3) ---------- */
-.blk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; margin: -4px 0 12px; }
+.blk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; margin: -6px 0 4px; }
 .blk-title { margin: 0; min-width: 0; font-family: var(--font-body, inherit); font-size: 1.0625rem; line-height: 1.25; font-weight: 650;
   letter-spacing: 0; text-transform: none; color: var(--bone); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .blk-count { margin-left: 6px; font-size: .82rem; font-weight: 500; color: var(--dim); }
@@ -2138,10 +2137,3 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 .pf-edit, .pf-sq { position: relative; width: 40px; height: 40px; }
 .pf-edit::after, .pf-sq::after, .blk-link::after { content: ""; position: absolute; inset: -2px; }
 .blk-link { position: relative; }
-/* узкая колонка: «Белки 100/186» не помещается — подпись сокращается до Б/Ж/У,
-   значок и цвет остаются (docs/UI_RULES.md, п. 2: ничего не обрезается случайно) */
-.pfn-day { container-type: inline-size; }
-@container (max-width: 150px) {
-  .pfn-mn > span { display: none; }
-  .pfn-mn::before { content: attr(data-short); font-weight: 600; }
-}
