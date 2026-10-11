@@ -344,37 +344,18 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
 .ss-row { grid-template-columns: 28px 1fr 1fr 24px; margin-top: 4px; }
 .ss-idx { display: grid; place-content: center; color: var(--teal); }
 .ss-idx .ico { width: 20px; height: 20px; }
-.ss-card .ex-tools .ex-tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ex {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
   margin-top: 10px; overflow: hidden;
 }
-/* закрытое движение: карточка гаснет, чтобы взгляд цеплялся за незакрытые */
-.ex.done { opacity: .72; }
+/* закрытое движение: свёрнутая карточка гаснет, чтобы взгляд цеплялся за незакрытые.
+   Раскрытая не гаснет никогда — с ней работают */
+.ex.done:not(.open) { opacity: .72; }
 .ex.done .ex-dots i.on { background: var(--moss); }
 .ex.done .ex-status.ok { color: var(--moss); }
-/* раскрытая карточка держится под шапкой квеста: пока работаешь с движением,
-   оно на экране, а остальной список листается под ним */
-.ex-mark { height: 1px; margin: 0; }
-.ex.open { position: sticky; top: var(--qhead-h, 56px); z-index: 20;
-  box-shadow: 0 10px 22px -14px rgba(0,0,0,.9); }
-/* прилипла — оставляем только то, чем пользуешься между подходами */
-.ex.open.stuck { box-shadow: 0 14px 26px -12px rgba(0,0,0,.95); }
-.ex.open.stuck .ex-head { padding: 8px 13px; }
-.ex.open.stuck .ex-ico { width: 34px; height: 34px; border-radius: 9px; }
-.ex.open.stuck .ex-ico .ico { width: 23px; height: 23px; }
-.ex.open.stuck .eg-prev,
-.ex.open.stuck .eg-line.note,
-.ex.open.stuck .set-head,
-.ex.open.stuck .add-set,
-.ex.open.stuck .ex-tools { display: none; }
-.ex.open.stuck .ex-goal { padding: 6px 10px; }
-.ex.open.stuck .ss-legend { display: none; }
-.ex.open.stuck .ss-rounds { margin-top: 0; }
-.ex.open.stuck .eg-nums b { font-size: 1.2rem; }
-.ex.open.stuck .set-row { margin-top: 4px; }
-.ex.open.stuck .ex-body { padding-bottom: 10px; }
+/* раскрытая карточка — обычный блок списка: не прилипает к шапке и ничего не закрывает */
+.ex.open { box-shadow: 0 10px 22px -14px rgba(0,0,0,.9); scroll-margin-top: calc(var(--qhead-h, 56px) + 8px); }
 /* подложка непрозрачная: карточка может висеть над списком, и сквозь неё ничего не должно просвечивать */
 .ex.main-ex { border-color: var(--line-strong); background: linear-gradient(180deg, rgba(var(--t-acc),.07), rgba(var(--t-acc),0) 55%), var(--panel); }
 
@@ -482,7 +463,6 @@ body.resting #app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
   padding: 8px 6px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .8rem; white-space: nowrap;
 }
 .add-warm:active { border-color: var(--teal); }
-.ex.open.stuck .set-add { display: none; }
 .add-set {
   margin-top: 8px; width: 100%; background: none; border: 1px dashed var(--line);
   color: var(--dim); padding: 8px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .8rem;
@@ -1249,10 +1229,14 @@ button.log-row:active { background: rgba(var(--t-acc-b),.05); }
 /* инструменты упражнения в квесте */
 /* инструменты ушли под подходы: замена и разбор нужны раз в десять квестов,
    а подходы — каждую минуту */
-.ex-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding-top: 9px;
+/* одна строка плиток «значок над подписью»: раньше кнопки шли в две строки
+   и раздували раскрытую карточку */
+.ex-tools { display: flex; gap: 5px; flex-wrap: nowrap; margin-top: 10px; padding-top: 9px;
   border-top: 1px solid rgba(var(--t-acc-c),.1); }
-.ex-tool { flex: 1 1 auto; background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--dim);
-  font: inherit; font-size: .72rem; padding: 6px 8px; cursor: pointer; white-space: nowrap; opacity: .85; }
+.ex-tool { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  background: none; border: 1px solid var(--line); border-radius: 9px; color: var(--dim);
+  font: inherit; font-size: .9rem; line-height: 1.1; padding: 5px 3px; cursor: pointer; opacity: .85; }
+.ex-tool span { font-size: .62rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ex-tool:active { transform: scale(.97); }
 .ex-tool.danger { color: var(--ember); border-color: rgba(var(--t-bad),.35); }
 .add-ex-btn { margin-top: 14px; }
@@ -1541,8 +1525,6 @@ button.log-row:active { background: rgba(var(--t-acc-b),.05); }
 .ex-status { font-family: var(--font-mono); font-size: .95rem; color: var(--gold); padding-top: 2px; }
 .ex-status i { font-style: normal; color: var(--dim); font-size: .7rem; }
 .ex-status:not(.ok) { color: var(--dim); }
-.ex-tool { display: inline-flex; align-items: center; gap: 5px; justify-content: center; }
-.ex-tool span { font-size: .72rem; }
 .add-ex-btn { margin-top: 12px; max-width: 200px; margin-left: auto; margin-right: auto; }
 .reset-plan { max-width: 260px; margin-left: auto; margin-right: auto; font-size: .78rem; }
 
@@ -1791,7 +1773,22 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 #weight-card:empty { display: none; }
 .lift-grid { align-items: stretch; }
 .lift-grid .chart-card + .chart-card { margin-top: 0; }
-.search-bar.lr-search { margin: 0 0 8px; }
+/* рабочие веса — как каталог упражнений: заголовок со счётчиком, поиск, плашки групп */
+.lr-cat { margin-top: 4px; }
+.lr-cat-head { display: flex; align-items: center; gap: 10px; margin: 0 2px 10px; }
+.lr-cat-title { margin: 0; font-size: 1.15rem; flex: 0 1 auto; }
+.lr-cat-head .icon-btn { margin-left: auto; }
+.search-bar.lr-search { margin: 0 0 12px; }
+.lr-cat .pool-group { margin-top: 10px; }
+.lr-cat .lr-row { display: flex; min-height: 52px; padding: 8px 0; border-top: 1px solid rgba(var(--t-acc-c),.12); }
+.lr-cat .lr:first-child .lr-row { border-top: 0; }
+.lr-sub { display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--dim); min-width: 0; }
+.lr-sub .lr-st { white-space: nowrap; }
+.lr-cat .lr.open .pool-chev { transform: rotate(90deg); color: var(--gold); }
+.lr-cat .pool-chev { transition: transform .15s; }
+.lr-cat .lr-body { padding: 4px 0 12px 46px; }
+.lr-cat .lr.open .lr-row { color: inherit; }
+.lr-cat .lr.open .pool-name { color: var(--gold-bright); }
 
 /* ---------- шапка тренировки: название в две строки, тип дня под ним ---------- */
 .qhead-tb { flex: 1; min-width: 0; display: grid; gap: 1px; }
@@ -1808,7 +1805,6 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .ease-note .link-btn { padding: 0; }
 .ex-note { margin-top: 8px; padding: 7px 10px; border-left: 2px solid var(--gold); background: rgba(255,255,255,.03);
   border-radius: 0 8px 8px 0; font-size: .82rem; color: var(--bone); overflow-wrap: anywhere; }
-.ex-tools { flex-wrap: wrap; }
 .ex-tool.on { color: var(--gold); border-color: rgba(var(--t-acc-c), .55); }
 .health-box { display: grid; gap: 8px; margin: 0 0 12px; }
 .hb-check { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid rgba(var(--t-acc-c), .55); border-radius: 12px; background: var(--panel-2); }
@@ -1920,3 +1916,54 @@ button.badge { font: inherit; font-size: .66rem; letter-spacing: .06em; cursor: 
 .ex-set-go { margin: 0 !important; height: 44px; padding: 0 14px; width: auto; font-size: .85rem; }
 .ex-set-note { margin-top: 6px; }
 .ex-set-in input { background: none !important; padding: 0 !important; }
+/* мини-графики в сетке стоят ровно в ряд: общий отступ «панель за панелью» здесь лишний */
+#charts.lift-grid > .chart-card { margin: 0; }
+.lr-cat .lc-target { font-family: var(--font-body); }
+
+/* ---------- профиль: карточка атлета и «мои данные» ---------- */
+.pf-card { position: relative; overflow: hidden; margin: 2px 0 14px; padding: 18px 16px 14px; border-radius: 18px;
+  border: 1px solid var(--line-strong);
+  background: radial-gradient(120% 90% at 0% 0%, rgba(var(--t-acc-b),.16), transparent 60%),
+              radial-gradient(90% 80% at 100% 0%, rgba(var(--t-sec),.10), transparent 55%), var(--panel); }
+.pf-top { display: flex; align-items: center; gap: 14px; }
+.pf-ava { position: relative; flex: 0 0 auto; width: 72px; height: 72px; border-radius: 50%; padding: 3px;
+  background: conic-gradient(from 210deg, var(--gold-bright), var(--teal), var(--gold), var(--gold-bright)); }
+.pf-ini, .pf-photo { position: absolute; inset: 3px; width: calc(100% - 6px); height: calc(100% - 6px); border-radius: 50%; }
+.pf-ini { display: grid; place-content: center; background: var(--panel-2, var(--panel)); color: var(--gold-bright);
+  font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: .02em;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.35); }
+.pf-photo { object-fit: cover; background: var(--panel); box-shadow: 0 0 0 2px rgba(0,0,0,.35); }
+.pf-id { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.pf-name { margin: 0; font-size: 1.5rem; line-height: 1.1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-handle { font-size: .84rem; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-edit { flex: 0 0 auto; align-self: flex-start; width: 38px; height: 38px; border-radius: 12px; display: grid; place-content: center;
+  background: rgba(var(--t-acc-b),.08); border: 1px solid var(--line-strong); color: var(--gold-bright); cursor: pointer; }
+.pf-edit .ico { width: 18px; height: 18px; }
+.pf-edit:active { transform: scale(.95); }
+.pf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.pf-chip { font-size: .78rem; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); background: rgba(0,0,0,.22); color: var(--bone); white-space: nowrap; }
+.pf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.pf-stat { display: grid; gap: 2px; justify-items: center; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); }
+.pf-stat b { font-size: 1.25rem; color: var(--bone); font-weight: 600; white-space: nowrap; }
+.pf-stat i { font-style: normal; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
+.pf-saga .hero-title { margin-top: 0; }
+
+.pf-list { padding-bottom: 6px; }
+.pf-list-h { margin-bottom: 4px; }
+.pf-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 0;
+  background: none; border: 0; border-top: 1px solid rgba(var(--t-acc-c),.12); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.pf-list-h + .pf-row { border-top: 0; }
+.pf-row:active { background: rgba(255,255,255,.03); }
+.pf-ico { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-content: center;
+  background: rgba(var(--t-acc-b),.1); border: 1px solid var(--line); color: var(--gold-bright); }
+.pf-ico .ico { width: 19px; height: 19px; }
+.pf-l { flex: 1; min-width: 0; display: grid; gap: 1px; font-size: .92rem; }
+.pf-l i { font-style: normal; font-size: .72rem; color: var(--dim); }
+.pf-v { flex: 0 1 auto; min-width: 0; max-width: 52%; text-align: right; font-size: .84rem; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-chev { flex: 0 0 auto; color: var(--dim); font-size: 1.1rem; line-height: 1; }
+.pf-row:active .pf-chev, .pf-row:active .pf-ico { color: var(--gold); }
+.ob-quick-t { text-align: center; font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+/* нормы на день: две плитки делят ширину поровну и не вылезают за панель */
+.gp-days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gp-days .mono { white-space: nowrap; font-size: .66rem; letter-spacing: -.01em; }

@@ -152,6 +152,23 @@ export function tgUserName() {
   const u = tgUser();
   return (u && (u.first_name || u.username)) || null;
 }
+/**
+ * Адрес аватарки из Телеграма — только https и только с хостов самого Телеграма.
+ * Иначе подменённый initDataUnsafe мог бы подсунуть картинку с чужого сервера
+ * (и узнать IP атлета) или схему javascript:/data:. Чистая функция — проверяется тестом.
+ */
+const AVATAR_HOSTS = /^(?:t\.me|(?:[a-z0-9-]+\.)*(?:t\.me|telegram\.org|telegram-cdn\.org|cdn-telegram\.org))$/;
+export function safeAvatarUrl(url) {
+  if (typeof url !== "string" || url.length > 512) return null;
+  let u;
+  try { u = new URL(url); } catch (e) { return null; }
+  if (u.protocol !== "https:" || u.username || u.password || u.port || !AVATAR_HOSTS.test(u.hostname)) return null;
+  return u.href;
+}
+export function tgAvatar() {
+  const u = tgUser();
+  return u ? safeAvatarUrl(u.photo_url) : null;
+}
 export function tgUserHandle() {
   const u = tgUser();
   if (!u) return null;

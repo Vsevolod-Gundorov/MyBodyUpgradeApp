@@ -1,5 +1,7 @@
 // Вид: progress. Только разметка: данные приходят готовыми из контроллера.
-import { exById } from "../../data/exercises.js";
+import { EQUIP, exById } from "../../data/exercises.js";
+import { exerciseIcon } from "../../data/icons-exercise.js";
+import { EQUIP_ICON } from "../../data/icons-ui.js";
 import { LIFT_NAMES, SCHEME, archivedExName } from "../../data/program.js";
 import { PROG, stateOf } from "../../data/progression.js";
 import { esc, fmt, fmtDate, plural3 } from "../core/format.js";
@@ -18,20 +20,24 @@ export function progressView() {
       <stop offset="0" stop-color="#c9a961" stop-opacity=".35"/><stop offset="1" stop-color="#c9a961" stop-opacity="0"/>
     </linearGradient></defs></svg>
 
-    <section class="panel" aria-label="Рабочие веса">
-      <div class="sec-head">
-        <span class="eyebrow">Рабочие веса</span>
-        <button class="info-dot" id="lr-how" aria-label="Как считаются рабочие веса">?</button>
+    <div class="sec-head" style="margin:14px 2px 8px"><span class="eyebrow">Базовые движения · расчётный 1ПМ</span></div>
+    <div id="charts" class="lift-grid"></div>
+
+    <!-- рабочие веса устроены как каталог упражнений: заголовок со счётчиком,
+         поиск, группы мышц отдельными плашками, строки со значком движения -->
+    <section class="lr-cat" aria-label="Рабочие веса">
+      <div class="lr-cat-head">
+        <h2 class="lr-cat-title display">Рабочие веса</h2>
+        <span class="badge" id="lr-count"></span>
+        <button class="icon-btn" id="lr-how" aria-label="Как считаются рабочие веса">${icon("help")}</button>
       </div>
       <div class="search-bar lr-search">
         <span class="search-ico">${icon("search")}</span>
-        <input class="search-input" id="lr-q" type="search" placeholder="Поиск движения" autocomplete="off" aria-label="Поиск движения" />
+        <input class="search-input" id="lr-q" type="search" placeholder="Движение или мышца" autocomplete="off"
+               autocorrect="off" spellcheck="false" aria-label="Поиск движения" />
       </div>
       <div id="lr-list"></div>
     </section>
-
-    <div class="sec-head" style="margin:14px 2px 8px"><span class="eyebrow">Базовые движения · расчётный 1ПМ</span></div>
-    <div id="charts" class="lift-grid"></div>
 
     <section class="panel" aria-label="${L("logLast")}">
       <div class="eyebrow" style="margin-bottom:8px">${L("logLast")}</div>
@@ -45,7 +51,7 @@ export const progressHelpHTML = () => `
   <p><b>Рабочий вес</b> — вес на следующий раз. Его и подставляет ${L("quest")} в подходы, поэтому в зале считать нечего.</p>
   <p><b>Личный максимум</b> — расчётный 1ПМ лучшего подхода за всю историю (среднее формул <b>Эпли</b> и <b>Бжицки</b>, повторы капаются на 10). Он живёт отдельно и рабочий вес не задаёт: рекорд одного удачного дня не должен задирать рабочую неделю.</p>
   <p>Схемы цикла чередуются, поэтому рабочий вес хранится как максимум на <b>эффективных повторах</b> (повторы плана плюс запас до отказа). Прибавка, взятая на объёмной неделе, не теряется на силовой.</p>
-  <p><b>Объём и отдых</b> входят в расчёт: каждый подход после первого стоит 2%, каждые полминуты недоотдыха до 2,5 минут — ещё 1,5%, глубже 18% поправка не идёт.</p>
+  <p><b>Объём и отдых</b> входят в расчёт: каждый подход после первого стоит 2%, каждые полминуты недоотдыха до 3 минут — ещё 1,5%, глубже 18% поправка не идёт.</p>
   <p><b>Застой</b> — ${PROG.STALL} раза подряд без прибавки: пора делоад, смена движения или разбор сна и еды. Тренировка, отработанная заметно легче назначенного, рабочий вес не двигает вовсе.</p>`;
 
 /* ---------------- итоги недели ---------------- */
@@ -138,35 +144,47 @@ function liftDetail({ src, slot, ex, p }) {
       : "Журнал пока пуст — вес оценён от базовых лифтов"}</div>`;
 }
 
+// статус движения одним словом — для строки списка; полностью он в раскрытой строке
+const STATE_SHORT = { none: "по ощущениям", deload: "разгрузка", new: "первый замер", manual: "вручную",
+  drop: "откат", stall: "застой", hold: "держим вес", grow: "рост" };
+
 function liftRowView(r, open) {
   const p = r.p, st = p && p.target ? stateOf(p) : null;
   const note = r.src && r.src.perHand ? "/рука" : "";
-  const t = p && p.target ? (p.trend != null ? { cls: tcls(p.trend), txt: arrow(p.trend).replace("/мес", "") }
-    : p.deltaKg ? { cls: p.deltaKg > 0 ? "up" : "down", txt: `${p.deltaKg > 0 ? "▲ +" : "▼ "}${fmt(p.deltaKg)}` } : { cls: "flat", txt: "" }) : { cls: "flat", txt: "" };
+  const t = p && p.target ? (p.trend != null ? { cls: tcls(p.trend), txt: arrow(p.trend) }
+    : p.deltaKg ? { cls: p.deltaKg > 0 ? "up" : "down", txt: `${p.deltaKg > 0 ? "▲ +" : "▼ "}${fmt(p.deltaKg)} кг` } : { cls: "flat", txt: "" }) : { cls: "flat", txt: "" };
+  const ico = r.src ? icon(exerciseIcon(r.src)) : icon("machine");
+  const eq = r.src && r.src.equip ? `<span class="pool-eq" title="${esc(EQUIP[r.src.equip] || "")}">${icon(EQUIP_ICON[r.src.equip] || "machine")}</span>` : "";
   return `
     <div class="lr ${open ? "open" : ""}">
-      <button class="lr-row" data-k="${esc(r.k)}" aria-expanded="${open}">
-        <span class="lr-dot ${st ? st.cls : ""}" aria-hidden="true"></span>
-        <span class="lr-name">${esc(r.name)}</span>
-        <span class="lr-t ${t.cls} mono">${t.txt}</span>
-        <span class="lr-w mono">${p && p.target ? `${fmt(p.target)}<i> кг${note}</i>` : `<i>свой вес</i>`}</span>
+      <button class="pool-row lr-row" data-k="${esc(r.k)}" aria-expanded="${open}">
+        <span class="pool-ico" aria-hidden="true">${ico}${eq}</span>
+        <span class="pool-body">
+          <span class="pool-name">${esc(r.name)}</span>
+          <span class="lr-sub"><span class="lr-dot ${st ? st.cls : ""}" aria-hidden="true"></span><span class="lr-st">${st ? STATE_SHORT[st.key] || "" : "свой вес"}</span>${t.txt ? `<span class="lr-t ${t.cls} mono">${t.txt}</span>` : ""}</span>
+        </span>
+        <span class="lr-w mono">${p && p.target ? `${fmt(p.target)}<i> кг${note}</i>` : "—"}</span>
+        <span class="pool-chev">›</span>
       </button>
       ${open ? `<div class="lr-body">${liftDetail(r)}</div>` : ""}
     </div>`;
 }
 
 /**
- * Список рабочих весов: группы по мышцам, базовые — первыми и раскрыты.
+ * Список рабочих весов: группы по мышцам плашками, как в каталоге; базовые — первыми.
  * groups: [{ key, name, rows }], openG — раскрытые группы, openK — раскрытое движение.
  */
 export function liftListView({ groups, openG, openK, q }) {
-  if (!groups.length) return `<div class="empty">${q ? "Ничего не нашлось" : L("logEmptyW")}</div>`;
+  if (!groups.length) return `<div class="empty">${q ? "Ничего не нашлось. Попробуй другое слово — например «жим» или «спина»." : L("logEmptyW")}</div>`;
   return groups.map((g) => {
     const open = q || openG.has(g.key);
     return `
-      <div class="lr-group ${open ? "open" : ""}">
-        <button class="lr-gh" data-g="${g.key}" aria-expanded="${!!open}"><span>${g.name}</span><span class="dim mono small">${g.rows.length}</span></button>
-        ${open ? g.rows.map((r) => liftRowView(r, openK === r.k)).join("") : ""}
+      <div class="panel pool-group lr-group ${open ? "open" : ""}">
+        <button class="panel-head pool-toggle" data-g="${g.key}" aria-expanded="${!!open}">
+          <span class="eyebrow">${g.name}</span>
+          <span class="ph-right"><span class="badge b-dim">${g.rows.length}</span><span class="chev">›</span></span>
+        </button>
+        <div class="pool-list">${open ? g.rows.map((r) => liftRowView(r, openK === r.k)).join("") : ""}</div>
       </div>`;
   }).join("");
 }

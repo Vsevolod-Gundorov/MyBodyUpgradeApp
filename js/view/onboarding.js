@@ -30,14 +30,16 @@ const num = (id, label, val, unit, ph = "") => `
     <span class="ob-input"><input id="${id}" inputmode="decimal" value="${val ?? ""}" placeholder="${ph}" autocomplete="off" />${unit ? `<i>${unit}</i>` : ""}</span>
   </label>`;
 
-export function wizardView({ step, editing }) {
+export function wizardView({ step, editing, quick = false }) {
   const i = STEPS.indexOf(step);
   const [title, sub] = TITLES[step];
+  // quick — правка одного пункта из профиля: без шагов, сразу «Сохранить»
+  const first = quick || i === 0;
   return `
     <div class="ob-head">
-      ${editing || i > 0 ? `<button class="fs-close" id="ob-back" aria-label="${i > 0 ? "Назад" : "Закрыть"}">${i > 0 ? BACK : icon("close")}</button>` : `<span class="ob-head-pad"></span>`}
-      <div class="ob-progress" aria-label="Шаг ${i + 1} из ${STEPS.length}">${STEPS.map((s, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("")}</div>
-      ${editing && i > 0 ? `<button class="fs-close" id="ob-close" aria-label="Закрыть">${icon("close")}</button>` : `<span class="ob-head-pad"></span>`}
+      ${editing || i > 0 ? `<button class="fs-close" id="ob-back" aria-label="${first ? "Закрыть" : "Назад"}">${first ? icon("close") : BACK}</button>` : `<span class="ob-head-pad"></span>`}
+      ${quick ? `<span class="ob-quick-t">Профиль</span>` : `<div class="ob-progress" aria-label="Шаг ${i + 1} из ${STEPS.length}">${STEPS.map((s, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("")}</div>`}
+      ${editing && !first ? `<button class="fs-close" id="ob-close" aria-label="Закрыть">${icon("close")}</button>` : `<span class="ob-head-pad"></span>`}
     </div>
     <div class="ob-body" id="ob-body">
       <h2 class="ob-title">${title}</h2>
@@ -46,7 +48,7 @@ export function wizardView({ step, editing }) {
       <div class="ob-error" id="ob-error" role="alert"></div>
     </div>
     <div class="ob-foot">
-      <button class="finish-btn" id="ob-next">${step === "plan" ? (editing ? "Сохранить" : "Начать") : "Далее"}</button>
+      <button class="finish-btn" id="ob-next">${quick || (step === "plan" && editing) ? "Сохранить" : step === "plan" ? "Начать" : "Далее"}</button>
     </div>`;
 }
 
@@ -133,8 +135,7 @@ export function goalsPanelView({ p, tTrain, tRest, adjustHint }) {
     </div>`;
   return `
     <div class="panel goals-panel">
-      <div class="panel-head"><span class="eyebrow">Цели и нормы</span><span class="gp-actions"><button class="link-btn" id="goals-nut">Питание</button><button class="link-btn" id="goals-edit">Профиль</button></span></div>
-      <div class="gp-row"><span>${DIRECTIONS[p.direction].name}</span><span class="dim">${PROGRAMS[p.program].name}</span></div>
+      <div class="panel-head"><span class="eyebrow">Нормы на день · ${DIRECTIONS[p.direction].name.toLowerCase()}</span><span class="gp-actions"><button class="link-btn" id="goals-nut">Настроить</button></span></div>
       <div class="gp-days">
         <div><span class="dim small">Тренировка</span><b class="mono">${tTrain.kcal}</b><span class="dim small mono">Б ${tTrain.protein} · Ж ${tTrain.fat} · У ${tTrain.carbs}</span></div>
         <div><span class="dim small">Отдых</span><b class="mono">${tRest.kcal}</b><span class="dim small mono">Б ${tRest.protein} · Ж ${tRest.fat} · У ${tRest.carbs}</span></div>
