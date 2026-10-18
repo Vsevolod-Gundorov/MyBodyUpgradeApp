@@ -3,7 +3,7 @@ import { TIER_ORDER } from "../../data/achievements.js";
 import { EQUIP, MUSCLES, PATTERNS, exById } from "../../data/exercises.js";
 import { exerciseIcon } from "../../data/icons-exercise.js";
 import { SCHEME } from "../../data/program.js";
-import { e1rm as e1rmAvg, stateOf } from "../../data/progression.js";
+import { e1rm as e1rmAvg, seedFromText, stateOf } from "../../data/progression.js";
 import { esc, fmt, fmtDate, plural3 } from "../core/format.js";
 import { tierName } from "../model/achievements.js";
 import { sessionExercises } from "../model/catalog.js";
@@ -48,7 +48,7 @@ export function exerciseDetailView({ alts, ex, opts, strength, used, volume, ww 
         ${ww && ww.est1RM
           ? `${{ work: `★ вес посчитан по твоим подходам: ${plural3(ww.sessions, "квест", "квеста", "квестов")} в журнале, ${stateOf(ww).text.toLowerCase()}`,
                 manual: "✎ вес задан вручную — дальше его поведут подходы",
-              }[ww.source] || "◎ оценка от базовых лифтов — уточнится после первых подходов"}${ex.bw ? " · вес указан как довесок к своему" : (ex.perHand ? " · на каждую руку" : (ex.perLeg ? " · на каждую ногу" : ""))}`
+              }[ww.source] || `◎ ${seedFromText(ww) || "оценка от базовых лифтов"} — уточнится после первых подходов`}${ex.bw ? " · вес указан как довесок к своему" : (ex.perHand ? " · на каждую руку" : (ex.perLeg ? " · на каждую ногу" : ""))}`
           : "Вес не оценивается — работа со своим весом или на время"}
       </div>
       ${ww && (ww.est1RM || ex.bw) ? `<div class="ex-fix">
