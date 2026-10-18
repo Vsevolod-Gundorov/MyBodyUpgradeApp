@@ -426,7 +426,7 @@ export function progressionOf(history, o = {}) {
 export function stateOf(p) {
   if (!p || p.source === "none") return { key: "none", text: "Вес по ощущениям", cls: "verdict-mid" };
   if (p.deload) return { key: "deload", text: `Разгрузка: вес −${Math.round((1 - DELOAD) * 100)}%, рабочий максимум не трогаем`, cls: "verdict-mid" };
-  if (p.source === "estimate") return { key: "new", text: "Первый заход — оценка от базовых лифтов", cls: "verdict-mid" };
+  if (p.source === "estimate") return { key: "new", text: `Первый заход — ${seedFromText(p) || "оценка от базовых лифтов"}`, cls: "verdict-mid" };
   if (p.source === "manual") return { key: "manual", text: "Вес поправлен вручную — дальше его поведут подходы", cls: "verdict-mid" };
   if (p.sessions < 2) return { key: "new", text: "Первый замер — со второго раза вес поведёт журнал", cls: "verdict-mid" };
   if (p.move === "deload") return { key: "deload", text: "Прошлый заход был разгрузочным — максимум на месте", cls: "verdict-mid" };
@@ -443,10 +443,13 @@ export function stateOf(p) {
 
 const num = (v) => String(Math.round(v * 100) / 100).replace(".", ",");
 
+/** Вес облегчённого варианта взят от своего журнала по исходному движению. */
+export const seedFromText = (p) => (p && p.seedFrom ? `от твоих «${String(p.seedFrom.name).toLowerCase()}» −${p.seedFrom.pct}%` : "");
+
 /** Короткая подпись: куда поехал рабочий вес. */
 export function moveLabel(p) {
   if (!p || p.source === "none") return null;
-  if (p.source === "estimate") return { icon: "◎", text: "оценка от базовых лифтов" };
+  if (p.source === "estimate") return { icon: "◎", text: seedFromText(p) || "оценка от базовых лифтов" };
   if (p.source === "manual") return { icon: "✎", text: "вес задан вручную" };
   if (!p.last) return null;
   if (p.last.from === 0) return { icon: "◎", text: `первый замер: ${num(p.last.top)} × ${p.last.topReps}` };

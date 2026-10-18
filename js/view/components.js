@@ -3,7 +3,7 @@ import { CORE_MUSCLES, coverLevel } from "../../data/bodymap.js";
 import { EQUIP, MUSCLES, MUSCLE_ORDER, exById } from "../../data/exercises.js";
 import { EQUIP_ICON } from "../../data/icons-ui.js";
 import { exerciseIcon } from "../../data/icons-exercise.js";
-import { moveLabel } from "../../data/progression.js";
+import { moveLabel, seedFromText } from "../../data/progression.js";
 import { sessionLoad } from "../../data/program.js";
 import { esc, fmt, fmtDate } from "../core/format.js";
 import { plainText } from "../model/theme.js";
@@ -41,7 +41,7 @@ export function weightLabel(ex) {
     return `<span class="badge b-dim">${src && src.bw ? "свой вес" : (ex.wNote || "вес по ощущениям")}</span>`;
   }
   const range = `${fmt(ex.w)} кг`;
-  const mark = ex.wSource === "work" ? `<span class="w-src own" title="посчитано по твоим подходам">★</span>` : `<span class="w-src" title="оценка от базовых лифтов — уточнится после первых подходов">◎</span>`;
+  const mark = ex.wSource === "work" ? `<span class="w-src own" title="посчитано по твоим подходам">★</span>` : `<span class="w-src" title="${seedFromText(ex.wp) || "оценка от базовых лифтов"} — уточнится после первых подходов">◎</span>`;
   const note = { "на каждую руку": "на руку", "на каждую ногу": "на ногу" }[ex.wNote] || ex.wNote;
   return `<span class="badge b-weight">${range} ${mark}</span>${note ? `<span class="badge b-dim">${note}</span>` : ""}`;
 }

@@ -11,6 +11,7 @@ import { applyTheme, backHandler, initRouter, render } from "./controller/router
 import { initKeyboard } from "./controller/keyboard.js";
 import { showAchievementToast } from "./controller/overlays.js";
 import { openProfileWizard } from "./controller/onboarding.js";
+import { runOneOffs } from "./model/oneoff.js";
 import { hasProfile } from "./model/profile.js";
 import { checkAchievements, onAchievements } from "./model/achievements.js";
 import { S, save, onSaved } from "./model/store.js";
@@ -42,6 +43,8 @@ render();
 // спрашивали бы, какую версию оставить. Сохраняем, только если что-то изменилось.
 initSync().finally(() => {
   const before = JSON.stringify(S);
+  // разовые правки по просьбе атлета — после сверки, чтобы лечь на свежий журнал
+  runOneOffs();
   checkAchievements({ type: "silent" }, { silent: true });
   if (JSON.stringify(S) !== before) { save(); render(); }
   // Профиль спрашиваем после сверки: на новом телефоне он приедет с сервера вместе с журналом

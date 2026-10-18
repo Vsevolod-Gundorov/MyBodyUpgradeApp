@@ -60,7 +60,18 @@ export function movementHistory() {
 
 // Стартовая оценка 1ПМ от базовых лифтов: чем двигаться, пока по движению нет подходов.
 export function seed1RM(src) {
-  if (!src || !src.k) return 0;
+  if (!src) return 0;
+  // облегчённый вариант движения (from + fk): есть журнал по исходному — от его рабочего
+  // максимума с поправкой. Так «сгибания без ягодиц» всегда легче твоих же обычных сгибаний
+  if (src.from) {
+    const sib = exById(src.from);
+    const hist = sib ? movementHistory()[sib.lift || sib.id] : null;
+    if (hist && hist.length) {
+      const p = progressOf(sib, { reps: [8, 10], rir: 1 });
+      if (p && p.work1RM > 0) return p.work1RM * (src.fk || 1);
+    }
+  }
+  if (!src.k) return 0;
   const e = athleteE1RM();
   const refKey = src.ref || "bench";
   const refVal = e[refKey] || baselines()[refKey] || 0;
@@ -71,12 +82,27 @@ export function seed1RM(src) {
 export function progressOf(src, { reps = [8, 10], rir = 1, prog = 0, sets = 1, rest = 0, feel = "norm", deload = false, prior = 0, ease = 1 } = {}) {
   if (!src) return null;
   const key = src.lift || src.id;
-  return progressionOf(movementHistory()[key] || [], {
+  const o = { reps, rir, prog, sets, rest, feel, deload, prior, ease };
+  const p = progressionOf(movementHistory()[key] || [], {
     reps, rir, equip: src.equip, prog, seed: seed1RM(src),
     sets, tier: src.tier || 2, rest: rest || 0, feel, deload, prior, ease,
     bodyweight: currentWeight(), bw: !!src.bw, perHand: !!src.perHand,
     reset: (S.workReset || {})[key] || null,
   });
+  // облегчённый вариант без своего журнала: на тренажёре с шагом 5 кг разница в 15%
+  // может съесться округлением — тогда ставим на шаг ниже исходного движения.
+  // Свои подходы появятся — вес поведёт журнал, а не это правило
+  if (src.from && p && p.source === "estimate" && p.target > 0) {
+    const sib = progressOf(exById(src.from), o);
+    // откуда вес — для подписи: «от твоих сгибаний лёжа −15%»
+    if (sib && sib.source !== "estimate") p.seedFrom = { name: (exById(src.from) || {}).short || src.from, pct: Math.round((1 - (src.fk || 1)) * 100) };
+    if (sib && sib.source !== "estimate" && sib.target > 0 && p.target >= sib.target) {
+      const step = p.step || 2.5;
+      p.target = Math.max(step, sib.target - step);
+      if (p.floor && p.floor >= p.target) p.floor = 0;
+    }
+  }
+  return p;
 }
 
 // добавить к упражнению рабочий вес под атлета (с учётом прогрессии недели)
