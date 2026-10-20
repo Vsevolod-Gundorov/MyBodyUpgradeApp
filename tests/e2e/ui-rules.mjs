@@ -1,4 +1,5 @@
-// Проверка правил интерфейса (docs/UI_RULES.md, «Проверка перед выкладкой») на профиле:
+// Проверка правил интерфейса (docs/UI_RULES.md, «Проверка перед выкладкой») на профиле,
+// экране тренировок и в разделе «Растяжка» (главная и тренировка с раскрытым упражнением):
 //   • «Питание» — таблица: ячейки строки на одной линии, строки ≤ 32 px, без пустых заглушек;
 //   • содержимое не выходит за края карточек, подписи не обрезаны;
 //   • заголовки блоков — 40 px, кнопка — по центру той же строки;
@@ -25,8 +26,28 @@ for (const theme of ["plain", "saga"]) for (const width of [360, 390, 430]) {
   const p = await ctx.newPage();
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
   await p.goto(`${BASE}/#profile`); await p.waitForTimeout(1200);
-  const r = await p.evaluate(() => {
+  const r = await p.evaluate(audit, true);
+  // тренировки → растяжка → тренировка A с раскрытым упражнением
+  await p.evaluate(() => document.querySelector('.tab[data-view="cycle"]').click()); await p.waitForTimeout(900);
+  r.push(...(await p.evaluate(audit, false)).map((m) => `тренировки: ${m}`));
+  await p.click("#open-stretch"); await p.waitForTimeout(900);
+  r.push(...(await p.evaluate(audit, false)).map((m) => `растяжка: ${m}`));
+  await p.click('[data-sw="A"]'); await p.waitForTimeout(900);
+  await p.click('[data-open="a8"]'); await p.waitForTimeout(200);
+  r.push(...(await p.evaluate(audit, false)).map((m) => `растяжка A: ${m}`));
+  [...errs, ...r].forEach((m) => fails.push(`${theme} ${width}: ${m}`));
+  console.log(`${r.length || errs.length ? "FAIL" : "ok  "} ${theme} ${width}`);
+  await ctx.close();
+}
+await b.close();
+fails.forEach((f) => console.log("  " + f));
+console.log(fails.length ? `\nнарушений: ${fails.length}` : "\nправила интерфейса соблюдены");
+process.exit(fails.length ? 1 : 0);
+
+/** Сверка открытого экрана. profile — ещё и таблица «Питания». Выполняется в браузере. */
+function audit(profile) {
     const bad = [];
+    if (profile) {
     // «Питание» — таблица: у каждой строки все ячейки на одной линии, строки не выше 32 px,
     // заглушек (пустых шкал) нет — симметрия строится структурой, а не пустыми элементами
     const tbl = document.querySelector(".pfn-tbl");
@@ -42,11 +63,12 @@ for (const theme of ["plain", "saga"]) for (const width of [360, 390, 430]) {
       }
     }
     if (document.querySelector(".pfn-bar")) bad.push("пустые шкалы-заглушки");
+    }
     document.querySelectorAll(".pf-card, .panel").forEach((el) => {
       const box = el.getBoundingClientRect();
       if ([...el.querySelectorAll("*")].some((c) => { const q = c.getBoundingClientRect(); return q.width && (q.right > box.right + 0.5 || q.left < box.left - 0.5); })) bad.push(`вылезает за край: ${el.className}`);
     });
-    document.querySelectorAll(".pfn-c, .pf-v, .pf-l, .blk-title, .pf-chip").forEach((t) => { if (t.scrollWidth > t.clientWidth + 1) bad.push(`обрезано: ${t.textContent.trim()}`); });
+    document.querySelectorAll(".pfn-c, .pf-v, .pf-l, .blk-title, .pf-chip, .sx-k, .sx-v, .sx-tile-t, .sx-tile-m, .sx-tile-s, .sx-chip, .qhead-title").forEach((t) => { if (t.scrollWidth > t.clientWidth + 1) bad.push(`обрезано: ${t.textContent.trim()}`); });
     document.querySelectorAll(".blk-head").forEach((h) => {
       const hb = h.getBoundingClientRect(), t = h.querySelector(".blk-title").getBoundingClientRect();
       if (Math.round(hb.height) !== 40) bad.push(`заголовок блока ${Math.round(hb.height)} px`);
@@ -55,12 +77,4 @@ for (const theme of ["plain", "saga"]) for (const width of [360, 390, 430]) {
     });
     document.querySelectorAll("#app button").forEach((bt) => { const q = bt.getBoundingClientRect(); if (q.width && (q.height < 40 || q.width < 40)) bad.push(`мелкая кнопка ${bt.id || bt.className} ${Math.round(q.width)}×${Math.round(q.height)}`); });
     return bad;
-  });
-  [...errs, ...r].forEach((m) => fails.push(`${theme} ${width}: ${m}`));
-  console.log(`${r.length || errs.length ? "FAIL" : "ok  "} ${theme} ${width}`);
-  await ctx.close();
 }
-await b.close();
-fails.forEach((f) => console.log("  " + f));
-console.log(fails.length ? `\nнарушений: ${fails.length}` : "\nправила интерфейса соблюдены");
-process.exit(fails.length ? 1 : 0);

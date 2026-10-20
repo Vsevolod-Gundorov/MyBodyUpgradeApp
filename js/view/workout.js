@@ -14,7 +14,7 @@ export function restBarView() {
   return `
       <div class="rest-prog"><i></i></div>
       <div class="rest-row">
-        <span class="rest-label">Отдых · <b id="rest-time">0:00</b><span class="rest-note dim small" id="rest-note"></span></span>
+        <span class="rest-label"><span id="rest-lbl">Отдых</span> · <b id="rest-time">0:00</b><span class="rest-note dim small" id="rest-note"></span></span>
         <div class="rest-ctl">
           <button id="rest-minus" aria-label="Меньше 15 с">−15</button>
           <button id="rest-plus" aria-label="Больше 15 с">+15</button>

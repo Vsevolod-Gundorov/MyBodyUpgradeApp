@@ -40,6 +40,8 @@ const RU = {
   manualNorms: "Нормы заданы вручную",
   all: "Все",
 
+  stretch: "Растяжка",
+
   // настройки
   settings: "Настройки",
   back: "Назад",
@@ -101,6 +103,8 @@ const EN = {
   g: "g",
   manualNorms: "Targets set manually",
   all: "All",
+
+  stretch: "Stretching",
 
   settings: "Settings",
   back: "Back",

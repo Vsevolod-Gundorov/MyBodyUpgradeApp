@@ -18,18 +18,23 @@ export function ensureRestBar() {
     b.id = "rest-bar"; b.className = "rest-bar";
     b.innerHTML = restBarView();
     overlayRoot.appendChild(b);
-    b.querySelector("#rest-minus").onclick = () => { if (restState) { restState.endAt -= 15000; restState.total = Math.max(15, restState.total - 15); remindRest(restState.endAt, restState.note); tickRest(); fxTap(); } };
-    b.querySelector("#rest-plus").onclick = () => { if (restState) { restState.endAt += 15000; restState.total += 15; remindRest(restState.endAt, restState.note); tickRest(); fxTap(); } };
+    b.querySelector("#rest-minus").onclick = () => { if (restState) { restState.endAt -= 15000; restState.total = Math.max(15, restState.total - 15); if (restState.remind) remindRest(restState.endAt, restState.note); tickRest(); fxTap(); } };
+    b.querySelector("#rest-plus").onclick = () => { if (restState) { restState.endAt += 15000; restState.total += 15; if (restState.remind) remindRest(restState.endAt, restState.note); tickRest(); fxTap(); } };
     b.querySelector("#rest-skip").onclick = () => stopRest();
   }
   return b;
 }
 
-export function startRest(sec, note) {
-  restState = { endAt: Date.now() + sec * 1000, total: sec, note: note || "" };
-  // бот напомнит в Телеграме, если приложение свернут (настройка «Конец отдыха»)
-  remindRest(restState.endAt, note);
+/**
+ * Запустить таймер. label — что отсчитываем («Отдых», «Поза»); remind: false — без сообщения
+ * бота: удержание позы в растяжке короткое, и напоминание о начале подхода там не к месту.
+ */
+export function startRest(sec, note, { label = "Отдых", remind = true } = {}) {
+  restState = { endAt: Date.now() + sec * 1000, total: sec, note: note || "", remind };
+  // бот напомнит в Телеграме, если приложение свернуто (настройка «Уведомления о начале подхода»)
+  if (remind) remindRest(restState.endAt, note); else cancelRestRemind();
   const b = ensureRestBar(); b.classList.remove("done");
+  const lbl = b.querySelector("#rest-lbl"); if (lbl) lbl.textContent = label;
   document.body.classList.add("resting");
   const noteEl = b.querySelector("#rest-note"); if (noteEl) noteEl.textContent = note ? ` · ${note}` : "";
   fxTap();

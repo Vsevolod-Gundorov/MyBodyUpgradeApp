@@ -53,6 +53,20 @@ export function setBackButton(visible) {
   safe(() => (visible ? tg.BackButton.show() : tg.BackButton.hide()));
 }
 
+/**
+ * Открыть внешнюю ссылку: в Телеграме — его браузером (мини-приложение остаётся открытым),
+ * вне — новой вкладкой без доступа к нашей странице. Только https и только из списка хостов.
+ */
+const EXTERNAL_HOSTS = new Set(["www.youtube.com"]);
+export function openExternal(url) {
+  let u;
+  try { u = new URL(url); } catch (e) { return false; }
+  if (u.protocol !== "https:" || !EXTERNAL_HOSTS.has(u.hostname)) return false;
+  if (inTelegram && tg.openLink) { safe(() => tg.openLink(u.href)); return true; }
+  if (typeof window !== "undefined") window.open(u.href, "_blank", "noopener,noreferrer");
+  return true;
+}
+
 /** Хаптика Телеграма вместо navigator.vibrate — на iOS вибрация иначе не работает. */
 export function tgHaptic(pattern) {
   if (!inTelegram || !tg.HapticFeedback) return false;
