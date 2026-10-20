@@ -4,12 +4,13 @@ import { DELOAD } from "../../data/progression.js";
 import { esc, fmtTonn, plural } from "../core/format.js";
 import { ORDER } from "../model/catalog.js";
 import { S } from "../model/store.js";
+import { T } from "../model/settings.js";
 import { L, questName, themeNow } from "../model/theme.js";
 import { workoutOf } from "../model/training.js";
 import { num, vcls } from "./components.js";
 import { icon } from "./icons.js";
 
-export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen }) {
+export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen, stretch }) {
   return `
     <div class="bar">
       <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>${L("pool")}</span></button>
@@ -18,6 +19,13 @@ export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen
         <button class="icon-btn" id="cycle-help" aria-label="О цикле">${icon("help")}</button>
       </span>
     </div>
+    <button class="pf-row sx-entry" id="open-stretch">
+      <span class="pf-ico">${icon("lotus")}</span>
+      <span class="pf-l">${T("stretch")}</span>
+      <span class="sx-entry-v"><span class="mono">Н${stretch.week}</span>${stretch.ids.map((id) =>
+        `<span class="sx-ab ${stretch.done.has(id) ? "on" : ""}">${stretch.done.has(id) ? "✓ " : ""}${id}</span>`).join("")}</span>
+      <span class="pf-chev" aria-hidden="true">›</span>
+    </button>
     ${PROGRAM.weeks.map((wk) => {
       const st = wk.workouts.filter((w) => w.type === "strength").length;
       const vol = wk.workouts.length - st;

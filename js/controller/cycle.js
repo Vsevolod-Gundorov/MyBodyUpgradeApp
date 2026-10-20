@@ -1,11 +1,14 @@
 // Контроллер экрана цикла (список квестов).
 import { PROGRAM, tonnageTrend, weekOfId } from "../../data/program.js";
+import { STRETCH_ORDER } from "../../data/stretch.js";
 import { showInfo, showSessionDetail } from "./overlays.js";
 import { renderPool } from "./pool.js";
+import { renderStretch } from "./stretch.js";
 import { render, withLoader } from "./router.js";
 import { renderWorkout } from "./workout.js";
 import { ORDER } from "../model/catalog.js";
 import { S, save } from "../model/store.js";
+import { doneThisWeek, stretchNow } from "../model/stretch.js";
 import { nextWorkoutId } from "../model/training.js";
 import { app } from "../view/dom.js";
 import { fxTap } from "../view/fx.js";
@@ -27,7 +30,9 @@ export function renderCycle() {
   // «я себя перегружаю» раньше, чем это почувствуют колени
   const TONN = {};
   tonnageTrend(S.sessions, { bodyweight: S.hero.bodyweight || 90 }).forEach((t) => (TONN[t.n] = t));
-  app.innerHTML = cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen });
+  const sx = stretchNow();
+  const stretch = { week: sx.week, ids: STRETCH_ORDER, done: doneThisWeek(sx) };
+  app.innerHTML = cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen, stretch });
 
   document.getElementById("pick-start").onclick = () => { pickStart = !pickStart; fxTap(); renderCycle(); };
   app.querySelectorAll(".week-head").forEach((h) => h.onclick = () => {
@@ -47,6 +52,7 @@ export function renderCycle() {
     body: cycleHelpView(),
   });
   document.getElementById("open-pool").onclick = () => withLoader(() => renderPool());
+  document.getElementById("open-stretch").onclick = () => withLoader(() => renderStretch());
 
   app.querySelectorAll(".wcard").forEach((c) => c.addEventListener("click", () => withLoader(() => renderWorkout(c.dataset.w))));
   app.querySelectorAll(".verdict-chip.clickable").forEach((ch) => ch.addEventListener("click", (e) => { e.stopPropagation(); showSessionDetail(ch.dataset.sid); }));

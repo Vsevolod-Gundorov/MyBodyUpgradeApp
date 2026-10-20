@@ -2137,3 +2137,93 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 .pf-edit, .pf-sq { position: relative; width: 40px; height: 40px; }
 .pf-edit::after, .pf-sq::after, .blk-link::after { content: ""; position: absolute; inset: -2px; }
 .blk-link { position: relative; }
+
+/* ---------- растяжка (Тренировки → Растяжка) ---------- */
+/* вход в раздел — строка списка под панелью: значок, название, неделя и A/B этой недели */
+.sx-entry { margin: 0 0 10px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.sx-entry .pf-l { flex: 1 1 auto; }
+.sx-entry-v { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--dim); white-space: nowrap; }
+.sx-ab { display: inline-grid; place-content: center; min-width: 28px; height: 24px; padding: 0 7px; border-radius: 8px;
+  border: 1px solid var(--line); color: var(--dim); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sx-ab.on { color: var(--gold-bright); border-color: var(--line-strong); background: rgba(var(--t-acc-b),.12); }
+
+.sx-sec { padding-bottom: 8px; }
+/* полоса недель цикла: прошедшие — тише, текущая — акцентом */
+.sx-weeks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin: 0 0 4px; }
+.sx-wk { height: 28px; display: grid; place-content: center; border-radius: 8px; border: 1px solid var(--line);
+  font-size: .82rem; font-weight: 600; color: var(--dim); font-variant-numeric: tabular-nums; }
+.sx-wk.past { background: rgba(var(--t-acc-b),.08); color: var(--gold); }
+.sx-wk.on { background: rgba(var(--t-acc-b),.2); border-color: var(--gold); color: var(--gold-bright); }
+
+/* строка «подпись — значение»: одна линия, значок слева, число справа */
+.sx-kv { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 2px 0;
+  border-top: 1px solid rgba(var(--t-acc-c),.12); background: none; border-left: 0; border-right: 0; border-bottom: 0;
+  color: inherit; font: inherit; text-align: left; }
+.sx-weeks + .sx-kv, .blk-head + .sx-kv { border-top: 0; }
+.sx-k { flex: 1 1 auto; min-width: 0; font-size: .9rem; white-space: nowrap; }
+.sx-v { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; font-size: .84rem; color: var(--bone); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sx-test { min-height: 44px; cursor: pointer; }
+.sx-test:active { background: rgba(255,255,255,.03); }
+.sx-d { font-style: normal; font-size: .76rem; font-weight: 600; }
+.sx-d.up { color: var(--moss); }
+.sx-d.down { color: var(--ember); }
+.sx-sign { display: inline-block; min-width: 1.1em; text-align: center; color: var(--gold-bright); font-weight: 600; }
+.sx-hd { display: flex; align-items: center; gap: 8px; }
+
+/* A | B — две одинаковые плитки */
+.sx-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sx-tile { display: grid; justify-items: start; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+  background: rgba(0,0,0,.2); color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.sx-tile:active { transform: scale(.97); }
+.sx-tile.done { border-color: var(--line-strong); background: rgba(var(--t-acc-b),.08); }
+.sx-tile-ico { width: 34px; height: 34px; margin-bottom: 4px; border-radius: 10px; display: grid; place-content: center;
+  background: rgba(var(--t-acc-b),.1); border: 1px solid var(--line); color: var(--gold-bright); }
+.sx-tile-ico .ico { width: 20px; height: 20px; }
+.sx-tile-t { font-size: 1rem; font-weight: 650; white-space: nowrap; }
+.sx-tile-m { font-size: .76rem; color: var(--dim); white-space: nowrap; }
+.sx-tile-s { margin-top: 4px; font-size: .82rem; font-weight: 600; color: var(--gold); white-space: nowrap; }
+.sx-tile.done .sx-tile-s { color: var(--moss); }
+.sx-warn { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: .8rem; color: var(--ember); }
+.sx-warn .ico { flex: 0 0 auto; width: 16px; height: 16px; }
+
+/* упражнение: отметка, название с дозой недели, таймер позы */
+.sx-item { border-top: 1px solid rgba(var(--t-acc-c),.12); }
+.blk-head + .sx-item { border-top: 0; }
+.sx-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.sx-chk { position: relative; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-content: center;
+  border: 2px solid var(--line-strong); background: none; color: #241a08; font: inherit; font-size: 1rem; font-weight: 700; cursor: pointer; padding: 0; }
+.sx-chk::after { content: ""; position: absolute; inset: -2px; }
+.sx-chk:active { transform: scale(.94); }
+.sx-item.on .sx-chk { background: var(--gold); border-color: var(--gold); }
+.sx-body { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sx-name { font-size: .92rem; font-weight: 500; }
+.sx-item.on .sx-name { color: var(--dim); }
+.sx-dose { display: flex; flex-wrap: wrap; gap: 4px; }
+.sx-chip { font-size: .72rem; line-height: 1.2; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+.sx-chip.main { color: var(--bone); border-color: var(--line-strong); font-variant-numeric: tabular-nums; }
+.sx-chip.pf { color: var(--teal); border-color: rgba(var(--t-sec),.4); }
+.sx-more { padding: 0 0 10px 50px; }
+.sx-more p { margin: 0 0 8px; font-size: .84rem; line-height: 1.4; color: var(--dim); }
+.sx-video { display: inline-flex; align-items: center; }
+#sx-finish { margin: 6px 0 0; }
+#sx-finish:disabled { opacity: .45; cursor: default; }
+
+/* ввод теста: крупное число между кнопками ± */
+.sx-step { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 0 0 14px; }
+.sx-step .pf-sq { font-size: 1.3rem; font-weight: 600; }
+.sx-num { display: grid; justify-items: center; min-width: 96px; }
+.sx-num b { font-size: 2rem; line-height: 1.1; color: var(--bone); }
+.sx-num i { font-style: normal; font-size: .78rem; color: var(--dim); }
+.qhead .qhead-title.sx-qt { flex: 1 1 auto; }
+.sx-v b { font-weight: 600; }
+.sx-save { margin: 0 0 8px; }
+.sx-stop { margin-top: 10px; font-size: .84rem; color: var(--ember); }
+
+/* нажимаемое — не меньше 40 px видимо и 44 px зоной касания (docs/UI_RULES.md, п. 4) */
+.icon-btn { position: relative; width: 40px; height: 40px; }
+.icon-btn::after { content: ""; position: absolute; inset: -2px; }
+.pill-btn { min-height: 40px; }
+.week-head { min-height: 40px; }
+.wcard-wrap .wcard { padding-right: 56px; }
+.wflag { width: 40px; height: 40px; border-radius: 10px; }
+.wflag .ico { width: 17px; height: 17px; }

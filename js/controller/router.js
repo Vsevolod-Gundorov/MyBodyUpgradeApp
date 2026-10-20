@@ -8,6 +8,7 @@ import { renderProfile } from "./profile.js";
 import { renderProgress } from "./progress.js";
 import { renderResources } from "./resources.js";
 import { renderSettings } from "./settings.js";
+import { renderStretch } from "./stretch.js";
 import { buffsActionable } from "../model/buffs.js";
 import { S, save } from "../model/store.js";
 import { displayNow, syncDisplayMirror } from "../model/settings.js";
@@ -90,7 +91,7 @@ export function withLoader(action) {
   }, 440);
 }
 
-export let cycleSub = null; // подстраница раздела квестов: null | "pool"
+export let cycleSub = null; // подстраница раздела квестов: null | "pool" | "stretch"
 // Экран и подстраницу меняют и другие контроллеры (выход из квеста, из арсенала):
 // импортированную переменную снаружи не переприсвоить, поэтому — через сеттеры.
 export function setView(v) { view = v; }
@@ -121,7 +122,7 @@ export function render() {
   updateBuffBadge();
   window.scrollTo(0, 0);
   if (view === "profile") { if (profileSub === "settings") renderSettings(); else renderProfile(); }
-  else if (view === "cycle") { if (cycleSub === "pool") renderPool(); else renderCycle(); }
+  else if (view === "cycle") { if (cycleSub === "pool") renderPool(); else if (cycleSub === "stretch") renderStretch(); else renderCycle(); }
   else if (view === "buffs") renderBuffs();
   else if (view === "resources") renderResources();
   else if (view === "progress") renderProgress();
