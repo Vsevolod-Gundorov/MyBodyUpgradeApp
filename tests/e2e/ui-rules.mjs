@@ -8,12 +8,16 @@
 // Запуск: статический сервер на 127.0.0.1:8765 (python3 -m http.server 8765) и node tests/e2e/ui-rules.mjs
 import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
 
+import { PROGRAM } from "../../data/program.js";
+const FIRST = PROGRAM.weeks[0].workouts[0].id;
 const BASE = process.env.BASE || "http://127.0.0.1:8765";
 const today = new Date().toISOString().slice(0, 10);
 const state = (theme) => ({
   hero: { name: "Атлет", bodyweight: 90 }, sessions: [], settings: { theme, sound: false, haptics: false, offSearch: false },
   profile: { sex: "m", birthYear: 1994, height: 180, activity: "moderate", direction: "cut", pace: "normal", program: "balanced", custom: null,
     experience: "intermediate", adjust: 0, override: null, maxes: { bench: 100, squat: 130, deadlift: 160, ohp: 60 }, maxesSource: "estimated" },
+  // перенесённая тренировка: карточка стоит первой на экране тренировок
+  carry: { "c-uirules1": { from: FIRST, date: today, plan: { swap: {}, add: [], hide: [] } } },
   nutrition: { log: { [today]: { dayType: "training", items: [{ n: "Курица", g: 300, k: 165, p: 31, f: 3.6, cb: 0 }, { n: "Рис", g: 250, k: 130, p: 2.7, f: 0.3, cb: 28 }], water: 500 } } },
 });
 

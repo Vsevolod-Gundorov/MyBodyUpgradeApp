@@ -2227,3 +2227,16 @@ html[data-lift]::before { background: rgb(var(--lift, 0), var(--lift, 0), var(--
 .wcard-wrap .wcard { padding-right: 56px; }
 .wflag { width: 40px; height: 40px; border-radius: 10px; }
 .wflag .ico { width: 17px; height: 17px; }
+
+/* ---------- добор: тренировка из недоделанного ---------- */
+.wcard.carry { border-style: dashed; border-color: var(--line-strong); }
+.v-note { margin-top: 8px; font-size: .86rem; color: var(--gold-bright); }
+.fin-card .portion-name { margin-bottom: 8px; }
+.fin-list { margin: 0 0 6px; }
+.fin-row { display: flex; align-items: center; gap: 10px; min-height: 44px; text-align: left; border-top: 1px solid rgba(var(--t-acc-c),.12); }
+.fin-row:first-child { border-top: 0; }
+.fin-name { flex: 1 1 auto; min-width: 0; font-size: .9rem; }
+.fin-sets { flex: 0 0 auto; font-size: .8rem; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fin-card .toggle-row { min-height: 44px; border-top: 1px dashed var(--line); border-bottom: 0; }
+.fin-card .finish-btn { margin-top: 10px; }
+.fin-card .btn-ghost { margin-top: 8px; }

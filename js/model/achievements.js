@@ -70,7 +70,7 @@ export function buffStats() {
 
 export function buildAchievementCtx(event) {
   const h = heroStats();
-  const cur = S.sessions.filter((x) => ORDER.includes(x.workoutId));
+  const cur = S.sessions.filter((x) => ORDER.includes(x.workoutId) && !x.carry);   // добор — не новое прохождение
   const perQuest = Object.fromEntries(ORDER.map((id) => [id, cur.filter((x) => x.workoutId === id).length]));
   // квесты по типу сессии: «сага» закрывается, когда пройдены все силовые (или все объёмные) квесты цикла
   const typeIds = (type) => PROGRAM.weeks.flatMap((wk) => wk.workouts.filter((w) => w.type === type).map((w) => w.id));
