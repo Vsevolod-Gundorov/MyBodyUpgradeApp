@@ -192,7 +192,7 @@ export function liftListView({ groups, openG, openK, q }) {
 export function sessionLogView({ rows, more }) {
   return rows.length
     ? rows.map((s) => `<button class="log-row" data-sid="${esc(s.id)}">
-        <span>${esc(questName(WORKOUTS[s.workoutId]) || s.workoutId)}</span>
+        <span>${esc(questName(WORKOUTS[s.workoutId]) || s.workoutId)}${s.carry ? ` <span class="badge b-next">перенос</span>` : ""}</span>
         <span class="dim mono small">${fmtDate(s.date)}</span>
         <span class="${vcls(s.cls)} mono">${num(s.score)}% ›</span></button>`).join("") +
       (more ? `<button class="link-btn log-more" id="log-more">Показать все · ${more}</button>` : "")

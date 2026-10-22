@@ -159,7 +159,7 @@ export function achievementToastView({ u }) {
   return `${achMedallion(u.ach)}<span class="at-body"><span class="eyebrow">${u.isNew ? L("achNew") : L("achAgain")} · ${tierName(u.ach.tier)}</span><b>${AN(u.ach)}${u.count > 1 ? ` <span class="ach-count">×${u.count}</span>` : ""}</b></span>`;
 }
 
-export function verdictView({ badges, bright, durationSec, gold, res }) {
+export function verdictView({ badges, bright, durationSec, gold, note = "", res }) {
   return `
     <div>
       <div class="seal"><svg viewBox="0 0 100 100">
@@ -170,6 +170,7 @@ export function verdictView({ badges, bright, durationSec, gold, res }) {
       <div class="v-title ${res.cls}">${res.verdict}</div>
       <div class="v-sub">${res.flavor}</div>
       <div class="v-xp">Счёт ${res.score}% · подходы ${res.doneSets}/${res.plannedSets}${plainNow() ? "" : ` · +${res.xp} XP`}${durationSec ? ` · ⏱ ${fmtDuration(durationSec)}` : ""}</div>
+      ${note ? `<div class="v-note">${esc(note)}</div>` : ""}
       ${badges}
       <button class="v-close">${L("vBack")}</button>
     </div>`;
@@ -179,7 +180,7 @@ export function sessionDetailView({ rows, s, w }) {
   return `
     <div class="portion-card sd-card">
       <div class="eyebrow">${L("lastQuest")} · ${fmtDate(s.date)}</div>
-      <div class="portion-name display">${esc(w ? questName(w) : s.workoutId)}</div>
+      <div class="portion-name display">${esc(w ? questName(w) : s.workoutId)}${s.carry ? " · перенос" : ""}</div>
       <div class="sd-verdict ${vcls(s.cls)} mono">${num(s.score)}%${plainNow() ? "" : ` · +${num(s.xp)} XP`}${s.durationSec ? ` · ⏱ ${fmtDuration(s.durationSec)}${durationTrusted(s) ? "" : "<span class=\"dim\"> (старый таймер)</span>"}` : ""}${w && w.title && w.title !== questName(w) ? ` · ${w.title}` : ""}</div>
       <div class="sd-list">${rows || `<div class="empty">Подходы не записаны.</div>`}</div>
       <button class="btn-ghost" id="sd-close">Закрыть</button>

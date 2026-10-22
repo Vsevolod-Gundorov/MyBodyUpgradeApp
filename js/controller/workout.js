@@ -10,15 +10,15 @@ import { today } from "../core/format.js";
 import { saferAlternatives } from "../../data/complaints.js";
 import { checkAchievements } from "../model/achievements.js";
 import { activeNow, answerCheck, exNote, takeNotes, toCheck } from "../model/health.js";
-import { WEEK_OF, planOf, setPlan } from "../model/catalog.js";
+import { WEEK_OF, dropCarry, makeCarry, planEdited, planOf, resetPlan, setPlan } from "../model/catalog.js";
 import { markTrainingDay } from "../model/nutrition.js";
 import { S, save } from "../model/store.js";
 import { L, questName } from "../model/theme.js";
 import { bestE1RM, feelToday, invalidateE1RM, lastDone, repZone, scoreSession, setFeelToday, smartRest, spaceFor, workoutOf } from "../model/training.js";
-import { app } from "../view/dom.js";
+import { app, overlayRoot } from "../view/dom.js";
 import { fxTap } from "../view/fx.js";
 import { openComplaints, openExerciseNote } from "./health.js";
-import { countView, dotsView, exerciseCardView, healthBoxView, roundLabelView, roundRowView, setRowView, supersetCardView, workoutHelpView, workoutView } from "../view/workout.js";
+import { countView, dotsView, exerciseCardView, finishSheetView, healthBoxView, roundLabelView, roundRowView, setRowView, supersetCardView, workoutHelpView, workoutView } from "../view/workout.js";
 
 export let questTimerId = null;         // интервал часов квеста (перерисовывается на каждый render)
 
@@ -29,7 +29,9 @@ export function renderWorkout(wid) {
   if (!w) { setView("cycle"); render(); return; }
   const entries = S.drafts[wid] || {};
   // предзаполнение из последней сессии этого workout
-  const lastSession = [...S.sessions].reverse().find((s) => s.workoutId === wid);
+  // прошлый раз по движению: последняя сессия этой тренировки, где оно записано
+  // (тренировку могли разбить на две части — тогда движение в одной из них)
+  const lastOf = (exId) => [...S.sessions].reverse().find((s) => s.workoutId === (w.carryOf || wid) && s.entries && s.entries[exId]);
 
   // таймер квеста идёт по отметкам активности, а не с момента открытия экрана:
   // заглянуть в состав днём и потренироваться вечером — это не шестичасовая тренировка
@@ -39,7 +41,7 @@ export function renderWorkout(wid) {
 
   const sl = sessionLoad(w.exercises);
   const LOAD_TXT = { low: "лёгкий", mid: "средний", high: "тяжёлый" };
-  const wk = WEEK_OF[wid];
+  const wk = WEEK_OF[w.carryOf || wid];
   // концентрация: какой группе в этом квесте достаётся больше всего подходов
   const gl = groupLoad(w.exercises);
   const hot = gl.filter((g) => g.level !== "low");
@@ -275,7 +277,8 @@ export function renderWorkout(wid) {
     }
     function placeholderW(si) {
       // подсказка: цель на сегодня, иначе прошлый раз
-      const was = lastSession && lastSession.entries && lastSession.entries[ex.id] && lastSession.entries[ex.id][si];
+      const ls = lastOf(ex.id);
+      const was = ls && ls.entries[ex.id][si];
       return target || (was && was.w) || (ex.bwOnly ? "0" : "");
     }
     function upd() {
@@ -515,14 +518,12 @@ export function renderWorkout(wid) {
   const firstOpen = list.querySelector(".ex:not(.done)");
   if (firstOpen) openCard(firstOpen, false);
 
-  // вернуть состав по умолчанию, если атлет что-то менял
-  const pl = planOf(wid);
-  if ((pl.hide || []).length || Object.keys(pl.swap || {}).length || (pl.add || []).length
-      || (pl.pair || []).length || (pl.unpair || []).length) {
+  // вернуть состав по умолчанию, если атлет что-то менял (у добора — тот, с которым его собрали)
+  if (planEdited(wid)) {
     const reset = document.createElement("button");
     reset.className = "btn-ghost reset-plan";
     reset.textContent = "↺ Вернуть состав по умолчанию";
-    reset.onclick = () => { delete S.plan[wid]; save(); fxTap(); renderWorkout(wid); };
+    reset.onclick = () => { resetPlan(wid); save(); fxTap(); renderWorkout(wid); };
     list.appendChild(reset);
   }
 
@@ -534,11 +535,31 @@ export function renderWorkout(wid) {
       if (done.length) e[id] = done;
     }
     if (!Object.keys(e).length) { alert(L("questEmpty")); return; }
-    const res = scoreSession(w, e);
+    // не начатые движения можно доделать в другой день: из них соберётся добор
+    const left = w.exercises.filter((ex) => !e[ex.id]);
+    if (!left.length) { closeQuest(e, []); return; }
+    const o = document.createElement("div");
+    o.className = "overlay portion-overlay";
+    o.innerHTML = finishSheetView({ left });
+    overlayRoot.appendChild(o);
+    fxTap();
+    const sw = o.querySelector("#fin-split");
+    sw.onclick = () => { const on = sw.getAttribute("aria-pressed") !== "true"; sw.setAttribute("aria-pressed", String(on)); sw.querySelector(".tg").classList.toggle("on", on); fxTap(); };
+    o.querySelector("#fin-cancel").onclick = () => o.remove();
+    o.addEventListener("click", (ev) => { if (ev.target === o) o.remove(); });
+    o.querySelector("#fin-go").onclick = () => { const split = sw.getAttribute("aria-pressed") === "true"; o.remove(); closeQuest(e, split ? left : []); };
+  };
+
+  /** Закрыть тренировку. carried — несделанные движения, которые уходят в добор. */
+  function closeQuest(e, carried) {
+    const base = w.carryOf || wid;
+    // первая часть оценивается по тому, что в ней осталось: перенесённое — не провал, а план на завтра
+    const done = carried.length ? { ...w, exercises: w.exercises.filter((ex) => !carried.includes(ex)) } : w;
+    const res = scoreSession(done, e);
     // рекорды: лучший расчётный 1ПМ по движениям квеста ДО этой сессии
     const prBefore = {};
     w.exercises.forEach((ex) => { if (ex.lift) prBefore[ex.lift] = Math.max(prBefore[ex.lift] || 0, bestE1RM(ex.lift)); });
-    const firstClear = S.sessions.filter((s) => s.workoutId === wid).length === 0;
+    const firstClear = !w.carryOf && S.sessions.filter((s) => s.workoutId === base && !s.carry).length === 0;
     let tonn = 0; Object.values(e).forEach((arr) => arr.forEach(({ w: wt, r }) => (tonn += (wt || 0) * (r || 0))));
     const durationSec = activeSeconds((S.questTicks && S.questTicks[wid]) || [], { now: Date.now() });
     // пауза перед этим квестом (для «Возвращения») — по дате последней сессии
@@ -547,11 +568,14 @@ export function renderWorkout(wid) {
     const now = new Date();
     // снимок состава: чтобы прошлый квест в «Хрониках» показывал то, что реально делалось
     // rir нужен прогрессии: по нему схемы разных недель пересчитываются друг в друга
-    const snapshot = w.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload, prior: ex.prior || 0, ease: ex.ease ? ex.ease.k : 0 }));
+    const snapshot = done.exercises.map((ex) => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, main: !!ex.main, lift: ex.lift, tier: ex.tier, role: ex.role, deload: !!ex.deload, prior: ex.prior || 0, ease: ex.ease ? ex.ease.k : 0 }));
     markTrainingDay(today());   // нормы питания на сегодня — как для дня тренировки
-    S.sessions.push({ id: crypto.randomUUID(), workoutId: wid, date: today(), at: now.toISOString(), feel: feelToday(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e, ...(() => { const n = takeNotes(wid); return n ? { notes: n } : {}; })() });
+    // добор пишется под исходной тренировкой: тоннаж недели и прогрессия видят обе части
+    S.sessions.push({ id: crypto.randomUUID(), workoutId: base, ...(w.carryOf ? { carry: true } : {}), ...(carried.length ? { split: true } : {}), date: today(), at: now.toISOString(), feel: feelToday(), verdict: res.verdict, cls: res.cls, score: res.score, xp: res.xp, durationSec, timing: "active", exercises: snapshot, entries: e, ...(() => { const n = takeNotes(wid); return n ? { notes: n } : {}; })() });
     S.xp += res.xp;
     invalidateE1RM();
+    const carryId = carried.length ? makeCarry(wid, w.exercises, carried, today()) : null;
+    if (w.carryOf) dropCarry(wid);
     delete S.drafts[wid];
     if (S.questStart) delete S.questStart[wid];
     if (S.questTicks) delete S.questTicks[wid];
@@ -565,11 +589,11 @@ export function renderWorkout(wid) {
       type: "session",
       session: { score: res.score, doneSets: res.doneSets, plannedSets: res.plannedSets, tonn, durationSec,
         prLifts, prDetails, prMain: !!(mainEx && mainEx.lift && prLifts.includes(mainEx.lift)), firstClear,
-        hour: now.getHours(), feel: feelToday(), totalReps, gapDays, workoutId: wid,
+        hour: now.getHours(), feel: feelToday(), totalReps, gapDays, workoutId: base,
         quest: questName(w), timeStr: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
         durationStr: durationSec ? fmtDuration(durationSec) : "" },
     }, { silent: true });
     save();
-    showVerdict(res, awarded, durationSec);
-  };
+    showVerdict(res, awarded, durationSec, carryId ? `Перенесено ${carried.length} упр. — ждут во вкладке «${L("tabQuests")}»` : "");
+  }
 }

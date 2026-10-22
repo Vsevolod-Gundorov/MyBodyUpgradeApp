@@ -40,7 +40,7 @@ export function workoutView({ LOAD_TXT, hot, sl, w, wk }) {
       <span class="medallion medallion--sm">${icon(w.icon || "anvil")}</span>
       <div class="qhead-tb">
         <h2 class="qhead-title display">${questTitle(w)}</h2>
-        <span class="qhead-sub">${[TYPE_NAMES[w.type], wk ? `неделя ${wk.n}` : "", w.wave && themeNow() !== "plain" ? `волна ${w.wave}` : ""].filter(Boolean).join(" · ")}</span>
+        <span class="qhead-sub">${[w.carryOf ? "перенос" : "", TYPE_NAMES[w.type], wk ? `неделя ${wk.n}` : "", w.wave && themeNow() !== "plain" ? `волна ${w.wave}` : ""].filter(Boolean).join(" · ")}</span>
       </div>
       <span class="qtimer mono idle" id="quest-timer" role="timer" aria-label="Время тренировки">${icon("stopwatch")}<b>0:00</b></span>
       <button class="icon-btn" id="q-help" aria-label="${L("questAbout")}">${icon("help")}</button>
@@ -259,5 +259,27 @@ export function complaintsSheetView({ list }) {
         <div class="kv"><span>${AREAS[c.area].name} · ${LEVELS[c.level].name.toLowerCase()}</span>
           <button class="link-btn" data-gone="${esc(c.id)}">Прошло</button></div>`).join("") : `<div class="empty">Жалоб нет.</div>`}
       <button class="btn-ghost" id="cm-close" style="width:100%;margin-top:12px">Готово</button>
+    </div>`;
+}
+
+/**
+ * Завершение, когда часть движений не начата: список несделанного и переключатель
+ * «доделать в другой день» — из них соберётся отдельная тренировка-добор.
+ */
+export function finishSheetView({ left }) {
+  return `
+    <div class="portion-card fin-card">
+      <div class="eyebrow">завершение</div>
+      <div class="portion-name display">Не сделано · ${left.length}</div>
+      <div class="fin-list">
+        ${left.map((ex) => `
+          <div class="fin-row"><span class="pool-ico">${icon(exerciseIcon(ex))}</span>
+            <span class="fin-name">${esc(ex.name)}</span><span class="fin-sets">${ex.sets} × ${ex.reps[0]}–${ex.reps[1]}</span></div>`).join("")}
+      </div>
+      <button class="toggle-row" id="fin-split" aria-pressed="false">
+        <span>Доделать в другой день</span><span class="tg"><i></i></span>
+      </button>
+      <button class="finish-btn" id="fin-go">${L("questOne")}</button>
+      <button class="btn-ghost" id="fin-cancel">Отмена</button>
     </div>`;
 }

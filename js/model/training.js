@@ -3,7 +3,7 @@ import { PROGRAM, SCHEME, TEMPLATES, buildExercises } from "../../data/program.j
 import { FEEL, PROG, asMax, e1rm as e1rmAvg, feelOf, isWarmup, priorSetsOf, progressionOf, restFor, spaceOf } from "../../data/progression.js";
 import { exById, setDone } from "../../data/exercises.js";
 import { epley, fmt, today } from "../core/format.js";
-import { ORDER, WORKOUTS, planOf, sessionExercises } from "./catalog.js";
+import { ORDER, WORKOUTS, carryMeta, planOf, sessionExercises } from "./catalog.js";
 import { easeToday } from "./health.js";
 import { baselines, currentWeight, weightOn } from "./profile.js";
 import { S, save } from "./store.js";
@@ -134,7 +134,7 @@ export function withWeights(ex) {
 
 // собранный квест текущего цикла (или архивный — там список зашит)
 export function workoutOf(wid) {
-  const meta = WORKOUTS[wid];
+  const meta = WORKOUTS[wid] || carryMeta(wid);   // добор собирается из исходной тренировки
   if (!meta) return null;
   if (meta.exercises) return meta;                    // архив
   const tpl = TEMPLATES[meta.tpl];
@@ -198,8 +198,9 @@ export function nextWorkoutId() {
   const n = ORDER.length;
   const start = (((S.cycleStart || 0) % n) + n) % n;
   const rot = ORDER.slice(start).concat(ORDER.slice(0, start));
-  // следующий — с наименьшим числом прохождений, первый в порядке от старта
-  const counts = rot.map((id) => S.sessions.filter((s) => s.workoutId === id).length);
+  // следующий — с наименьшим числом прохождений, первый в порядке от старта.
+  // Добор — вторая часть той же тренировки, а не ещё одно прохождение
+  const counts = rot.map((id) => S.sessions.filter((s) => s.workoutId === id && !s.carry).length);
   const min = Math.min(...counts);
   return rot[counts.indexOf(min)];
 }

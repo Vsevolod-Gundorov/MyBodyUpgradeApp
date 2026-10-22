@@ -138,7 +138,8 @@ export function showAchievementToast(unlocked) {
   fxChime();
 }
 
-export function showVerdict(res, awarded, durationSec) {
+/** Итог тренировки. note — строка под счётом (например, что собран добор). */
+export function showVerdict(res, awarded, durationSec, note = "") {
   const o = document.createElement("div");
   o.className = "overlay verdict-overlay";
   // старшие ранги — первыми
@@ -146,7 +147,7 @@ export function showVerdict(res, awarded, durationSec) {
   const gold = res.cls === "verdict-fail" ? "#c65b3c" : "#e0bd66";
   const bright = res.cls === "verdict-fail" ? "#e0805a" : "#f7dd94";
   const badges = verdictBadgesView({ awarded });
-  o.innerHTML = verdictView({ badges, bright, durationSec, gold, res });
+  o.innerHTML = verdictView({ badges, bright, durationSec, gold, note, res });
   overlayRoot.appendChild(o);
   if (awarded && awarded.length) fxChime(); else { tone(520, 0.18, "sine", 0.04); haptic(20); }
   o.querySelector(".v-close").onclick = () => { o.remove(); withLoader(() => { setView("cycle"); render(); }); };

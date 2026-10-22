@@ -293,7 +293,8 @@ export function sessionLoad(list) {
  * Это единственное число, в котором видно «я себя перегружаю» до того, как это
  * почувствуют колени: план показывает вес в подходе, а не сумму за неделю.
  * Разминка не в счёт, повторный заход в тот же квест заменяет прошлый —
- * считается неделя, а не количество попыток.
+ * считается неделя, а не количество попыток. Добор (carry) — вторая часть
+ * разбитой тренировки: он прибавляется к заходу, а не заменяет его.
  * @param week    неделя программы
  * @param sessions журнал: [{ workoutId, entries: { exId: [{w, r}] } }]
  * @returns { kg, sets, reps, quests, total } — total: сколько квестов в неделе
@@ -301,10 +302,13 @@ export function sessionLoad(list) {
 export function weekTonnage(week, sessions = [], o = {}) {
   const ids = new Set(((week && week.workouts) || []).map((w) => w.id));
   const bodyweight = o.bodyweight || 0;
-  const last = new Map();                       // квест → последний заход
-  (sessions || []).forEach((s) => { if (s && ids.has(s.workoutId)) last.set(s.workoutId, s); });
+  const last = new Map();                       // квест → последний заход (с доборами)
+  (sessions || []).forEach((s) => {
+    if (!s || !ids.has(s.workoutId)) return;
+    if (s.carry && last.has(s.workoutId)) last.get(s.workoutId).push(s); else last.set(s.workoutId, [s]);
+  });
   let kg = 0, sets = 0, reps = 0;
-  last.forEach((s) => {
+  [...last.values()].flat().forEach((s) => {
     Object.entries(s.entries || {}).forEach(([id, arr]) => {
       const src = EX_BY_ID[id];
       const t = tonnageOf(arr, { perHand: !!(src && src.perHand), bw: !!(src && src.bw), bodyweight });

@@ -1,7 +1,7 @@
 // Вид: cycle. Только разметка: данные приходят готовыми из контроллера.
 import { PROGRAM, TYPE_NAMES, sessionLoad, weekProgress } from "../../data/program.js";
 import { DELOAD } from "../../data/progression.js";
-import { esc, fmtTonn, plural } from "../core/format.js";
+import { dateLabel, esc, fmtTonn, plural } from "../core/format.js";
 import { ORDER } from "../model/catalog.js";
 import { S } from "../model/store.js";
 import { T } from "../model/settings.js";
@@ -10,7 +10,7 @@ import { workoutOf } from "../model/training.js";
 import { num, vcls } from "./components.js";
 import { icon } from "./icons.js";
 
-export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen, stretch }) {
+export function cycleView({ LOAD_TXT, TONN, carries, nextId, pickStart, startId, weekOpen, stretch }) {
   return `
     <div class="bar">
       <button class="pill-btn" id="open-pool">${icon("arsenal")}<span>${L("pool")}</span></button>
@@ -26,6 +26,21 @@ export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen
         `<span class="sx-ab ${stretch.done.has(id) ? "on" : ""}">${stretch.done.has(id) ? "✓ " : ""}${id}</span>`).join("")}</span>
       <span class="pf-chev" aria-hidden="true">›</span>
     </button>
+    ${carries.map(({ id, w }) => `
+      <div class="wcard-wrap">
+        <button class="wcard carry" data-w="${id}">
+          <span class="medallion">${icon(w.icon || "anvil")}</span>
+          <span class="wcard-body">
+            <span class="row1"><span class="boss">${questName(w)}</span></span>
+            <span class="badges">
+              <span class="badge b-next">перенос</span>
+              <span class="badge">${w.exercises.length} упр</span>
+              <span class="badge b-dim">${dateLabel(w.carryDate)}</span>
+            </span>
+          </span>
+        </button>
+        <button class="wflag" data-drop="${id}" aria-label="Убрать перенос" title="Убрать перенос">${icon("close")}</button>
+      </div>`).join("")}
     ${PROGRAM.weeks.map((wk) => {
       const st = wk.workouts.filter((w) => w.type === "strength").length;
       const vol = wk.workouts.length - st;
@@ -59,7 +74,7 @@ export function cycleView({ LOAD_TXT, TONN, nextId, pickStart, startId, weekOpen
         </div>`}
         ${wk.workouts.map((w) => {
           const idx = ORDER.indexOf(w.id);
-          const done = S.sessions.filter((s) => s.workoutId === w.id);
+          const done = S.sessions.filter((s) => s.workoutId === w.id && !s.carry);   // добор — часть той же тренировки
           const last = done[done.length - 1];
           const isNext = w.id === nextId;
           const isStart = w.id === startId;
