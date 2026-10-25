@@ -79,6 +79,19 @@ const BY_ID = {
   hyper:    "ex-spine",      // как и наклоны в римском стуле — это разгибание спины
   "back-ext-45": "ex-spine",
   plank:    "ex-plank",      // кор, но статика: тело в упоре, а не скручивание
+  // расширенный пул (data/exercises-more.js)
+  "jefferson-curl": "ex-spine",   // скручивание позвоночника, а не становая
+  "back-ext-machine": "ex-spine",
+  superman: "ex-spine",
+  "glute-bridge": "ex-glutes",    // мосты — работа ягодиц, а не тяга с пола
+  "thrust-machine": "ex-glutes",
+  "sl-thrust": "ex-glutes",
+  "reverse-hyper": "ex-glutes",
+  "side-plank": "ex-plank",       // удержания корпуса — статика
+  copenhagen: "ex-plank",
+  hollow: "ex-plank",
+  "l-sit": "ex-plank",
+  "sled-push": "ex-legs",         // толкание ногами, а не перенос в руках
 };
 
 /** Каким значком показывать движение в списке и в карточке. */

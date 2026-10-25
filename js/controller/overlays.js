@@ -1,6 +1,6 @@
 // Контроллер всплывающих окон: разборы, выборщики, вердикт, достижения.
 import { ACH_BY_ID, CATEGORIES, TIERS, summary as achSummary, cardKey, catHidden } from "../../data/achievements.js";
-import { EXERCISES, MUSCLES, MUSCLE_ORDER, PATTERNS, exById, similarTo } from "../../data/exercises.js";
+import { EXERCISES, MUSCLE_ORDER, exById, searchExercises, similarTo } from "../../data/exercises.js";
 import { METHODS, SCHEME } from "../../data/program.js";
 import { render, setView, withLoader } from "./router.js";
 import { renderWorkout } from "./workout.js";
@@ -109,9 +109,9 @@ export function openPoolPicker({ title, suggest = [], exclude = [], onPick }) {
   const o = document.createElement("div");
   o.className = "overlay portion-overlay";
   const draw = () => {
-    const qq = q.trim().toLowerCase();
-    const match = (ex) => !ban.has(ex.id) && (!qq || ex.name.toLowerCase().includes(qq) ||
-      (MUSCLES[ex.group] || "").toLowerCase().includes(qq) || (PATTERNS[ex.pattern] || "").toLowerCase().includes(qq));
+    // тот же поиск, что в каталоге: по названию, короткому имени, мышце, паттерну и снаряду, «е» = «ё»
+    const found = new Set(searchExercises(q).map((ex) => ex.id));
+    const match = (ex) => !ban.has(ex.id) && found.has(ex.id);
     const sug = suggest.filter(match);
     const rest = MUSCLE_ORDER.map((g) => ({ g, list: EXERCISES.filter((e) => e.group === g && match(e) && !sug.includes(e)) })).filter((x) => x.list.length);
     o.innerHTML = poolPickerView({ q, rest, sug, title });
