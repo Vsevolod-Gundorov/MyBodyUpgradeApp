@@ -16,6 +16,8 @@
 // Это не диагноз и не лечение: острая боль, онемение, отёк — повод к врачу, а не к замене
 // упражнения. Об этом говорит и интерфейс.
 
+import { EXERCISES } from "./exercises.js";
+
 export const LEVELS = {
   mild: { key: "mild", name: "Дискомфорт", note: "ноет, тянет, неприятно" },
   pain: { key: "pain", name: "Боль", note: "болит при движении" },
@@ -53,6 +55,12 @@ export const AREAS = {
     ["deadlift", "rdl", "good-morning", "hip-thrust", "legpress", "hack", "hanging-leg"]),
 };
 export const AREA_ORDER = ["shoulder", "lowback", "knee", "elbow", "wrist", "neck", "hip"];
+
+// движения расширенного пула сами говорят, что грузят (поле load): 2 — сильно, 1 — заметно
+EXERCISES.forEach((ex) => Object.entries(ex.load || {}).forEach(([area, lvl]) => {
+  const a = AREAS[area];
+  if (a && !a.high.has(ex.id) && !a.mid.has(ex.id)) (lvl >= 2 ? a.high : a.mid).add(ex.id);
+}));
 
 // «немного болит» — это дискомфорт: смягчающее слово главнее
 const SOFT = /немного|слегка|чуть|чуточ|ноет|ныл|тянет|тянул|дискомфорт|неприятн|хруст|щ[её]лк|забит|скован|устал|затек|зат[её]к/;

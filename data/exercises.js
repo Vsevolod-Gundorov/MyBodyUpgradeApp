@@ -1,12 +1,13 @@
 // Пул движений: справочник упражнений с паттернами, мышцами и коэффициентами силы.
 // Отсюда собираются квесты (data/program.js) и экран «Арсенал движений».
+import { EXERCISES_MORE } from "./exercises-more.js";
 //
 // Поля:
 //   id        — стабильный ключ (совпадает с ключом в журнале подходов и аналитике)
 //   name      — полное имя, short — короткое для узких мест
 //   group     — основная мышечная группа, also — что работает вторично
 //   pattern   — двигательный паттерн (покрытие проверяется тестами)
-//   equip     — bb | db | machine | cable | bw | bwp (свой вес + довесок)
+//   equip     — bb | db | kb (гиря) | machine | cable | bw | bwp (свой вес + довесок)
 //   tier      — 1 тяжёлая база (длинный отдых), 2 компаунд, 3 изоляция
 //   lift      — базовый лифт для аналитики силы (bench/squat/deadlift/ohp), если это он
 //   from + fk — облегчённый вариант другого движения: есть журнал по движению from — вес берётся
@@ -52,13 +53,14 @@ export const PATTERNS = {
   carry:  "Перенос",
 };
 
-export const EQUIP = { bb: "Штанга", db: "Гантели", machine: "Тренажёр", cable: "Блок", bw: "Свой вес", bwp: "Свой вес + довесок" };
+export const EQUIP = { bb: "Штанга", db: "Гантели", kb: "Гиря", machine: "Тренажёр", cable: "Блок", bw: "Свой вес", bwp: "Свой вес + довесок" };
 // шаг округления рабочего веса
-export const EQUIP_STEP = { bb: 2.5, db: 2, machine: 5, cable: 2.5, bw: 1, bwp: 2.5 };
+export const EQUIP_STEP = { bb: 2.5, db: 2, kb: 4, machine: 5, cable: 2.5, bw: 1, bwp: 2.5 };
 
 const E = (id, name, o) => ({ id, name, tier: 2, ...o });
 
-export const EXERCISES = [
+// основной пул: из него собирается программа цикла
+const EXERCISES_CORE = [
   /* ================= ГРУДЬ ================= */
   E("bench", "Жим штанги лёжа", {
     short: "Жим лёжа", group: "chest", also: ["triceps", "delts"], pattern: "pressH", equip: "bb", tier: 1, cns: 2, lift: "bench", ref: "bench", k: 1,
@@ -415,6 +417,9 @@ export const EXERCISES = [
     cues: ["Плечи вниз-назад, грудь вверх", "Короткие быстрые шаги", "Считать шаги или секунды как повторы"],
   }),
 ];
+
+// весь пул: основной + расширенный (вариации, специфические и домашние движения — data/exercises-more.js)
+export const EXERCISES = [...EXERCISES_CORE, ...EXERCISES_MORE];
 
 export const EX_BY_ID = Object.fromEntries(EXERCISES.map((e) => [e.id, e]));
 export const exById = (id) => EX_BY_ID[id] || null;
